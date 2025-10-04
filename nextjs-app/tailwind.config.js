@@ -9,23 +9,26 @@ module.exports = {
     extend: {
       colors: {
         // Psychočas brand colors
-        'brand-blue': '#007bff',
-        'brand-danger': '#dc3545',
+        'brand-blue': '#1d4f7d',
+        'brand-accent': '#049edb',
+        'brand-success': '#2E7D32',
+        'brand-error': '#C62828',
+        'brand-gray': '#F5F5F5',
         'brand-text': '#333333',
         
         // Vlastní paleta barev
         primary: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
-          950: '#172554',
+          50: '#f0f8ff',
+          100: '#e0f1ff',
+          200: '#bbe4ff',
+          300: '#7eceff',
+          400: '#39b5ff',
+          500: '#0ea5e9',
+          600: '#1d4f7d',
+          700: '#1d4f7d',
+          800: '#1d4f7d',
+          900: '#1d4f7d',
+          950: '#1d4f7d',
         },
         secondary: {
           50: '#f8fafc',
@@ -81,14 +84,21 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ['var(--font-geist-sans)', 'Inter', 'system-ui', 'sans-serif'],
-        mono: ['var(--font-geist-mono)', 'Fira Code', 'monospace'],
+        sans: ['Avenir', 'system-ui', 'sans-serif'],
+        avenir: ['Avenir Light', 'Avenir', 'system-ui', 'sans-serif'],
+        'avenir-medium': ['Avenir Medium', 'Avenir', 'system-ui', 'sans-serif'],
+        'avenir-black': ['Avenir Black', 'Avenir', 'system-ui', 'sans-serif'],
       },
       spacing: {
         '18': '4.5rem',
         '88': '22rem',
         '112': '28rem',
         '128': '32rem',
+        // Psychočas 8px grid
+        '1': '8px',
+        '2': '16px',
+        '3': '24px',
+        '4': '32px',
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-in-out',
@@ -115,6 +125,9 @@ module.exports = {
         'pill': '9999px',
         '4xl': '2rem',
         '5xl': '2.5rem',
+        // Psychočas radius
+        'card': '16px',
+        'button': '24px',
       },
       boxShadow: {
         'soft': '0 2px 15px -3px rgba(0, 0, 0, 0.07), 0 10px 20px -2px rgba(0, 0, 0, 0.04)',

@@ -46,8 +46,32 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Chráněné routy (příklad)
-  if (request.nextUrl.pathname.startsWith('/dashboard') && !user) {
+  // Protected routes
+  const protectedPaths = ['/home', '/redeem', '/validate', '/stats', '/technician']
+  const isProtectedRoute = protectedPaths.some(path => 
+    request.nextUrl.pathname.startsWith(path)
+  )
+
+  if (isProtectedRoute && !user) {
+    // Redirect to login if accessing protected route without authentication
+    const redirectUrl = new URL('/login', request.url)
+    redirectUrl.searchParams.set('redirectTo', request.nextUrl.pathname)
+    return NextResponse.redirect(redirectUrl)
+  }
+
+  if (request.nextUrl.pathname === '/' && user) {
+    // Redirect authenticated users from root to home
+    return NextResponse.redirect(new URL('/home', request.url))
+  }
+
+  if (request.nextUrl.pathname === '/login' && user) {
+    // Redirect authenticated users from login to home
+    const redirectTo = request.nextUrl.searchParams.get('redirectTo') || '/home'
+    return NextResponse.redirect(new URL(redirectTo, request.url))
+  }
+
+  // Continue with the request if no redirect needed
+  if (isProtectedRoute && !user) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
