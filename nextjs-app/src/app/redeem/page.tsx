@@ -96,57 +96,65 @@ export default function Redeem() {
   };
 
   return (
-    <main className="min-h-screen bg-brand-gray">
-      {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-sm mx-auto px-4 py-4 flex items-center gap-4">
+    <main className="psychocas-section">
+      <div className="psychocas-container space-y-8 fade-in-up">
+        {/* Header */}
+        <div className="flex items-center gap-4 pt-6">
           <button
             onClick={() => router.back()}
-            className="text-brand-blue hover:text-brand-blue/80"
+            className="p-3 hover:bg-white/50 rounded-full transition-all duration-300"
+            style={{ color: '#1d4f7d' }}
           >
-            ← Zpět
+            ←
           </button>
-          <h1 className="text-lg font-avenir-black text-brand-blue">
-            Uplatnit slevu
+          <h1>
+            Slevový kód
           </h1>
         </div>
-      </div>
 
-      <div className="max-w-sm mx-auto px-4 py-6 space-y-6">
         {/* Instructions */}
-        <div className="bg-white rounded-card shadow-soft p-6">
-          <h2 className="text-xl font-avenir-medium text-brand-text mb-3">
-            Jak na to?
-          </h2>
-          <div className="space-y-2 text-sm text-brand-text/70 font-avenir">
-            <p>1. Vygeneruj si kód pro slevu</p>
-            <p>2. Ukaž QR kód nebo sdělte číselný kód</p>
-            <p>3. Kód platí pouze 3 minuty!</p>
+        <div className="psychocas-card">
+          <h3 className="mb-4" style={{ color: '#333333' }}>
+            Jak použít kód
+          </h3>
+          <div className="space-y-3" style={{ color: '#666666' }}>
+            <div className="flex items-start gap-3">
+              <span className="w-2 h-2 rounded-full bg-blue-400 mt-2 flex-shrink-0"></span>
+              <span>Ukažte kód nebo QR kód u pokladny</span>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="w-2 h-2 rounded-full bg-blue-400 mt-2 flex-shrink-0"></span>
+              <span>Kód je platný 3 minuty od vygenerování</span>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="w-2 h-2 rounded-full bg-blue-400 mt-2 flex-shrink-0"></span>
+              <span>Po vypršení času můžete vygenerovat nový kód</span>
+            </div>
           </div>
         </div>
 
         {/* Token Generation */}
         {!token && (
-          <div className="bg-white rounded-card shadow-soft p-6 text-center">
+          <div className="psychocas-card text-center">
             <div className="text-4xl mb-4">🎫</div>
-            <h3 className="text-lg font-avenir-medium text-brand-text mb-2">
+            <h2 className="mb-3" style={{ color: '#333333' }}>
               Vygenerovat kód
-            </h3>
-            <p className="text-sm text-brand-text/70 font-avenir mb-6">
+            </h2>
+            <p className="mb-6" style={{ color: '#666666' }}>
               Stiskni tlačítko pro vytvoření nového kódu
             </p>
             
             <button
               onClick={generateToken}
               disabled={loading}
-              className="w-full bg-brand-blue text-white py-4 px-4 rounded-button font-avenir-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-brand-blue/90 transition-colors"
+              className="psychocas-button-primary"
             >
               {loading ? 'Generuji...' : 'Vygenerovat kód'}
             </button>
 
             {error && (
-              <div className="mt-4 p-3 bg-brand-error/10 border border-brand-error/20 rounded-lg">
-                <p className="text-sm text-brand-error font-avenir">{error}</p>
+              <div className="mt-6 p-4 rounded-xl status-inactive">
+                <p className="text-sm">{error}</p>
               </div>
             )}
           </div>
@@ -154,75 +162,116 @@ export default function Redeem() {
 
         {/* Active Token Display */}
         {token && (
-          <div className="space-y-4">
-            {/* Timer */}
-            <div className="bg-white rounded-card shadow-soft p-4 text-center">
-              <div className="text-2xl font-avenir-black text-brand-blue mb-2">
-                {formatTime(timeLeft)}
-              </div>
-              <p className="text-sm text-brand-text/70 font-avenir">
-                Zbývající čas
-              </p>
-              <div className="mt-3 w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-brand-accent h-2 rounded-full transition-all duration-1000 ease-linear"
+          <div className="psychocas-card">
+            <div className="space-y-8">
+              {/* Code Display */}
+              <div className="text-center space-y-6">
+                <h2 style={{ color: '#333333', marginBottom: '2rem' }}>Váš slevový kód</h2>
+                
+                <div 
+                  className="p-6 rounded-2xl border-2 transition-all duration-300"
                   style={{
-                    width: `${(timeLeft / (3 * 60 * 1000)) * 100}%`
+                    backgroundColor: timeLeft <= 0 ? '#f5f5f5' : '#e1f5fe',
+                    borderColor: timeLeft <= 0 ? '#cccccc' : '#81d4fa'
                   }}
-                />
-              </div>
-            </div>
-
-            {/* QR Code */}
-            <div className="bg-white rounded-card shadow-soft p-6 text-center">
-              <h3 className="text-lg font-avenir-medium text-brand-text mb-4">
-                QR Kód
-              </h3>
-              <div className="bg-white p-4 rounded-lg inline-block">
-                <QRCode
-                  value={token.code}
-                  size={200}
-                  style={{ height: "auto", maxWidth: "100%", width: "100%" }}
-                />
-              </div>
-            </div>
-
-            {/* Text Code */}
-            <div className="bg-white rounded-card shadow-soft p-6">
-              <h3 className="text-lg font-avenir-medium text-brand-text mb-4">
-                Číselný kód
-              </h3>
-              <div className="flex items-center gap-3">
-                <div className="flex-1 bg-brand-gray p-4 rounded-lg text-center">
-                  <span className="text-2xl font-avenir-black text-brand-blue letter-spacing-wide">
+                >
+                  <div 
+                    className="text-3xl font-mono tracking-wider"
+                    style={{ 
+                      color: timeLeft <= 0 ? '#999999' : '#1d4f7d',
+                      fontFamily: 'SF Mono, Monaco, monospace',
+                      fontWeight: '600'
+                    }}
+                  >
                     {token.code}
-                  </span>
+                  </div>
                 </div>
+
+                {/* Copy Button */}
                 <button
                   onClick={copyToClipboard}
-                  className="bg-brand-accent text-white p-3 rounded-lg hover:bg-brand-accent/90 transition-colors"
+                  disabled={timeLeft <= 0}
+                  className="flex items-center gap-3 px-6 py-3 mx-auto transition-all duration-300"
+                  style={{ 
+                    backgroundColor: timeLeft <= 0 ? '#cccccc' : '#049edb',
+                    color: '#ffffff',
+                    borderRadius: '1.5rem',
+                    height: '3.5rem',
+                    border: 'none',
+                    cursor: timeLeft <= 0 ? 'not-allowed' : 'pointer'
+                  }}
                 >
-                  📋
+                  📋 Kopírovat kód
                 </button>
               </div>
-            </div>
 
-            {/* Generate New Button */}
-            <button
-              onClick={() => setToken(null)}
-              className="w-full border border-brand-blue text-brand-blue py-3 px-4 rounded-button font-avenir-medium hover:bg-brand-blue/5 transition-colors"
-            >
-              Zrušit kód
-            </button>
+              {/* QR Code Section */}
+              <div className="text-center space-y-6 pt-6 border-t" style={{ borderColor: '#e0e0e0' }}>
+                <div className="inline-block p-4 bg-white rounded-2xl">
+                  <QRCode
+                    value={token.code}
+                    size={200}
+                    style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+                  />
+                </div>
+                <p style={{ color: '#666666' }}>
+                  QR kód pro rychlé uplatnění
+                </p>
+              </div>
+
+              {/* Timer */}
+              <div className="text-center space-y-3">
+                <p style={{ color: '#666666' }}>
+                  Zbývající čas
+                </p>
+                <div 
+                  className="text-3xl font-mono font-bold"
+                  style={{
+                    color: timeLeft <= 0 ? '#c62828' : timeLeft <= 30000 ? '#f57c00' : '#2e7d32'
+                  }}
+                >
+                  {timeLeft <= 0 ? 'VYPRŠEL' : formatTime(timeLeft)}
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="h-2 rounded-full transition-all duration-1000 ease-linear"
+                    style={{
+                      width: `${(timeLeft / (3 * 60 * 1000)) * 100}%`,
+                      backgroundColor: timeLeft <= 30000 ? '#f57c00' : '#2e7d32'
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Regenerate Button */}
+              {timeLeft <= 0 && (
+                <button
+                  onClick={generateToken}
+                  className="psychocas-button-primary flex items-center gap-3 justify-center"
+                >
+                  � Vygenerovat nový kód
+                </button>
+              )}
+
+              {/* Cancel Button */}
+              {timeLeft > 0 && (
+                <button
+                  onClick={() => setToken(null)}
+                  className="psychocas-button-secondary"
+                >
+                  Zrušit kód
+                </button>
+              )}
+            </div>
           </div>
         )}
 
         {/* Warning */}
-        <div className="bg-amber-50 border border-amber-200 rounded-card p-4">
-          <h4 className="font-avenir-medium text-amber-800 mb-2">
+        <div className="psychocas-card" style={{ backgroundColor: '#fff8e1', border: '1px solid #ffe082' }}>
+          <h4 className="mb-2" style={{ color: '#f57c00' }}>
             ⚠️ Důležité
           </h4>
-          <p className="text-sm text-amber-700 font-avenir">
+          <p className="text-sm" style={{ color: '#f57c00' }}>
             Kód můžete použít pouze jednou. Po uplatnění bude automaticky zneplatněn.
           </p>
         </div>

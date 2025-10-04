@@ -64,10 +64,10 @@ export default function Home() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-brand-gray flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-blue mx-auto mb-4"></div>
-          <p className="text-brand-text/70 font-avenir">Načítám...</p>
+      <main className="psychocas-section flex items-center justify-center">
+        <div className="text-center fade-in-up">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto mb-4" style={{ borderColor: '#1d4f7d' }}></div>
+          <p style={{ color: '#666666' }}>Načítám...</p>
         </div>
       </main>
     );
@@ -75,126 +75,161 @@ export default function Home() {
 
   if (!memberData) {
     return (
-      <main className="min-h-screen bg-brand-gray flex items-center justify-center px-4">
-        <div className="w-full max-w-sm bg-white rounded-card shadow-soft p-6 text-center">
-          <div className="text-brand-error text-4xl mb-4">⚠️</div>
-          <h2 className="text-xl font-avenir-medium text-brand-text mb-2">
-            Člen nenalezen
-          </h2>
-          <p className="text-brand-text/70 font-avenir mb-4">
-            Tvůj účet není registrován jako člen spolku
-          </p>
-          <button
-            onClick={handleSignOut}
-            className="w-full bg-brand-error text-white py-3 px-4 rounded-button font-avenir-medium hover:bg-brand-error/90 transition-colors"
-          >
-            Odhlásit se
-          </button>
+      <main className="psychocas-section flex items-center justify-center">
+        <div className="psychocas-container fade-in-up">
+          <div className="psychocas-card text-center">
+            <div className="text-4xl mb-4" style={{ color: '#c62828' }}>⚠️</div>
+            <h2 className="mb-2">
+              Člen nenalezen
+            </h2>
+            <p className="mb-6" style={{ color: '#666666' }}>
+              Tvůj účet není registrován jako člen spolku
+            </p>
+            <button
+              onClick={handleSignOut}
+              className="psychocas-button-primary"
+              style={{ backgroundColor: '#c62828' }}
+            >
+              Odhlásit se
+            </button>
+          </div>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-brand-gray">
-      {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-sm mx-auto px-4 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-lg font-avenir-black text-brand-blue">Psychočas</h1>
-            <p className="text-sm text-brand-text/70 font-avenir">
-              {memberData.full_name || user?.email}
-            </p>
-          </div>
-          <button
-            onClick={handleSignOut}
-            className="text-brand-text/50 hover:text-brand-text font-avenir text-sm"
-          >
-            Odhlásit
-          </button>
+    <main className="psychocas-section pb-20">
+      <div className="psychocas-container space-y-8 fade-in-up">
+        {/* Header */}
+        <div className="text-center pt-6">
+          <h1 className="mb-3">
+            Vítejte zpět!
+          </h1>
+          <p style={{ color: '#666666', fontSize: '1rem' }}>
+            {memberData.full_name || user?.email}
+          </p>
         </div>
-      </div>
 
-      <div className="max-w-sm mx-auto px-4 py-6 space-y-6">
         {/* Membership Status Card */}
-        <div className="bg-white rounded-card shadow-soft p-6">
-          <h2 className="text-xl font-avenir-medium text-brand-text mb-4">
-            Stav členství
-          </h2>
-          
-          <div className="flex items-center gap-3 mb-4">
-            <div className={`w-3 h-3 rounded-full ${
-              memberData.membership_active ? 'bg-brand-success' : 'bg-brand-error'
-            }`}></div>
-            <span className={`font-avenir-medium ${
-              memberData.membership_active ? 'text-brand-success' : 'text-brand-error'
-            }`}>
-              {memberData.membership_active ? 'Aktivní' : 'Neaktivní'}
-            </span>
-          </div>
-
-          <div className="space-y-2 text-sm text-brand-text/70 font-avenir">
-            <div className="flex justify-between">
-              <span>Platnost do:</span>
-              <span>{formatExpiryDate(memberData.membership_expires)}</span>
+        <div className="psychocas-card">
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 style={{ color: '#333333' }}>Stav členství</h2>
+              <div 
+                className={`flex items-center gap-2 px-3 py-1 rounded-full ${
+                  memberData.membership_active ? 'status-active' : 'status-inactive'
+                }`}
+              >
+                {memberData.membership_active ? '✓ Aktivní' : '✗ Neaktivní'}
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span>Role:</span>
-              <span className="capitalize">{memberData.role}</span>
+            
+            <div className="space-y-3">
+              <p style={{ color: '#666666', fontSize: '0.95rem' }}>
+                Platnost do
+              </p>
+              <p style={{ color: '#333333', fontSize: '1.1rem', fontWeight: '500' }}>
+                {formatExpiryDate(memberData.membership_expires)}
+              </p>
+            </div>
+
+            {memberData.membership_active && (
+              <button
+                onClick={() => router.push('/redeem')}
+                className="psychocas-button-primary mt-6"
+              >
+                Uplatnit slevu
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* App Info */}
+        <div className="psychocas-card">
+          <h3 className="mb-4" style={{ color: '#333333' }}>
+            O aplikaci Psychočas
+          </h3>
+          <div className="space-y-3" style={{ color: '#666666', fontSize: '0.95rem' }}>
+            <p>
+              Vaše digitální členská karta pro rychlé a pohodlné uplatňování slev ve spolupracujících podnicích.
+            </p>
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              <div className="text-center p-3 rounded-lg" style={{ backgroundColor: '#f8f9fa' }}>
+                <div style={{ color: '#1d4f7d', fontWeight: '600' }}>3 min</div>
+                <div className="text-xs">Platnost kódu</div>
+              </div>
+              <div className="text-center p-3 rounded-lg" style={{ backgroundColor: '#f8f9fa' }}>
+                <div style={{ color: '#1d4f7d', fontWeight: '600' }}>24/7</div>
+                <div className="text-xs">Dostupnost</div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="space-y-3">
-          {memberData.membership_active && (
-            <button
-              onClick={() => router.push('/redeem')}
-              className="w-full bg-brand-blue text-white py-4 px-4 rounded-button font-avenir-medium hover:bg-brand-blue/90 transition-colors"
-            >
-              🎫 Uplatnit slevu
-            </button>
-          )}
-
-          {(memberData.role === 'manager' || memberData.role === 'council') && (
-            <button
-              onClick={() => router.push('/validate')}
-              className="w-full bg-brand-accent text-white py-4 px-4 rounded-button font-avenir-medium hover:bg-brand-accent/90 transition-colors"
-            >
-              ✅ Validovat kód
-            </button>
-          )}
-
-          {(memberData.role === 'manager' || memberData.role === 'council') && (
-            <button
-              onClick={() => router.push('/stats')}
-              className="w-full border border-brand-blue text-brand-blue py-4 px-4 rounded-button font-avenir-medium hover:bg-brand-blue/5 transition-colors"
-            >
-              📊 Statistiky
-            </button>
-          )}
-
-          {memberData.role === 'technician' && (
-            <button
-              onClick={() => router.push('/technician')}
-              className="w-full border border-brand-accent text-brand-accent py-4 px-4 rounded-button font-avenir-medium hover:bg-brand-accent/5 transition-colors"
-            >
-              🔧 Technická správa
-            </button>
-          )}
-        </div>
+        {/* Manager/Admin Actions */}
+        {(memberData.role === 'manager' || memberData.role === 'council' || memberData.role === 'technician') && (
+          <div className="psychocas-card">
+            <h3 className="mb-6" style={{ color: '#333333' }}>
+              Správa
+            </h3>
+            <div className="space-y-3">
+              {(memberData.role === 'manager' || memberData.role === 'council') && (
+                <>
+                  <button
+                    onClick={() => router.push('/validate')}
+                    className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-gray-50 transition-all duration-300"
+                    style={{ border: '1px solid #e0e0e0' }}
+                  >
+                    <span className="text-xl">✅</span>
+                    <span style={{ color: '#333333', fontSize: '1rem' }}>Validovat kód</span>
+                  </button>
+                  <button
+                    onClick={() => router.push('/stats')}
+                    className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-gray-50 transition-all duration-300"
+                    style={{ border: '1px solid #e0e0e0' }}
+                  >
+                    <span className="text-xl">📊</span>
+                    <span style={{ color: '#333333', fontSize: '1rem' }}>Statistiky</span>
+                  </button>
+                </>
+              )}
+              {memberData.role === 'technician' && (
+                <button
+                  onClick={() => router.push('/technician')}
+                  className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-gray-50 transition-all duration-300"
+                  style={{ border: '1px solid #e0e0e0' }}
+                >
+                  <span className="text-xl">🔧</span>
+                  <span style={{ color: '#333333', fontSize: '1rem' }}>Technická správa</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Inactive Member Notice */}
         {!memberData.membership_active && (
-          <div className="bg-brand-error/10 border border-brand-error/20 rounded-card p-4">
-            <h3 className="font-avenir-medium text-brand-error mb-2">
+          <div className="psychocas-card status-inactive">
+            <h3 className="mb-2">
               Neaktivní členství
             </h3>
-            <p className="text-sm text-brand-error/80 font-avenir">
+            <p className="text-sm">
               Obnovte si členství pro přístup k funkcím aplikace
             </p>
           </div>
         )}
+
+        {/* Sign Out Button */}
+        <div className="psychocas-card">
+          <button
+            onClick={handleSignOut}
+            className="w-full p-4 rounded-xl hover:bg-gray-50 transition-all duration-300"
+            style={{ color: '#c62828' }}
+          >
+            Odhlásit se
+          </button>
+        </div>
       </div>
     </main>
   );

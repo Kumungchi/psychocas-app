@@ -42,8 +42,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" sizes="192x192" href="/faviconV1.png" />
         <link rel="apple-touch-icon" sizes="512x512" href="/faviconV2.png" />
       </head>
-      <body className="min-h-screen bg-white text-brand-text">
-        <div className="max-w-md mx-auto px-4 py-6">{children}</div>
+      <body>
+        {children}
       </body>
     </html>
   );

@@ -43,59 +43,52 @@ export default function Login() {
   };
 
   return (
-    <main className="min-h-screen bg-brand-gray flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        {/* Logo Section */}
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-avenir-black text-brand-blue mb-2">
-            Psychočas
-          </h1>
-          <p className="text-brand-text/70 font-avenir">
-            Členská aplikace
-          </p>
-        </div>
+    <main className="psychocas-section flex items-center justify-center">
+      <div className="psychocas-container fade-in-up">
+        {/* Welcome Section */}
+        <div className="psychocas-card text-center">
+          <div className="mb-12">
+            <h1 className="mb-3">
+              Vítejte v Psychočas
+            </h1>
+            <p className="text-lg" style={{ color: '#666666' }}>
+              Přihlaste se do vaší členské aplikace
+            </p>
+          </div>
 
-        {/* Login Form */}
-        <div className="bg-white rounded-card shadow-soft p-6">
-          <h2 className="text-xl font-avenir-medium text-brand-text mb-2">
-            Přihlášení
-          </h2>
-          <p className="text-sm text-brand-text/70 mb-6 font-avenir">
-            Použij e-mail registrovaný u spolku
-          </p>
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-avenir-medium text-brand-text mb-2">
-                E-mail
+          {/* Login Form */}
+          <form onSubmit={handleLogin} className="space-y-8">
+            <div className="space-y-3 text-left">
+              <label htmlFor="email" style={{ color: '#333333' }}>
+                Email
               </label>
               <input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                className="psychocas-input"
+                placeholder="Zadejte váš email"
                 required
                 disabled={isLoading}
-                className="w-full px-4 py-3 border border-gray-200 rounded-button focus:ring-2 focus:ring-brand-accent focus:border-transparent font-avenir"
-                placeholder="tvoj@email.cz"
               />
             </div>
 
             <button
               type="submit"
+              className="psychocas-button-primary"
               disabled={isLoading || !email}
-              className="w-full bg-brand-blue text-white py-3 px-4 rounded-button font-avenir-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-brand-blue/90 transition-colors"
             >
-              {isLoading ? 'Odesílám...' : 'Poslat přihlašovací odkaz'}
+              {isLoading ? 'Odesílám...' : 'Přihlásit se'}
             </button>
           </form>
 
           {/* Message Display */}
           {message && (
-            <div className={`mt-4 p-3 rounded-lg text-sm font-avenir ${
+            <div className={`mt-6 p-4 rounded-xl text-sm ${
               message.type === 'success' 
-                ? 'bg-brand-success/10 text-brand-success border border-brand-success/20' 
-                : 'bg-brand-error/10 text-brand-error border border-brand-error/20'
+                ? 'status-active' 
+                : 'status-inactive'
             }`}>
               {message.text}
             </div>
