@@ -61,7 +61,7 @@ BEGIN
     new_full_name := NULL;
   END IF;
 
-  -- Insert into members table
+  -- Insert into members table (using INSERT with ON CONFLICT to avoid duplicates)
   INSERT INTO public.members (user_id, email, role, membership_active, membership_expires, full_name)
   VALUES (
     NEW.id, 
@@ -70,9 +70,19 @@ BEGIN
     true, 
     (CURRENT_DATE + INTERVAL '1 year')::date,
     new_full_name
-  );
+  )
+  ON CONFLICT (user_id) DO UPDATE SET
+    role = EXCLUDED.role,
+    membership_active = EXCLUDED.membership_active,
+    membership_expires = EXCLUDED.membership_expires,
+    full_name = COALESCE(EXCLUDED.full_name, public.members.full_name);
 
   RETURN NEW;
+EXCEPTION
+  WHEN OTHERS THEN
+    -- Log error but don't fail the auth
+    RAISE WARNING 'Error creating member record: %', SQLERRM;
+    RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
