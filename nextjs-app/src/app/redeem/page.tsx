@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import QRCode from 'react-qr-code';
+import Navigation from '@/components/Navigation';
 
 interface TokenData {
   code: string;
@@ -15,7 +16,28 @@ export default function Redeem() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(0);
+  const [userRole, setUserRole] = useState<'member' | 'manager' | 'council' | 'technician'>('member');
   const router = useRouter();
+
+  // Fetch user role on mount
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: member } = await supabase
+          .from('members')
+          .select('role')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (member) {
+          setUserRole(member.role as 'member' | 'manager' | 'council' | 'technician');
+        }
+      }
+    };
+
+    fetchUserRole();
+  }, []);
 
   // Countdown timer
   useEffect(() => {
@@ -276,6 +298,9 @@ export default function Redeem() {
           </p>
         </div>
       </div>
+
+      {/* Navigation Bar */}
+      <Navigation userRole={userRole} />
     </main>
   );
 }

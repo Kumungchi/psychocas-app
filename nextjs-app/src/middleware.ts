@@ -70,9 +70,29 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(redirectTo, request.url))
   }
 
-  // Continue with the request if no redirect needed
-  if (isProtectedRoute && !user) {
-    return NextResponse.redirect(new URL('/login', request.url))
+  // Role-based access control
+  if (user && (request.nextUrl.pathname.startsWith('/validate') || 
+              request.nextUrl.pathname.startsWith('/stats') ||
+              request.nextUrl.pathname.startsWith('/technician'))) {
+    
+    const { data: member } = await supabase
+      .from('members')
+      .select('role')
+      .eq('user_id', user.id)
+      .single()
+
+    // Validate and Stats require manager or council
+    if ((request.nextUrl.pathname.startsWith('/validate') || 
+         request.nextUrl.pathname.startsWith('/stats')) &&
+        member?.role !== 'manager' && member?.role !== 'council') {
+      return NextResponse.redirect(new URL('/home?error=unauthorized', request.url))
+    }
+
+    // Technician requires technician or council role
+    if (request.nextUrl.pathname.startsWith('/technician') && 
+        member?.role !== 'technician' && member?.role !== 'council') {
+      return NextResponse.redirect(new URL('/home?error=unauthorized', request.url))
+    }
   }
 
   return response

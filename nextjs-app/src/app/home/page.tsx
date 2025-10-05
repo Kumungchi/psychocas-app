@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Navigation from '@/components/Navigation';
 
 interface MemberData {
   membership_active: boolean;
@@ -12,11 +13,25 @@ interface MemberData {
   branch_id: string | null;
 }
 
-export default function Home() {
+function HomeContent() {
   const [memberData, setMemberData] = useState<MemberData | null>(null);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    // Check for error parameter from middleware redirect
+    const errorParam = searchParams.get('error');
+    if (errorParam === 'unauthorized') {
+      setError('Nemáte oprávnění k přístupu na tuto stránku.');
+      // Clear error from URL after 5 seconds
+      setTimeout(() => {
+        router.replace('/home');
+      }, 5000);
+    }
+  }, [searchParams, router]);
 
   useEffect(() => {
     const fetchMemberData = async () => {
@@ -101,6 +116,20 @@ export default function Home() {
   return (
     <main className="psychocas-section pb-20">
       <div className="psychocas-container space-y-8 fade-in-up">
+        {/* Error Message */}
+        {error && (
+          <div className="psychocas-card" style={{ 
+            backgroundColor: '#fef2f2', 
+            borderLeft: '4px solid #c62828',
+            animation: 'fade-in-up 0.5s ease-out'
+          }}>
+            <div className="flex items-center gap-3">
+              <div className="text-2xl">⚠️</div>
+              <p style={{ color: '#c62828', fontWeight: '500' }}>{error}</p>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="text-center pt-6">
           <h1 className="mb-3">
@@ -220,17 +249,25 @@ export default function Home() {
           </div>
         )}
 
-        {/* Sign Out Button */}
-        <div className="psychocas-card">
-          <button
-            onClick={handleSignOut}
-            className="w-full p-4 rounded-xl hover:bg-gray-50 transition-all duration-300"
-            style={{ color: '#c62828' }}
-          >
-            Odhlásit se
-          </button>
-        </div>
       </div>
+
+      {/* Navigation Bar */}
+      {memberData && <Navigation userRole={memberData.role as 'member' | 'manager' | 'council' | 'technician'} />}
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <main className="psychocas-section flex items-center justify-center">
+        <div className="text-center fade-in-up">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto mb-4" style={{ borderColor: '#1d4f7d' }}></div>
+          <p style={{ color: '#666666' }}>Načítám...</p>
+        </div>
+      </main>
+    }>
+      <HomeContent />
+    </Suspense>
   );
 }

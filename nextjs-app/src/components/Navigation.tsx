@@ -1,85 +1,74 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import type { User } from '@supabase/supabase-js'
+import { useRouter, usePathname } from 'next/navigation';
+import { Home, QrCode, BarChart3, Settings, LogOut } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 
-export default function Navigation() {
-  const [user, setUser] = useState<User | null>(null)
+interface NavigationProps {
+  userRole: 'member' | 'manager' | 'council' | 'technician';
+}
+
+export default function Navigation({ userRole }: NavigationProps) {
+  const router = useRouter();
   const pathname = usePathname()
 
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
-    }
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
 
-    getUser()
+  const menuItems = [
+    { id: '/home', label: 'Domů', icon: Home, roles: ['member', 'manager', 'council', 'technician'] },
+    { id: '/validate', label: 'Ověření', icon: QrCode, roles: ['manager', 'council'] },
+    { id: '/stats', label: 'Statistiky', icon: BarChart3, roles: ['manager', 'council'] },
+    { id: '/technician', label: 'Správa', icon: Settings, roles: ['technician', 'council'] }
+  ];
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setUser(session?.user ?? null)
-      }
-    )
-
-    return () => subscription.unsubscribe()
-  }, [])
+  const visibleItems = menuItems.filter(item => item.roles.includes(userRole));
 
   return (
-    <nav className="bg-white shadow-sm border-b">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          <div className="flex items-center">
-            <Link 
-              href="/" 
-              className="text-xl font-bold text-gray-800 hover:text-blue-600 transition-colors"
-            >
-              Next.js + Supabase
-            </Link>
-          </div>
+    <div className="fixed bottom-0 left-0 right-0 bg-white border-t px-4 py-2 max-w-md mx-auto z-50" style={{ borderColor: '#e0e0e0', boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.1)' }}>
+      <div className="flex items-center justify-around">
+        {visibleItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = pathname === item.id;
           
-          <div className="flex items-center space-x-4">
-            <Link
-              href="/"
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                pathname === '/' 
-                  ? 'bg-blue-100 text-blue-700' 
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-              }`}
+          return (
+            <button
+              key={item.id}
+              onClick={() => router.push(item.id)}
+              className="flex flex-col items-center gap-1 p-3 transition-colors duration-200 hover:opacity-80"
             >
-              Domů
-            </Link>
-            
-            {user && (
-              <Link
-                href="/dashboard"
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  pathname === '/dashboard' 
-                    ? 'bg-blue-100 text-blue-700' 
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
+              <Icon 
+                className="w-5 h-5" 
+                style={{ color: isActive ? '#1d4f7d' : '#666666' }}
+              />
+              <span 
+                className="text-xs"
+                style={{ color: isActive ? '#1d4f7d' : '#666666', fontWeight: isActive ? '600' : '400' }}
               >
-                Dashboard
-              </Link>
-            )}
-            
-            {user && (
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">
-                  {user.email}
-                </span>
-                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                  <span className="text-white font-medium text-sm">
-                    {user.email?.[0].toUpperCase()}
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+                {item.label}
+              </span>
+            </button>
+          );
+        })}
+        
+        <button
+          onClick={handleLogout}
+          className="flex flex-col items-center gap-1 p-3 transition-colors duration-200 hover:opacity-80"
+        >
+          <LogOut 
+            className="w-5 h-5" 
+            style={{ color: '#c62828' }}
+          />
+          <span 
+            className="text-xs"
+            style={{ color: '#c62828' }}
+          >
+            Odhlásit
+          </span>
+        </button>
       </div>
-    </nav>
-  )
+    </div>
+  );
 }
