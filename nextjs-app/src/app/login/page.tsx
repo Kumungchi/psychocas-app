@@ -53,21 +53,28 @@ export default function Login() {
     setMessage(null);
 
     try {
+      console.log('Verifying OTP:', { email, otp });
+      
       const { data, error } = await supabase.auth.verifyOtp({
         email,
         token: otp,
         type: 'email',
       });
 
+      console.log('Verify OTP response:', { data, error });
+
       if (error) {
+        console.error('OTP verification error:', error);
         setMessage({
           type: 'error',
-          text: 'Neplatný kód. Zkuste to znovu.'
+          text: `Chyba ověření: ${error.message || 'Neplatný kód. Zkuste to znovu.'}`
         });
       } else if (data.user) {
+        console.log('User verified successfully:', data.user);
         router.push('/home');
       }
     } catch (error) {
+      console.error('Unexpected error:', error);
       setMessage({
         type: 'error',
         text: 'Nastala neočekávaná chyba'

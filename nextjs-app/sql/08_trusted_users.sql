@@ -41,12 +41,12 @@ FOR ALL
 USING (EXISTS (
   SELECT 1 FROM public.members me 
   WHERE me.user_id = auth.uid() 
-  AND (me.role = 'council' OR (me.role = 'manager' AND me.email LIKE '%@psychočas.cz'))
+  AND (me.role = 'council' OR (me.role = 'manager' AND me.email LIKE '%@psychocas.cz'))
 ))
 WITH CHECK (EXISTS (
   SELECT 1 FROM public.members me 
   WHERE me.user_id = auth.uid() 
-  AND (me.role = 'council' OR (me.role = 'manager' AND me.email LIKE '%@psychočas.cz'))
+  AND (me.role = 'council' OR (me.role = 'manager' AND me.email LIKE '%@psychocas.cz'))
 ));
 
 -- Technicians and managers can read trusted users
