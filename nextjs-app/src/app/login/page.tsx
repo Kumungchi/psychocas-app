@@ -90,7 +90,7 @@ export default function Login() {
           {/* Welcome Section */}
           <div className="mb-12">
             <h1 className="mb-3">
-              Vítejte v Psychočas
+              Vítejte v Psychočas aplikaci
             </h1>
             <p className="text-lg" style={{ color: '#666666' }}>
               {step === 'email' 
@@ -199,15 +199,6 @@ export default function Login() {
               {message.text}
             </div>
           )}
-        </div>
-
-        {/* Test Accounts Info */}
-        <div className="mt-6 text-center text-sm" style={{ color: '#666666' }}>
-          <p>Testovací účty:</p>
-          <p className="mt-2">
-            <strong>Člen:</strong> bunnik.matias@seznam.cz<br />
-            <strong>Admin:</strong> viceprezident@psychočas.cz
-          </p>
         </div>
       </div>
     </main>
