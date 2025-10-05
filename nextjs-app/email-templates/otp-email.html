@@ -1,0 +1,101 @@
+<!-- Psychočas OTP Email Template for Supabase -->
+<!-- Use this in Supabase Dashboard > Authentication > Email Templates > Magic Link -->
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Přihlášení do Psychočas aplikace</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Avenir', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background-color: #f5f5f5;">
+  
+  <!-- Container -->
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        
+        <!-- Card -->
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); overflow: hidden;">
+          
+          <!-- Header with logo/brand -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #1d4f7d 0%, #049edb 100%); padding: 40px 30px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700;">
+                Psychočas
+              </h1>
+              <p style="margin: 10px 0 0 0; color: rgba(255, 255, 255, 0.9); font-size: 16px;">
+                Členský systém
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px 30px;">
+              
+              <!-- Greeting -->
+              <p style="margin: 0 0 20px 0; font-size: 16px; color: #333; line-height: 1.6;">
+                Zdravíme! 👋
+              </p>
+              
+              <!-- Message -->
+              <p style="margin: 0 0 30px 0; font-size: 16px; color: #333; line-height: 1.6;">
+                Váš <strong>6místný ověřovací kód</strong> pro přihlášení do aplikace Psychočas:
+              </p>
+              
+              <!-- OTP Code Box -->
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding: 20px 0;">
+                    <div style="display: inline-block; background: linear-gradient(135deg, #1d4f7d 0%, #049edb 100%); border-radius: 12px; padding: 20px 40px;">
+                      <span style="font-size: 36px; font-weight: 700; color: #ffffff; letter-spacing: 12px; font-family: 'Courier New', monospace;">
+                        {{ .Token }}
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- Instructions -->
+              <p style="margin: 30px 0 20px 0; font-size: 14px; color: #666; line-height: 1.6;">
+                📱 Zadejte tento kód do aplikace pro dokončení přihlášení.
+              </p>
+              
+              <!-- Expiration warning -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff3cd; border-left: 4px solid #f57c00; border-radius: 8px; margin: 20px 0;">
+                <tr>
+                  <td style="padding: 15px 20px;">
+                    <p style="margin: 0; font-size: 14px; color: #856404; line-height: 1.5;">
+                      ⏰ <strong>Důležité:</strong> Tento kód vyprší za <strong>60 minut</strong>.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- Security notice -->
+              <p style="margin: 30px 0 0 0; font-size: 13px; color: #999; line-height: 1.6;">
+                🔒 Pokud jste tento kód nepožadovali, můžete tento email bezpečně ignorovat. Nikdo se bez vašeho souhlasu k vašemu účtu nepřihlásí.
+              </p>
+              
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f8f9fa; padding: 20px 30px; border-top: 1px solid #e9ecef;">
+              <p style="margin: 0; font-size: 12px; color: #999; text-align: center; line-height: 1.5;">
+                Toto je automatická zpráva z aplikace <strong>Psychočas</strong>.<br>
+                Pro podporu kontaktujte: <a href="mailto:podpora@psychočas.cz" style="color: #049edb; text-decoration: none;">podpora@psychočas.cz</a>
+              </p>
+            </td>
+          </tr>
+          
+        </table>
+        
+      </td>
+    </tr>
+  </table>
+  
+</body>
+</html>
