@@ -241,7 +241,7 @@ export default function AdminPage() {
 
   return (
     <>
-      <Navigation />
+      <Navigation userRole={userRole as 'member' | 'manager' | 'council' | 'technician'} />
       <main className="psychocas-section">
         <div className="psychocas-container fade-in-up">
           <div className="mb-8">

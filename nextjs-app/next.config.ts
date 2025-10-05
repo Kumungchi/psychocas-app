@@ -13,6 +13,25 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+
+  // Build optimalizace
+  experimental: {
+    // Optimalizace pro rychlejší build
+    optimizePackageImports: ['lucide-react', '@supabase/supabase-js'],
+  },
+
+  // Output configuration
+  output: 'standalone',
+  
+  // Compiler optimizations
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production' ? {
+      exclude: ['error', 'warn'],
+    } : false,
+  },
+
+  // Suppress workspace root warning
+  outputFileTracingRoot: undefined,
 };
 
 export default nextConfig;
