@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { useRouter } from 'next/navigation';
+import { Users, CheckCircle, XCircle, Search } from 'lucide-react';
+import Navigation from '@/components/Navigation';
 
 interface Member {
   user_id: string;
@@ -11,281 +12,197 @@ interface Member {
   role: string;
   membership_active: boolean;
   membership_expires: string | null;
-  branch_id: string | null;
-  created_at: string;
 }
 
+const mockMembers: Member[] = [
+  {
+    user_id: '1',
+    email: 'bunnik.matias@seznam.cz',
+    full_name: 'Matias Bunnik',
+    role: 'member',
+    membership_active: true,
+    membership_expires: '2025-12-31'
+  },
+  {
+    user_id: '2',
+    email: 'viceprezident@psychočas.cz',
+    full_name: 'Viceprezident',
+    role: 'council',
+    membership_active: true,
+    membership_expires: '2025-12-31'
+  }
+];
+
 export default function Technician() {
-  const [members, setMembers] = useState<Member[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const router = useRouter();
+  const [members, setMembers] = useState<Member[]>(mockMembers);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [userRole, setUserRole] = useState<'member' | 'manager' | 'council' | 'technician'>('technician');
 
+  // Fetch user role on mount
   useEffect(() => {
-    const fetchMembers = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (!user) {
-          router.push('/login');
-          return;
-        }
-
-        // Check if user is technician
+    const fetchUserRole = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
         const { data: member } = await supabase
           .from('members')
           .select('role')
           .eq('user_id', user.id)
           .single();
-
-        if (!member || member.role !== 'technician') {
-          router.push('/home');
-          return;
-        }
-
-        // Fetch all members
-        let query = supabase
-          .from('members')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (filter === 'active') {
-          query = query.eq('membership_active', true);
-        } else if (filter === 'inactive') {
-          query = query.eq('membership_active', false);
-        }
-
-        const { data: membersData, error: membersError } = await query;
         
-        if (membersError) throw membersError;
-        setMembers(membersData || []);
-
-      } catch (error) {
-        console.error('Error fetching members:', error);
-        setError(error instanceof Error ? error.message : 'Nastala neočekávaná chyba');
-      } finally {
-        setLoading(false);
+        if (member) {
+          setUserRole(member.role as 'member' | 'manager' | 'council' | 'technician');
+        }
       }
     };
 
-    fetchMembers();
-  }, [filter, router]);
+    fetchUserRole();
+  }, []);
 
-  const updateMemberStatus = async (userId: string, active: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('members')
-        .update({ membership_active: active })
-        .eq('user_id', userId);
+  const filteredMembers = members.filter(member =>
+    member.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (member.full_name && member.full_name.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
 
-      if (error) throw error;
-
-      // Update local state
-      setMembers(members.map(member => 
-        member.user_id === userId 
-          ? { ...member, membership_active: active }
-          : member
-      ));
-    } catch (error) {
-      console.error('Error updating member status:', error);
-      setError('Nepodařilo se aktualizovat stav člena');
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case 'council': return 'Rada';
+      case 'manager': return 'Manažer';
+      case 'technician': return 'Technik';
+      default: return 'Člen';
     }
   };
 
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return 'Neuvedeno';
-    return new Date(dateStr).toLocaleDateString('cs-CZ');
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'council': return { bg: '#ffebee', color: '#c62828' };
+      case 'manager': return { bg: '#e1f5fe', color: '#049edb' };
+      case 'technician': return { bg: '#fff3e0', color: '#ff9800' };
+      default: return { bg: '#e8f5e8', color: '#2e7d32' };
+    }
   };
 
-  const getActiveCount = () => members.filter(m => m.membership_active).length;
-  const getInactiveCount = () => members.filter(m => m.membership_active === false).length;
-
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-brand-gray flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-blue mx-auto mb-4"></div>
-          <p className="text-brand-text/70 font-avenir">Načítám členy...</p>
-        </div>
-      </main>
-    );
-  }
-
   return (
-    <main className="min-h-screen bg-brand-gray">
-      {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-sm mx-auto px-4 py-4 flex items-center gap-4">
-          <button
-            onClick={() => router.back()}
-            className="text-brand-blue hover:text-brand-blue/80"
-          >
-            ← Zpět
-          </button>
-          <h1 className="text-lg font-avenir-black text-brand-blue">
-            Technická správa
-          </h1>
+    <main className="psychocas-section pb-20">
+      <div className="psychocas-container space-y-6 fade-in-up">
+        {/* Header */}
+        <div className="text-center pt-6">
+          <h1 className="mb-3">Správa členů</h1>
+          <p style={{ color: '#666666' }}>Přehled všech členů spolku</p>
         </div>
-      </div>
 
-      <div className="max-w-sm mx-auto px-4 py-6 space-y-6">
-        {/* Statistics */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white rounded-card shadow-soft p-4 text-center">
-            <div className="text-xl font-avenir-black text-brand-blue mb-1">
+        {/* Search */}
+        <div className="psychocas-card">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: '#666666' }} />
+            <input
+              placeholder="Hledat podle emailu nebo jména..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="psychocas-input pl-10"
+            />
+          </div>
+        </div>
+
+        {/* Summary Stats */}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="psychocas-card text-center">
+            <Users className="w-8 h-8 mx-auto mb-2" style={{ color: '#1d4f7d' }} />
+            <div className="text-2xl font-bold mb-1" style={{ color: '#333333' }}>
               {members.length}
             </div>
-            <p className="text-xs text-brand-text/70 font-avenir">
-              Celkem
-            </p>
+            <p className="text-sm" style={{ color: '#666666' }}>Celkem</p>
           </div>
-          <div className="bg-white rounded-card shadow-soft p-4 text-center">
-            <div className="text-xl font-avenir-black text-brand-success mb-1">
-              {getActiveCount()}
+          
+          <div className="psychocas-card text-center">
+            <CheckCircle className="w-8 h-8 mx-auto mb-2" style={{ color: '#2e7d32' }} />
+            <div className="text-2xl font-bold mb-1" style={{ color: '#333333' }}>
+              {members.filter(m => m.membership_active).length}
             </div>
-            <p className="text-xs text-brand-text/70 font-avenir">
-              Aktivní
-            </p>
+            <p className="text-sm" style={{ color: '#666666' }}>Aktivních</p>
           </div>
-          <div className="bg-white rounded-card shadow-soft p-4 text-center">
-            <div className="text-xl font-avenir-black text-brand-error mb-1">
-              {getInactiveCount()}
+          
+          <div className="psychocas-card text-center">
+            <XCircle className="w-8 h-8 mx-auto mb-2" style={{ color: '#c62828' }} />
+            <div className="text-2xl font-bold mb-1" style={{ color: '#333333' }}>
+              {members.filter(m => !m.membership_active).length}
             </div>
-            <p className="text-xs text-brand-text/70 font-avenir">
-              Neaktivní
-            </p>
-          </div>
-        </div>
-
-        {/* Filter */}
-        <div className="bg-white rounded-card shadow-soft p-4">
-          <h3 className="text-sm font-avenir-medium text-brand-text mb-3">
-            Filtrovat členy
-          </h3>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setFilter('all')}
-              className={`flex-1 py-2 px-3 rounded-lg font-avenir text-xs transition-colors ${
-                filter === 'all'
-                  ? 'bg-brand-blue text-white'
-                  : 'bg-brand-gray text-brand-text hover:bg-brand-gray/80'
-              }`}
-            >
-              Všichni
-            </button>
-            <button
-              onClick={() => setFilter('active')}
-              className={`flex-1 py-2 px-3 rounded-lg font-avenir text-xs transition-colors ${
-                filter === 'active'
-                  ? 'bg-brand-success text-white'
-                  : 'bg-brand-gray text-brand-text hover:bg-brand-gray/80'
-              }`}
-            >
-              Aktivní
-            </button>
-            <button
-              onClick={() => setFilter('inactive')}
-              className={`flex-1 py-2 px-3 rounded-lg font-avenir text-xs transition-colors ${
-                filter === 'inactive'
-                  ? 'bg-brand-error text-white'
-                  : 'bg-brand-gray text-brand-text hover:bg-brand-gray/80'
-              }`}
-            >
-              Neaktivní
-            </button>
+            <p className="text-sm" style={{ color: '#666666' }}>Neaktivních</p>
           </div>
         </div>
 
         {/* Members List */}
-        <div className="space-y-3">
-          {members.length > 0 ? (
-            members.map((member) => (
-              <div key={member.user_id} className="bg-white rounded-card shadow-soft p-4">
-                <div className="flex justify-between items-start mb-3">
+        <div className="psychocas-card">
+          <h3 className="mb-4 pb-3 border-b" style={{ color: '#333333', borderColor: '#e0e0e0' }}>
+            Seznam členů ({filteredMembers.length})
+          </h3>
+          
+          <div className="space-y-3">
+            {filteredMembers.map((member) => (
+              <div 
+                key={member.user_id} 
+                className="p-4 rounded-xl border hover:shadow-md transition-shadow"
+                style={{ borderColor: '#e0e0e0', backgroundColor: '#fafafa' }}
+              >
+                <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
-                    <h4 className="font-avenir-medium text-brand-text">
-                      {member.full_name || 'Bez jména'}
-                    </h4>
-                    <p className="text-sm text-brand-text/70 font-avenir">
-                      {member.email}
+                    <div className="flex items-center gap-3 mb-2">
+                      <h4 className="font-medium" style={{ color: '#333333' }}>
+                        {member.full_name || member.email}
+                      </h4>
+                      <span 
+                        className="px-2 py-1 rounded-full text-xs font-medium"
+                        style={getRoleColor(member.role)}
+                      >
+                        {getRoleLabel(member.role)}
+                      </span>
+                      <span 
+                        className="px-2 py-1 rounded-full text-xs font-medium"
+                        style={{
+                          backgroundColor: member.membership_active ? '#e8f5e8' : '#ffebee',
+                          color: member.membership_active ? '#2e7d32' : '#c62828'
+                        }}
+                      >
+                        {member.membership_active ? 'Aktivní' : 'Neaktivní'}
+                      </span>
+                    </div>
+                    
+                    <p className="text-sm mb-1" style={{ color: '#666666' }}>
+                      📧 {member.email}
                     </p>
+                    
+                    {member.membership_expires && (
+                      <p className="text-sm" style={{ color: '#666666' }}>
+                        📅 Platnost do: {new Date(member.membership_expires).toLocaleDateString('cs-CZ')}
+                      </p>
+                    )}
                   </div>
-                  <div className={`w-3 h-3 rounded-full ${
-                    member.membership_active ? 'bg-brand-success' : 'bg-brand-error'
-                  }`}></div>
-                </div>
-
-                <div className="space-y-1 text-xs text-brand-text/70 font-avenir mb-3">
-                  <div className="flex justify-between">
-                    <span>Role:</span>
-                    <span className="capitalize">{member.role}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Platnost:</span>
-                    <span>{formatDate(member.membership_expires)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Registrace:</span>
-                    <span>{formatDate(member.created_at)}</span>
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  {!member.membership_active ? (
-                    <button
-                      onClick={() => updateMemberStatus(member.user_id, true)}
-                      className="flex-1 bg-brand-success text-white py-2 px-3 rounded-lg font-avenir text-xs hover:bg-brand-success/90 transition-colors"
-                    >
-                      Aktivovat
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => updateMemberStatus(member.user_id, false)}
-                      className="flex-1 bg-brand-error text-white py-2 px-3 rounded-lg font-avenir text-xs hover:bg-brand-error/90 transition-colors"
-                    >
-                      Deaktivovat
-                    </button>
-                  )}
-                  <button
-                    onClick={() => router.push('/stats')}
-                    className="border border-brand-blue text-brand-blue py-2 px-3 rounded-lg font-avenir text-xs hover:bg-brand-blue/5 transition-colors"
-                  >
-                    Statistiky
-                  </button>
                 </div>
               </div>
-            ))
-          ) : (
-            <div className="bg-white rounded-card shadow-soft p-6 text-center">
-              <div className="text-4xl mb-3">👥</div>
-              <p className="text-brand-text/70 font-avenir">
-                Žádní členové podle filtru
-              </p>
+            ))}
+          </div>
+
+          {filteredMembers.length === 0 && (
+            <div className="text-center py-8">
+              <p style={{ color: '#666666' }}>Žádní členové nenalezeni</p>
             </div>
           )}
         </div>
 
-        {/* Error Display */}
-        {error && (
-          <div className="bg-brand-error/10 border border-brand-error/20 rounded-card p-4">
-            <h4 className="font-avenir-medium text-brand-error mb-2">
-              Chyba
-            </h4>
-            <p className="text-sm text-brand-error/80 font-avenir">{error}</p>
-          </div>
-        )}
-
-        {/* Health Check Link */}
-        <div className="text-center">
-          <button
-            onClick={() => router.push('/test')}
-            className="text-brand-blue hover:text-brand-blue/80 font-avenir text-sm"
-          >
-            🩺 Health Check →
-          </button>
+        {/* Info Card */}
+        <div className="psychocas-card" style={{ backgroundColor: '#e3f2fd' }}>
+          <h4 className="mb-2" style={{ color: '#1d4f7d' }}>
+            ℹ️ Informace
+          </h4>
+          <ul className="space-y-1 text-sm" style={{ color: '#1d4f7d' }}>
+            <li>• Pro úpravu členů použijte Supabase Dashboard</li>
+            <li>• Tato stránka slouží pro přehled a vyhledávání</li>
+            <li>• Mock data pro demonstraci funkcionality</li>
+          </ul>
         </div>
       </div>
+
+      {/* Navigation Bar */}
+      <Navigation userRole={userRole} />
     </main>
   );
 }

@@ -1,29 +1,51 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
+import { Camera, CheckCircle, XCircle } from 'lucide-react';
+import Navigation from '@/components/Navigation';
 
 interface ValidationResult {
   valid: boolean;
-  reason?: string;
+  message?: string;
+  memberName?: string;
 }
 
 export default function Validate() {
-  const [code, setCode] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<ValidationResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [inputCode, setInputCode] = useState('');
+  const [validationResult, setValidationResult] = useState<'success' | 'error' | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
+  const [lastValidatedCode, setLastValidatedCode] = useState('');
+  const [resultMessage, setResultMessage] = useState('');
+  const [userRole, setUserRole] = useState<'member' | 'manager' | 'council' | 'technician'>('manager');
   const router = useRouter();
 
-  const validateCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!code.trim()) return;
+  // Fetch user role on mount
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: member } = await supabase
+          .from('members')
+          .select('role')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (member) {
+          setUserRole(member.role as 'member' | 'manager' | 'council' | 'technician');
+        }
+      }
+    };
 
-    setLoading(true);
-    setError(null);
-    setResult(null);
+    fetchUserRole();
+  }, []);
 
+  const validateCode = async (code: string) => {
+    setIsValidating(true);
+    setLastValidatedCode(code);
+    setValidationResult(null);
+    
     try {
       const { data: { session } } = await supabase.auth.getSession();
       
@@ -44,191 +66,156 @@ export default function Validate() {
         }
       );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Nepodařilo se validovat kód');
-      }
-
       const data = await response.json();
-      setResult(data);
-      setCode(''); // Clear input on success
+      
+      if (response.ok && data.success) {
+        setValidationResult('success');
+        setResultMessage(`Kód validován! ${data.memberName ? `Člen: ${data.memberName}` : ''}`);
+        setInputCode(''); // Clear input on success
+      } else {
+        setValidationResult('error');
+        setResultMessage(data.error || 'Kód je neplatný nebo již byl použit');
+      }
 
     } catch (error) {
       console.error('Error validating code:', error);
-      setError(error instanceof Error ? error.message : 'Nastala neočekávaná chyba');
+      setValidationResult('error');
+      setResultMessage('Nastala neočekávaná chyba při validaci');
     } finally {
-      setLoading(false);
+      setIsValidating(false);
     }
   };
 
-  const getResultMessage = (result: ValidationResult) => {
-    if (result.valid) {
-      return {
-        title: 'Kód platný! ✅',
-        message: 'Sleva byla úspěšně uplatněna',
-        color: 'success'
-      };
+  const handleManualValidation = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inputCode.trim()) {
+      validateCode(inputCode);
     }
+  };
 
-    switch (result.reason) {
-      case 'used_or_not_found':
-        return {
-          title: 'Kód neplatný ❌',
-          message: 'Kód již byl použit nebo neexistuje',
-          color: 'error'
-        };
-      case 'expired':
-        return {
-          title: 'Kód expiroval ⏰',
-          message: 'Kód již vypršel (platnost 3 minuty)',
-          color: 'error'
-        };
-      case 'inactive_membership':
-        return {
-          title: 'Neaktivní členství ❌',
-          message: 'Vlastník kódu nemá aktivní členství',
-          color: 'error'
-        };
-      default:
-        return {
-          title: 'Kód neplatný ❌',
-          message: 'Neznámý důvod neplatnosti',
-          color: 'error'
-        };
-    }
+  const simulateQrScan = () => {
+    // In production, this would trigger camera/QR scanner
+    const mockCode = 'PSYCHO24-DEMO';
+    setInputCode(mockCode);
+    validateCode(mockCode);
   };
 
   return (
-    <main className="min-h-screen bg-brand-gray">
-      {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-sm mx-auto px-4 py-4 flex items-center gap-4">
-          <button
-            onClick={() => router.back()}
-            className="text-brand-blue hover:text-brand-blue/80"
-          >
-            ← Zpět
-          </button>
-          <h1 className="text-lg font-avenir-black text-brand-blue">
-            Validace kódu
+    <main className="psychocas-section pb-20">
+      <div className="psychocas-container space-y-6 fade-in-up">
+        {/* Header */}
+        <div className="text-center pt-6">
+          <h1 className="mb-3">
+            Ověření kódu
           </h1>
+          <p style={{ color: '#666666' }}>
+            Naskenujte nebo zadejte QR kód od zákazníka
+          </p>
         </div>
-      </div>
 
-      <div className="max-w-sm mx-auto px-4 py-6 space-y-6">
-        {/* Instructions */}
-        <div className="bg-white rounded-card shadow-soft p-6">
-          <h2 className="text-xl font-avenir-medium text-brand-text mb-3">
-            Jak validovat?
-          </h2>
-          <div className="space-y-2 text-sm text-brand-text/70 font-avenir">
-            <p>1. Zadejte nebo naskenujte kód od zákazníka</p>
-            <p>2. Stiskněte tlačítko "Validovat"</p>
-            <p>3. Sledujte výsledek validace</p>
-            <p>4. Každý kód lze použít pouze jednou</p>
+        {/* QR Scanner Section */}
+        <div className="psychocas-card">
+          <div className="text-center mb-6">
+            <h3 style={{ color: '#333333' }}>
+              Naskenujte QR kód
+            </h3>
+          </div>
+          
+          <div 
+            className="aspect-square max-w-64 mx-auto border-2 border-dashed rounded-2xl flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-all duration-300"
+            style={{ borderColor: '#049edb' }}
+            onClick={simulateQrScan}
+          >
+            <div className="text-center space-y-3">
+              <Camera className="w-20 h-20 mx-auto" style={{ color: '#049edb' }} />
+              <p style={{ color: '#666666' }}>
+                Klikněte pro simulaci skenování
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Validation Form */}
-        <div className="bg-white rounded-card shadow-soft p-6">
-          <h3 className="text-lg font-avenir-medium text-brand-text mb-4">
-            Zadat kód
-          </h3>
-          
-          <form onSubmit={validateCode} className="space-y-4">
-            <div>
-              <label htmlFor="code" className="block text-sm font-avenir-medium text-brand-text mb-2">
-                Slevový kód
+        {/* Manual Input Section */}
+        <div className="psychocas-card">
+          <form onSubmit={handleManualValidation} className="space-y-6">
+            <div className="text-center">
+              <h3 style={{ color: '#333333', marginBottom: '1rem' }}>
+                Nebo zadejte kód ručně
+              </h3>
+            </div>
+            
+            <div className="space-y-3 text-left">
+              <label htmlFor="code-input" style={{ color: '#333333' }}>
+                Kód
               </label>
               <input
-                id="code"
+                id="code-input"
                 type="text"
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                placeholder="ABC4-XY89"
-                className="w-full px-4 py-3 border border-gray-200 rounded-button focus:ring-2 focus:ring-brand-accent focus:border-transparent font-avenir text-center text-lg tracking-wider"
-                disabled={loading}
-                maxLength={9}
+                value={inputCode}
+                onChange={(e) => setInputCode(e.target.value.toUpperCase())}
+                className="psychocas-input text-center text-lg tracking-wider font-mono"
+                placeholder="PSYCHO24-ABC123"
+                disabled={isValidating}
+                style={{ fontFamily: 'SF Mono, Monaco, monospace' }}
               />
             </div>
 
             <button
               type="submit"
-              disabled={loading || !code.trim()}
-              className="w-full bg-brand-blue text-white py-4 px-4 rounded-button font-avenir-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-brand-blue/90 transition-colors"
+              className="psychocas-button-primary"
+              disabled={isValidating || !inputCode.trim()}
             >
-              {loading ? 'Validuji...' : 'Validovat kód'}
+              {isValidating ? 'Ověřuji...' : 'Ověřit kód'}
             </button>
           </form>
         </div>
 
         {/* Validation Result */}
-        {result && (
-          <div className={`rounded-card shadow-soft p-6 ${
-            result.valid 
-              ? 'bg-brand-success/10 border border-brand-success/20' 
-              : 'bg-brand-error/10 border border-brand-error/20'
+        {validationResult && (
+          <div className={`psychocas-card ${
+            validationResult === 'success' ? 'status-active' : 'status-inactive'
           }`}>
-            {(() => {
-              const message = getResultMessage(result);
-              return (
-                <div className="text-center">
-                  <div className="text-4xl mb-3">
-                    {result.valid ? '✅' : '❌'}
-                  </div>
-                  <h3 className={`text-lg font-avenir-medium mb-2 ${
-                    result.valid ? 'text-brand-success' : 'text-brand-error'
-                  }`}>
-                    {message.title}
-                  </h3>
-                  <p className={`text-sm font-avenir ${
-                    result.valid ? 'text-brand-success/80' : 'text-brand-error/80'
-                  }`}>
-                    {message.message}
-                  </p>
-                </div>
-              );
-            })()}
+            <div className="text-center space-y-4">
+              {validationResult === 'success' ? (
+                <CheckCircle className="w-16 h-16 mx-auto" style={{ color: '#2e7d32' }} />
+              ) : (
+                <XCircle className="w-16 h-16 mx-auto" style={{ color: '#c62828' }} />
+              )}
+              
+              <div>
+                <h3 className="mb-2" style={{ 
+                  color: validationResult === 'success' ? '#2e7d32' : '#c62828' 
+                }}>
+                  {validationResult === 'success' ? 'Kód platný!' : 'Kód neplatný'}
+                </h3>
+                <p className="text-sm" style={{ 
+                  color: validationResult === 'success' ? '#2e7d32' : '#c62828' 
+                }}>
+                  {resultMessage}
+                </p>
+                <p className="text-sm mt-3" style={{ color: '#666666' }}>
+                  Kód: <strong>{lastValidatedCode}</strong>
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Error Display */}
-        {error && (
-          <div className="bg-brand-error/10 border border-brand-error/20 rounded-card p-4">
-            <h4 className="font-avenir-medium text-brand-error mb-2">
-              Chyba při validaci
-            </h4>
-            <p className="text-sm text-brand-error/80 font-avenir">{error}</p>
-          </div>
-        )}
-
-        {/* QR Scanner Placeholder */}
-        <div className="bg-white rounded-card shadow-soft p-6 text-center">
-          <div className="text-4xl mb-3">📷</div>
-          <h3 className="text-lg font-avenir-medium text-brand-text mb-2">
-            QR Scanner
-          </h3>
-          <p className="text-sm text-brand-text/70 font-avenir mb-4">
-            Funkcionalita skenování QR kódů bude přidána později
-          </p>
-          <button
-            disabled
-            className="px-4 py-2 bg-gray-200 text-gray-500 rounded-button font-avenir-medium cursor-not-allowed"
-          >
-            Skenovat QR kód
-          </button>
-        </div>
-
-        {/* Statistics Link */}
-        <div className="text-center">
-          <button
-            onClick={() => router.push('/stats')}
-            className="text-brand-blue hover:text-brand-blue/80 font-avenir text-sm"
-          >
-            📊 Zobrazit statistiky →
-          </button>
+        {/* Instructions */}
+        <div className="psychocas-card" style={{ backgroundColor: '#fff8e1', border: '1px solid #ffe082' }}>
+          <h4 className="mb-2" style={{ color: '#f57c00' }}>
+            ℹ️ Instrukce
+          </h4>
+          <ul className="space-y-2 text-sm" style={{ color: '#f57c00' }}>
+            <li>• Kód je platný 3 minuty od vygenerování</li>
+            <li>• Každý kód lze použít pouze jednou</li>
+            <li>• Po validaci bude kód automaticky označen jako použitý</li>
+          </ul>
         </div>
       </div>
+
+      {/* Navigation Bar */}
+      <Navigation userRole={userRole} />
     </main>
   );
 }

@@ -2,255 +2,202 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { useRouter } from 'next/navigation';
+import { TrendingUp, Users, Percent, Clock } from 'lucide-react';
+import Navigation from '@/components/Navigation';
 
-interface DailyStats {
-  day: string;
-  total: number;
-}
+const mockData = {
+  day: [
+    { time: '9:00', validations: 12 },
+    { time: '10:00', validations: 18 },
+    { time: '11:00', validations: 25 },
+    { time: '12:00', validations: 31 },
+    { time: '13:00', validations: 28 },
+    { time: '14:00', validations: 22 },
+    { time: '15:00', validations: 16 },
+    { time: '16:00', validations: 19 },
+  ],
+  week: [
+    { day: 'Po', validations: 145 },
+    { day: 'Út', validations: 162 },
+    { day: 'St', validations: 178 },
+    { day: 'Čt', validations: 153 },
+    { day: 'Pá', validations: 189 },
+    { day: 'So', validations: 234 },
+    { day: 'Ne', validations: 198 },
+  ],
+  month: [
+    { week: '1. týden', validations: 1259 },
+    { week: '2. týden', validations: 1387 },
+    { week: '3. týden', validations: 1456 },
+    { week: '4. týden', validations: 1332 },
+  ]
+};
 
-interface BranchData {
-  id: string;
-  name: string;
-  city: string | null;
-}
+export default function Statistics() {
+  const [period, setPeriod] = useState<'day' | 'week' | 'month'>('week');
+  const [userRole, setUserRole] = useState<'member' | 'manager' | 'council' | 'technician'>('manager');
 
-export default function Stats() {
-  const [dailyStats, setDailyStats] = useState<DailyStats[]>([]);
-  const [branches, setBranches] = useState<BranchData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month'>('week');
-  const router = useRouter();
-
+  // Fetch user role on mount
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (!user) {
-          router.push('/login');
-          return;
-        }
-
-        // Fetch user role
+    const fetchUserRole = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
         const { data: member } = await supabase
           .from('members')
-          .select('role, branch_id')
+          .select('role')
           .eq('user_id', user.id)
           .single();
-
-        if (!member || !['manager', 'council'].includes(member.role)) {
-          router.push('/home');
-          return;
-        }
-
-        // Fetch branches
-        const { data: branchData, error: branchError } = await supabase
-          .from('branches')
-          .select('id, name, city')
-          .order('name');
-
-        if (branchError) throw branchError;
-        setBranches(branchData || []);
-
-        // Fetch daily stats
-        const daysBack = selectedPeriod === 'week' ? 7 : 30;
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - daysBack);
-
-        let query = supabase
-          .from('redemptions_daily')
-          .select('*')
-          .gte('day', startDate.toISOString().split('T')[0])
-          .order('day', { ascending: true });
-
-        // If user is manager, filter by their branch
-        if (member.role === 'manager' && member.branch_id) {
-          query = query.eq('branch_id', member.branch_id);
-        }
-
-        const { data: statsData, error: statsError } = await query;
         
-        if (statsError) throw statsError;
-        setDailyStats(statsData || []);
-
-      } catch (error) {
-        console.error('Error fetching stats:', error);
-        setError(error instanceof Error ? error.message : 'Nastala neočekávaná chyba');
-      } finally {
-        setLoading(false);
+        if (member) {
+          setUserRole(member.role as 'member' | 'manager' | 'council' | 'technician');
+        }
       }
     };
 
-    fetchStats();
-  }, [selectedPeriod, router]);
+    fetchUserRole();
+  }, []);
 
-  const getTotalRedemptions = () => {
-    return dailyStats.reduce((sum, stat) => sum + stat.total, 0);
-  };
-
-  const getAverageDaily = () => {
-    if (dailyStats.length === 0) return 0;
-    return Math.round(getTotalRedemptions() / dailyStats.length * 10) / 10;
-  };
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('cs-CZ', { 
-      day: 'numeric', 
-      month: 'short' 
-    });
-  };
-
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-brand-gray flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-blue mx-auto mb-4"></div>
-          <p className="text-brand-text/70 font-avenir">Načítám statistiky...</p>
-        </div>
-      </main>
-    );
-  }
+  const data = mockData[period];
+  const totalValidations = data.reduce((sum, item) => sum + item.validations, 0);
+  const avgPerPeriod = Math.round(totalValidations / data.length);
+  const maxValidation = Math.max(...data.map(item => item.validations));
 
   return (
-    <main className="min-h-screen bg-brand-gray">
-      {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-sm mx-auto px-4 py-4 flex items-center gap-4">
-          <button
-            onClick={() => router.back()}
-            className="text-brand-blue hover:text-brand-blue/80"
-          >
-            ← Zpět
-          </button>
-          <h1 className="text-lg font-avenir-black text-brand-blue">
-            Statistiky
-          </h1>
+    <main className="psychocas-section pb-20">
+      <div className="psychocas-container space-y-6 fade-in-up">
+        {/* Header */}
+        <div className="text-center pt-6">
+          <h1 className="mb-3">Statistiky</h1>
+          <p style={{ color: '#666666' }}>Přehled využití slevových kódů</p>
         </div>
-      </div>
 
-      <div className="max-w-sm mx-auto px-4 py-6 space-y-6">
-        {/* Period Selector */}
-        <div className="bg-white rounded-card shadow-soft p-4">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setSelectedPeriod('week')}
-              className={`flex-1 py-2 px-4 rounded-lg font-avenir text-sm transition-colors ${
-                selectedPeriod === 'week'
-                  ? 'bg-brand-blue text-white'
-                  : 'bg-brand-gray text-brand-text hover:bg-brand-gray/80'
-              }`}
+        {/* Filter */}
+        <div className="psychocas-card">
+          <div className="flex items-center gap-4">
+            <label className="text-sm font-medium" style={{ color: '#333333' }}>
+              Období:
+            </label>
+            <select
+              value={period}
+              onChange={(e) => setPeriod(e.target.value as 'day' | 'week' | 'month')}
+              className="psychocas-input flex-1"
+              style={{ paddingTop: '0.5rem', paddingBottom: '0.5rem' }}
             >
-              Týden
-            </button>
-            <button
-              onClick={() => setSelectedPeriod('month')}
-              className={`flex-1 py-2 px-4 rounded-lg font-avenir text-sm transition-colors ${
-                selectedPeriod === 'month'
-                  ? 'bg-brand-blue text-white'
-                  : 'bg-brand-gray text-brand-text hover:bg-brand-gray/80'
-              }`}
-            >
-              Měsíc
-            </button>
+              <option value="day">Den</option>
+              <option value="week">Týden</option>
+              <option value="month">Měsíc</option>
+            </select>
           </div>
         </div>
 
-        {/* Summary Cards */}
+        {/* KPI Cards */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white rounded-card shadow-soft p-4 text-center">
-            <div className="text-2xl font-avenir-black text-brand-blue mb-1">
-              {getTotalRedemptions()}
+          {/* Total */}
+          <div className="psychocas-card">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg" style={{ backgroundColor: '#e3f2fd' }}>
+                <Users className="w-5 h-5" style={{ color: '#1d4f7d' }} />
+              </div>
+              <div>
+                <p className="text-sm" style={{ color: '#666666' }}>Celkem</p>
+                <p className="text-lg font-semibold" style={{ color: '#333333' }}>{totalValidations}</p>
+              </div>
             </div>
-            <p className="text-sm text-brand-text/70 font-avenir">
-              Celkem uplatnění
-            </p>
           </div>
-          <div className="bg-white rounded-card shadow-soft p-4 text-center">
-            <div className="text-2xl font-avenir-black text-brand-accent mb-1">
-              {getAverageDaily()}
+
+          {/* Average */}
+          <div className="psychocas-card">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg" style={{ backgroundColor: '#e1f5fe' }}>
+                <TrendingUp className="w-5 h-5" style={{ color: '#049edb' }} />
+              </div>
+              <div>
+                <p className="text-sm" style={{ color: '#666666' }}>Průměr</p>
+                <p className="text-lg font-semibold" style={{ color: '#333333' }}>{avgPerPeriod}</p>
+              </div>
             </div>
-            <p className="text-sm text-brand-text/70 font-avenir">
-              Průměr/den
-            </p>
+          </div>
+
+          {/* Success Rate */}
+          <div className="psychocas-card">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg" style={{ backgroundColor: '#e8f5e8' }}>
+                <Percent className="w-5 h-5" style={{ color: '#2e7d32' }} />
+              </div>
+              <div>
+                <p className="text-sm" style={{ color: '#666666' }}>Úspěšnost</p>
+                <p className="text-lg font-semibold" style={{ color: '#333333' }}>94%</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Avg Time */}
+          <div className="psychocas-card">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg" style={{ backgroundColor: '#fff3e0' }}>
+                <Clock className="w-5 h-5" style={{ color: '#ff9800' }} />
+              </div>
+              <div>
+                <p className="text-sm" style={{ color: '#666666' }}>Avg. čas</p>
+                <p className="text-lg font-semibold" style={{ color: '#333333' }}>2.3s</p>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Daily Chart */}
-        <div className="bg-white rounded-card shadow-soft p-6">
-          <h3 className="text-lg font-avenir-medium text-brand-text mb-4">
-            Denní přehled
+        {/* Chart */}
+        <div className="psychocas-card">
+          <h3 className="mb-6" style={{ color: '#333333' }}>
+            Ověření kódů - {period === 'day' ? 'Dnes' : period === 'week' ? 'Tento týden' : 'Tento měsíc'}
           </h3>
           
-          {dailyStats.length > 0 ? (
-            <div className="space-y-3">
-              {dailyStats.map((stat) => (
-                <div key={stat.day} className="flex items-center justify-between">
-                  <span className="text-sm font-avenir text-brand-text/70">
-                    {formatDate(stat.day)}
-                  </span>
-                  <div className="flex items-center gap-2 flex-1 mx-3">
-                    <div className="flex-1 bg-brand-gray rounded-full h-2">
-                      <div
-                        className="bg-brand-accent h-2 rounded-full transition-all duration-300"
-                        style={{
-                          width: `${Math.max(5, (stat.total / Math.max(...dailyStats.map(s => s.total))) * 100)}%`
-                        }}
-                      />
-                    </div>
-                    <span className="text-sm font-avenir-medium text-brand-text min-w-[20px] text-right">
-                      {stat.total}
-                    </span>
+          <div className="space-y-3">
+            {data.map((item, index) => {
+              const label = period === 'day' ? (item as any).time : period === 'week' ? (item as any).day : (item as any).week;
+              const percentage = (item.validations / maxValidation) * 100;
+              
+              return (
+                <div key={index} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span style={{ color: '#666666' }}>{label}</span>
+                    <span style={{ color: '#333333', fontWeight: '600' }}>{item.validations}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="h-2 rounded-full transition-all duration-500"
+                      style={{
+                        width: `${percentage}%`,
+                        backgroundColor: '#1d4f7d'
+                      }}
+                    />
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <div className="text-4xl mb-3">📊</div>
-              <p className="text-brand-text/70 font-avenir">
-                Žádná data za vybrané období
-              </p>
-            </div>
-          )}
+              );
+            })}
+          </div>
         </div>
 
-        {/* Branches Info */}
-        {branches.length > 0 && (
-          <div className="bg-white rounded-card shadow-soft p-6">
-            <h3 className="text-lg font-avenir-medium text-brand-text mb-4">
-              Pobočky
-            </h3>
-            <div className="space-y-3">
-              {branches.map((branch) => (
-                <div key={branch.id} className="flex justify-between items-center">
-                  <div>
-                    <span className="font-avenir-medium text-brand-text">
-                      {branch.name}
-                    </span>
-                    {branch.city && (
-                      <p className="text-sm text-brand-text/70 font-avenir">
-                        {branch.city}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+        {/* Summary */}
+        <div className="psychocas-card">
+          <h3 className="mb-3" style={{ color: '#333333' }}>Shrnutí</h3>
+          <div className="space-y-2 text-sm" style={{ color: '#666666' }}>
+            <p>
+              • Nejaktivnější {period === 'day' ? 'hodina' : period === 'week' ? 'den' : 'týden'}:{' '}
+              <strong style={{ color: '#333333' }}>
+                {(() => {
+                  const maxItem = data.reduce((max, item) => item.validations > max.validations ? item : max, data[0]);
+                  return (maxItem as any)[period === 'day' ? 'time' : period === 'week' ? 'day' : 'week'];
+                })()}
+              </strong>
+            </p>
+            <p>• Celkem aktivních členů: <strong style={{ color: '#333333' }}>1,247</strong></p>
+            <p>• Průměrná doba ověření: <strong style={{ color: '#333333' }}>2.3 sekundy</strong></p>
           </div>
-        )}
-
-        {/* Error Display */}
-        {error && (
-          <div className="bg-brand-error/10 border border-brand-error/20 rounded-card p-4">
-            <h4 className="font-avenir-medium text-brand-error mb-2">
-              Chyba při načítání
-            </h4>
-            <p className="text-sm text-brand-error/80 font-avenir">{error}</p>
-          </div>
-        )}
+        </div>
       </div>
+
+      {/* Navigation Bar */}
+      <Navigation userRole={userRole} />
     </main>
   );
 }
