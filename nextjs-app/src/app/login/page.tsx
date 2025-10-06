@@ -58,7 +58,7 @@ export default function Login() {
       const { data, error } = await supabase.auth.verifyOtp({
         email,
         token: otp,
-        type: 'magiclink',
+        type: 'email',
       });
 
       console.log('Verify OTP response:', { data, error });
