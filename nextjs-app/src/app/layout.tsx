@@ -1,5 +1,5 @@
 import "./globals.css";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
   title: "Psychočas - Členská aplikace",
@@ -9,21 +9,31 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   icons: {
     icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
       { url: "/faviconV1.png", sizes: "192x192", type: "image/png" },
       { url: "/faviconV2.png", sizes: "512x512", type: "image/png" }
     ],
     apple: [
-      { url: "/faviconV1.png", sizes: "192x192", type: "image/png" }
-    ]
-  },
-  themeColor: "#1d4f7d",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+      { url: "/faviconV1.png", sizes: "192x192", type: "image/png" },
+      { url: "/faviconV2.png", sizes: "512x512", type: "image/png" }
+    ],
+    shortcut: "/favicon.svg"
+  }
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#1d4f7d"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="cs">
       <head>
+        <meta charSet="UTF-8" />
         {/* PWA Meta Tags */}
         <meta name="application-name" content="Psychočas" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -33,14 +43,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="msapplication-TileColor" content="#1d4f7d" />
         <meta name="msapplication-tap-highlight" content="no" />
-        
-        {/* Favicons */}
-        <link rel="icon" type="image/png" sizes="192x192" href="/faviconV1.png" />
-        <link rel="icon" type="image/png" sizes="512x512" href="/faviconV2.png" />
-        
-        {/* Apple Touch Icons */}
-        <link rel="apple-touch-icon" sizes="192x192" href="/faviconV1.png" />
-        <link rel="apple-touch-icon" sizes="512x512" href="/faviconV2.png" />
       </head>
       <body>
         {children}

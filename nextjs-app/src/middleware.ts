@@ -44,6 +44,11 @@ export async function middleware(request: NextRequest) {
     }
   )
 
+  // Skip middleware for auth callback route
+  if (request.nextUrl.pathname.startsWith('/auth/callback')) {
+    return response
+  }
+
   const { data: { user } } = await supabase.auth.getUser()
 
   // Protected routes

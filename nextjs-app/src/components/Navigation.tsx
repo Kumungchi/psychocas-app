@@ -3,6 +3,7 @@
 import { useRouter, usePathname } from 'next/navigation';
 import { Home, QrCode, BarChart3, Settings, LogOut } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
+import PsychocasLogo from './PsychocasLogo';
 
 interface NavigationProps {
   userRole: 'member' | 'manager' | 'council' | 'technician';
