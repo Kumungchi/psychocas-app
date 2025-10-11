@@ -13,6 +13,7 @@ import {
 } from '@/lib/partners';
 import { loadHomeSnapshot, saveHomeSnapshot, clearHomeSnapshot } from '@/lib/offlineCache';
 import type { BranchInfo, MemberData, MemberRole, TokenData } from '@/types/member';
+import useNetworkStatus from '@/hooks/useNetworkStatus';
 
 const ROLE_LABELS: Record<MemberRole, string> = {
   member: 'Člen',
@@ -20,6 +21,10 @@ const ROLE_LABELS: Record<MemberRole, string> = {
   council: 'Rada',
   technician: 'Technik',
 };
+
+const OFFLINE_REFRESH_MESSAGE = 'Pro obnovení dat se prosím připojte k internetu.';
+const OFFLINE_TOKEN_MESSAGE = 'Pro vygenerování nového kódu je nutné připojení k internetu.';
+const OFFLINE_CARD_HINT = 'Pro generování nebo obnovu členského kódu je vyžadováno připojení k internetu.';
 
 function HomeContent() {
   const [memberData, setMemberData] = useState<MemberData | null>(null);
@@ -37,8 +42,11 @@ function HomeContent() {
   const [restoredFromSnapshot, setRestoredFromSnapshot] = useState(false);
   const [snapshotSavedAt, setSnapshotSavedAt] = useState<string | null>(null);
   const [snapshotChecked, setSnapshotChecked] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isOnline = useNetworkStatus();
 
   useEffect(() => {
     const errorParam = searchParams.get('error');
@@ -86,10 +94,20 @@ function HomeContent() {
       setPartnersLoading(false);
       setRestoredFromSnapshot(true);
       setSnapshotSavedAt(snapshot.savedAt);
+      setLastSyncedAt(snapshot.savedAt);
       setTokenError(null);
     }
     setSnapshotChecked(true);
   }, []);
+
+  useEffect(() => {
+    if (!isOnline) {
+      return;
+    }
+
+    setError((prev) => (prev === OFFLINE_REFRESH_MESSAGE ? null : prev));
+    setTokenError((prev) => (prev === OFFLINE_TOKEN_MESSAGE ? null : prev));
+  }, [isOnline]);
 
   const loadActiveToken = useCallback(async (userId: string): Promise<TokenData | null> => {
     let activeToken: TokenData | null = null;
@@ -125,9 +143,22 @@ function HomeContent() {
     return activeToken;
   }, []);
 
-  const fetchMemberContext = useCallback(async () => {
-    setLoading((prev) => (restoredFromSnapshot ? prev : true));
-    setPartnersLoading((prev) => (restoredFromSnapshot ? prev : true));
+  const fetchMemberContext = useCallback(
+    async (options?: { forceLoading?: boolean }) => {
+      const shouldShowLoaders = options?.forceLoading ?? !restoredFromSnapshot;
+      if (shouldShowLoaders) {
+        setLoading(true);
+        setPartnersLoading(true);
+      }
+
+      if (!isOnline) {
+        if (shouldShowLoaders) {
+          setLoading(false);
+          setPartnersLoading(false);
+        }
+        setError((prev) => prev ?? OFFLINE_REFRESH_MESSAGE);
+        return;
+      }
     try {
       const {
         data: { user: currentUser },
@@ -245,13 +276,14 @@ function HomeContent() {
       const activeToken = await loadActiveToken(currentUser.id);
 
       if (!memberResponse.error && !partnersResponse.error) {
-        saveHomeSnapshot({
+        const saved = saveHomeSnapshot({
           member: normalizedMember,
           partners: normalizedPartners,
           token: activeToken,
         });
         setRestoredFromSnapshot(false);
         setSnapshotSavedAt(null);
+        setLastSyncedAt(saved.savedAt);
       }
     } catch (fetchError) {
       console.error('Unexpected error loading home screen:', fetchError);
@@ -260,7 +292,9 @@ function HomeContent() {
       setLoading(false);
       setPartnersLoading(false);
     }
-  }, [loadActiveToken, restoredFromSnapshot, router]);
+    },
+    [isOnline, loadActiveToken, restoredFromSnapshot, router]
+  );
 
   useEffect(() => {
     if (!snapshotChecked) {
@@ -309,6 +343,12 @@ function HomeContent() {
     setTokenLoading(true);
     setTokenError(null);
 
+    if (!isOnline) {
+      setTokenLoading(false);
+      setTokenError(OFFLINE_TOKEN_MESSAGE);
+      return;
+    }
+
     try {
       const {
         data: { session },
@@ -356,7 +396,7 @@ function HomeContent() {
     } finally {
       setTokenLoading(false);
     }
-  }, [memberData, router]);
+  }, [isOnline, memberData, router]);
 
   const handleCopyCode = useCallback(async () => {
     if (!token) return;
@@ -393,6 +433,35 @@ function HomeContent() {
       return snapshotSavedAt;
     }
   }, [snapshotSavedAt]);
+
+  const lastSyncedLabel = useMemo(() => {
+    if (!lastSyncedAt) return null;
+    try {
+      return new Intl.DateTimeFormat('cs-CZ', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+      }).format(new Date(lastSyncedAt));
+    } catch (formatError) {
+      console.error('Error formatting last synced timestamp:', formatError);
+      return lastSyncedAt;
+    }
+  }, [lastSyncedAt]);
+
+  const handleRefresh = useCallback(async () => {
+    if (!isOnline) {
+      setError(OFFLINE_REFRESH_MESSAGE);
+      return;
+    }
+
+    setIsRefreshing(true);
+    setError(null);
+    setPartnersError(null);
+    try {
+      await fetchMemberContext({ forceLoading: true });
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [fetchMemberContext, isOnline]);
 
   const renderPartnerCard = useCallback((partner: PartnerOfferRecord) => {
     const locationLabel = partner.city || partner.branch?.city || partner.branch?.name || null;
@@ -528,6 +597,23 @@ function HomeContent() {
           </div>
         )}
 
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={isRefreshing || !isOnline}
+            className="rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
+            style={{
+              borderColor: '#1d4f7d',
+              color: isRefreshing || !isOnline ? '#9ca3af' : '#1d4f7d',
+              backgroundColor: isRefreshing ? '#e5e7eb' : '#ffffff',
+              cursor: isRefreshing || !isOnline ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {isRefreshing ? 'Aktualizuji…' : 'Obnovit data'}
+          </button>
+        </div>
+
         <div className="text-center">
           <div className="mb-6 flex justify-center">
             <svg width="80" height="80" viewBox="-60 -60 120 120" xmlns="http://www.w3.org/2000/svg">
@@ -571,6 +657,11 @@ function HomeContent() {
             <div className="space-y-1">
               <h2 style={{ color: '#333333' }}>Členský profil</h2>
               <p className="text-sm" style={{ color: '#666666' }}>{memberEmail}</p>
+              {lastSyncedLabel && (
+                <p className="text-xs" style={{ color: '#9ca3af' }}>
+                  Naposledy aktualizováno: {lastSyncedLabel}
+                </p>
+              )}
             </div>
             <span
               className="px-3 py-1 text-sm font-medium"
@@ -628,6 +719,14 @@ function HomeContent() {
           </div>
 
           <div className="mt-6 space-y-4">
+            {!isOnline && (
+              <div
+                className="rounded-lg border px-3 py-2 text-sm"
+                style={{ borderColor: '#f97316', backgroundColor: '#fff7ed', color: '#9a3412' }}
+              >
+                {OFFLINE_CARD_HINT}
+              </div>
+            )}
             {token ? (
               <div className="rounded-2xl border px-4 py-5" style={{ borderColor: '#bbdefb', backgroundColor: '#e3f2fd' }}>
                 <div className="flex items-center justify-between gap-4">

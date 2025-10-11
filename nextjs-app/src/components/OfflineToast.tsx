@@ -2,41 +2,28 @@
 
 import { useEffect, useState } from 'react';
 import { WifiOff, Wifi } from 'lucide-react';
+import useNetworkStatus from '@/hooks/useNetworkStatus';
 
 export default function OfflineToast() {
-  const [isOnline, setIsOnline] = useState<boolean>(true);
+  const isOnline = useNetworkStatus();
   const [visible, setVisible] = useState<boolean>(false);
 
   useEffect(() => {
-    const updateStatus = () => {
-      const online = typeof navigator !== 'undefined' ? navigator.onLine : true;
-      setIsOnline(online);
-      setVisible(true);
-      if (online) {
-        const timeout = window.setTimeout(() => setVisible(false), 2500);
-        return () => window.clearTimeout(timeout);
-      }
-      return undefined;
-    };
+    if (typeof window === 'undefined') {
+      return;
+    }
 
-    const handleOnline = () => {
-      updateStatus();
-    };
+    setVisible(true);
 
-    const handleOffline = () => {
-      updateStatus();
-    };
-
-    updateStatus();
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    if (isOnline) {
+      const timeout = window.setTimeout(() => setVisible(false), 2500);
+      return () => window.clearTimeout(timeout);
+    }
 
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      // keep toast visible while offline
     };
-  }, []);
+  }, [isOnline]);
 
   if (!visible) {
     return null;

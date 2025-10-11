@@ -75,11 +75,14 @@ describe("home snapshot cache", () => {
   });
 
   it("persists and restores member data, partners, and tokens", () => {
-    saveHomeSnapshot({
+    const saved = saveHomeSnapshot({
       member: sampleMember,
       partners: MOCK_PARTNER_OFFERS,
       token: sampleToken,
     });
+
+    expect(saved.savedAt).toBeDefined();
+    expect(saved.member?.full_name).toBe(sampleMember.full_name);
 
     const snapshot = loadHomeSnapshot();
     expect(snapshot).not.toBeNull();

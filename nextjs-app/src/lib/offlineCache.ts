@@ -35,10 +35,7 @@ export function saveHomeSnapshot(input: {
   member: MemberData | null;
   partners: PartnerOfferRecord[];
   token: TokenData | null;
-}): void {
-  const storage = getStorage();
-  if (!storage) return;
-
+}): HomeSnapshot {
   const snapshot: HomeSnapshot = {
     version: SNAPSHOT_VERSION,
     savedAt: new Date().toISOString(),
@@ -47,11 +44,17 @@ export function saveHomeSnapshot(input: {
     token: input.token,
   };
 
+  const storage = getStorage();
+  if (!storage) {
+    return snapshot;
+  }
+
   try {
     storage.setItem(HOME_SNAPSHOT_STORAGE_KEY, JSON.stringify(snapshot));
   } catch (error) {
     console.warn('Failed to persist home snapshot', error);
   }
+  return snapshot;
 }
 
 export function loadHomeSnapshot(): HomeSnapshot | null {
