@@ -34,6 +34,7 @@ create table if not exists public.partner_offers (
   city text,
   active boolean not null default true,
   created_by uuid references public.members(user_id) on delete set null,
+  updated_by uuid references public.members(user_id) on delete set null,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

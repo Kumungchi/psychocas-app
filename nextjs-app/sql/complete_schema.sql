@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS public.partner_offers (
   city text,
   active boolean NOT NULL DEFAULT true,
   created_by uuid REFERENCES public.members(user_id) ON DELETE SET NULL,
+  updated_by uuid REFERENCES public.members(user_id) ON DELETE SET NULL,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );

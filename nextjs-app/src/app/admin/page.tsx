@@ -6,6 +6,13 @@ import { supabase } from '@/lib/supabaseClient';
 import Navigation from '@/components/Navigation';
 import { Users, Shield, Store, UserCheck, UserX, Mail, Phone, MapPin, Tag, Trash2, ToggleRight } from 'lucide-react';
 import type { User } from '@supabase/supabase-js';
+import {
+  preparePartnerOfferPayload,
+  type PartnerOfferFormState,
+  type PartnerOfferFormErrors,
+  type PartnerScope,
+  type PartnerOfferRecord,
+} from '@/lib/partners';
 
 interface Member {
   user_id: string;
@@ -47,21 +54,6 @@ interface Branch {
   created_at: string;
 }
 
-type PartnerScope = 'national' | 'local';
-
-interface PartnerOffer {
-  id: string;
-  title: string;
-  description: string | null;
-  discount_code: string | null;
-  discount_percentage: number | null;
-  scope: PartnerScope;
-  branch_id: string | null;
-  city: string | null;
-  active: boolean;
-  created_at: string;
-}
-
 export default function AdminPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -94,20 +86,49 @@ export default function AdminPage() {
   });
 
   // Partner offers state
-  const [partnerOffers, setPartnerOffers] = useState<PartnerOffer[]>([]);
-  const [newOffer, setNewOffer] = useState({
+  const [partnerOffers, setPartnerOffers] = useState<PartnerOfferRecord[]>([]);
+  const [newOffer, setNewOffer] = useState<PartnerOfferFormState>({
     title: '',
     description: '',
     discountCode: '',
     discountPercentage: 10,
-    scope: 'national' as PartnerScope,
+    scope: 'national',
     branchId: '',
     city: '',
   });
+  const [offerErrors, setOfferErrors] = useState<PartnerOfferFormErrors>({});
   const [isSavingOffer, setIsSavingOffer] = useState(false);
   
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleOfferFieldChange = <K extends keyof PartnerOfferFormState>(field: K, value: PartnerOfferFormState[K]) => {
+    setNewOffer((prev) => {
+      if (field === 'scope') {
+        const nextScope = value as PartnerScope;
+        const nextBranch = nextScope === 'local'
+          ? (prev.branchId || memberProfile?.branch_id || '')
+          : '';
+
+        return {
+          ...prev,
+          scope: nextScope,
+          branchId: nextBranch,
+        };
+      }
+
+      return {
+        ...prev,
+        [field]: value,
+      };
+    });
+
+    setOfferErrors((prev) => ({
+      ...prev,
+      [field]: undefined,
+      ...(field === 'scope' ? { branchId: undefined } : {}),
+    }));
+  };
 
   const loadMembers = useCallback(async () => {
     const { data } = await supabase
@@ -151,12 +172,49 @@ export default function AdminPage() {
   }, []);
 
   const loadPartnerOffers = useCallback(async () => {
-    const { data } = await supabase
-      .from('partner_offers')
-      .select('id, title, description, discount_code, discount_percentage, scope, branch_id, city, active, created_at')
-      .order('title');
+    type PartnerOfferRow = PartnerOfferRecord & {
+      branch: TrustedBranch | TrustedBranch[] | null;
+      creator: { full_name?: string | null; email?: string | null } | { full_name?: string | null; email?: string | null }[] | null;
+      updater: { full_name?: string | null; email?: string | null } | { full_name?: string | null; email?: string | null }[] | null;
+    };
 
-    if (data) setPartnerOffers(data as PartnerOffer[]);
+    const { data, error } = await supabase
+      .from('partner_offers')
+      .select(`
+        id,
+        title,
+        description,
+        discount_code,
+        discount_percentage,
+        scope,
+        branch_id,
+        city,
+        active,
+        created_at,
+        updated_at,
+        created_by,
+        updated_by,
+        branch:branch_id (id, name, city),
+        creator:created_by (full_name, email),
+        updater:updated_by (full_name, email)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Failed to load partner offers', error);
+      return;
+    }
+
+    if (data) {
+      const normalized = (data as PartnerOfferRow[]).map((offer) => ({
+        ...offer,
+        branch: Array.isArray(offer.branch) ? offer.branch[0] ?? null : offer.branch ?? null,
+        creator: Array.isArray(offer.creator) ? offer.creator[0] ?? null : offer.creator ?? null,
+        updater: Array.isArray(offer.updater) ? offer.updater[0] ?? null : offer.updater ?? null,
+      }));
+
+      setPartnerOffers(normalized);
+    }
   }, []);
 
   const checkAuth = useCallback(async () => {
@@ -207,13 +265,19 @@ export default function AdminPage() {
   useEffect(() => {
     if (!memberProfile) return;
     const isCouncil = ['council', 'technician'].includes(memberProfile.role);
-    if (!isCouncil) {
-      setNewOffer((prev) => ({
+    setNewOffer((prev) => {
+      const nextScope: PartnerScope = isCouncil ? prev.scope : 'local';
+      const nextBranchId = nextScope === 'local'
+        ? (isCouncil ? prev.branchId : memberProfile.branch_id ?? '')
+        : '';
+
+      return {
         ...prev,
-        scope: 'local',
-        branchId: memberProfile.branch_id ?? prev.branchId,
-      }));
-    }
+        scope: nextScope,
+        branchId: nextBranchId,
+      };
+    });
+    setOfferErrors((prev) => ({ ...prev, scope: undefined, branchId: undefined }));
   }, [memberProfile]);
 
   const approveMember = async (memberId: string) => {
@@ -331,25 +395,26 @@ export default function AdminPage() {
       ? (isCouncil ? newOffer.branchId : memberProfile.branch_id)
       : null;
 
-    if (effectiveScope === 'local' && !branchForLocal) {
-      setMessage({ type: 'error', text: 'Lokální nabídka musí mít přiřazenou pobočku.' });
+    const validation = preparePartnerOfferPayload(newOffer, {
+      scope: effectiveScope,
+      branchId: branchForLocal ?? null,
+      allowNational: isCouncil,
+    });
+
+    setOfferErrors(validation.errors);
+
+    if (!validation.payload) {
+      setMessage({ type: 'error', text: 'Zkontrolujte prosím zvýrazněná pole formuláře.' });
       return;
     }
 
     setIsSavingOffer(true);
 
     const payload = {
-      title: newOffer.title.trim(),
-      description: newOffer.description?.trim() || null,
-      discount_code: newOffer.discountCode?.trim() || null,
-      discount_percentage: Number.isFinite(newOffer.discountPercentage)
-        ? Number(newOffer.discountPercentage)
-        : null,
-      scope: effectiveScope,
-      branch_id: branchForLocal || null,
-      city: newOffer.city?.trim() || null,
+      ...validation.payload,
       active: true,
       created_by: currentUser.id,
+      updated_by: currentUser.id,
       updated_at: new Date().toISOString(),
     };
 
@@ -359,25 +424,32 @@ export default function AdminPage() {
       setMessage({ type: 'error', text: `Chyba: ${error.message}` });
     } else {
       setMessage({ type: 'success', text: 'Partnerská nabídka přidána!' });
+      const defaultScope: PartnerScope = isCouncil ? effectiveScope : 'local';
       setNewOffer({
         title: '',
         description: '',
         discountCode: '',
         discountPercentage: 10,
-        scope: effectiveScope,
-        branchId: branchForLocal ?? '',
+        scope: defaultScope,
+        branchId: defaultScope === 'local' ? (branchForLocal ?? memberProfile.branch_id ?? '') : '',
         city: '',
       });
+      setOfferErrors({});
       loadPartnerOffers();
     }
 
     setIsSavingOffer(false);
   };
 
-  const toggleOfferActive = async (offer: PartnerOffer) => {
+  const toggleOfferActive = async (offer: PartnerOfferRecord) => {
+    if (!currentUser) {
+      setMessage({ type: 'error', text: 'Uživatel není přihlášen.' });
+      return;
+    }
+
     const { error } = await supabase
       .from('partner_offers')
-      .update({ active: !offer.active, updated_at: new Date().toISOString() })
+      .update({ active: !offer.active, updated_at: new Date().toISOString(), updated_by: currentUser.id })
       .eq('id', offer.id);
 
     if (error) {
@@ -405,6 +477,20 @@ export default function AdminPage() {
   };
 
   const isCouncilUser = memberProfile ? ['council', 'technician'].includes(memberProfile.role) : false;
+  const activePartnerCount = partnerOffers.filter((offer) => offer.active ?? true).length;
+  const inactivePartnerCount = partnerOffers.length - activePartnerCount;
+
+  const formatAuditTimestamp = (timestamp?: string) => {
+    if (!timestamp) return '—';
+    try {
+      return new Intl.DateTimeFormat('cs-CZ', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+      }).format(new Date(timestamp));
+    } catch {
+      return timestamp;
+    }
+  };
 
   if (isLoading) {
     return (
@@ -696,46 +782,76 @@ export default function AdminPage() {
                   <Store className="mr-2 h-5 w-5" />
                   Přidat partnerskou nabídku
                 </h2>
-                <form onSubmit={addPartnerOffer} className="space-y-4">
+                <form onSubmit={addPartnerOffer} className="space-y-4" noValidate>
                   <div className="grid gap-4 md:grid-cols-2">
-                    <input
-                      type="text"
-                      placeholder="Název partnera"
-                      value={newOffer.title}
-                      onChange={(e) => setNewOffer({ ...newOffer, title: e.target.value })}
-                      className="psychocas-input"
-                      required
-                    />
-                    <input
-                      type="text"
-                      placeholder="Slevový kód (volitelné)"
-                      value={newOffer.discountCode}
-                      onChange={(e) => setNewOffer({ ...newOffer, discountCode: e.target.value })}
-                      className="psychocas-input"
-                    />
-                    <textarea
-                      placeholder="Popis slevy (volitelné)"
-                      value={newOffer.description}
-                      onChange={(e) => setNewOffer({ ...newOffer, description: e.target.value })}
-                      className="psychocas-input md:col-span-2"
-                      rows={3}
-                    />
-                    <div className="flex items-center gap-3">
-                      <label className="text-sm font-medium text-gray-600" htmlFor="offer-discount">
-                        Sleva %
-                      </label>
+                    <div className="md:col-span-2">
                       <input
-                        id="offer-discount"
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={newOffer.discountPercentage}
-                        onChange={(e) => setNewOffer({ ...newOffer, discountPercentage: parseInt(e.target.value, 10) || 0 })}
+                        type="text"
+                        placeholder="Název partnera"
+                        value={newOffer.title}
+                        onChange={(e) => handleOfferFieldChange('title', e.target.value)}
                         className="psychocas-input"
-                        style={{ maxWidth: '120px' }}
+                        aria-invalid={Boolean(offerErrors.title)}
+                        style={offerErrors.title ? { borderColor: '#c62828' } : undefined}
+                        required
                       />
+                      {offerErrors.title && (
+                        <p className="mt-2 text-xs text-red-600">{offerErrors.title}</p>
+                      )}
                     </div>
-                    <div className="space-y-2">
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="Slevový kód (volitelné)"
+                        value={newOffer.discountCode}
+                        onChange={(e) => handleOfferFieldChange('discountCode', e.target.value)}
+                        className="psychocas-input"
+                        aria-invalid={Boolean(offerErrors.discountCode)}
+                        style={offerErrors.discountCode ? { borderColor: '#c62828' } : undefined}
+                      />
+                      {offerErrors.discountCode && (
+                        <p className="mt-2 text-xs text-red-600">{offerErrors.discountCode}</p>
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-3">
+                        <label className="text-sm font-medium text-gray-600" htmlFor="offer-discount">
+                          Sleva %
+                        </label>
+                        <input
+                          id="offer-discount"
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={newOffer.discountPercentage}
+                          onChange={(e) => handleOfferFieldChange('discountPercentage', Number(e.target.value || 0))}
+                          className="psychocas-input"
+                          aria-invalid={Boolean(offerErrors.discountPercentage)}
+                          style={{
+                            maxWidth: '120px',
+                            ...(offerErrors.discountPercentage ? { borderColor: '#c62828' } : {}),
+                          }}
+                        />
+                      </div>
+                      {offerErrors.discountPercentage && (
+                        <p className="mt-2 text-xs text-red-600">{offerErrors.discountPercentage}</p>
+                      )}
+                    </div>
+                    <div className="md:col-span-2">
+                      <textarea
+                        placeholder="Popis slevy (volitelné)"
+                        value={newOffer.description}
+                        onChange={(e) => handleOfferFieldChange('description', e.target.value)}
+                        className="psychocas-input"
+                        aria-invalid={Boolean(offerErrors.description)}
+                        style={offerErrors.description ? { borderColor: '#c62828' } : undefined}
+                        rows={3}
+                      />
+                      {offerErrors.description && (
+                        <p className="mt-2 text-xs text-red-600">{offerErrors.description}</p>
+                      )}
+                    </div>
+                    <div className="md:col-span-2 space-y-2">
                       <p className="text-sm font-medium text-gray-600">Typ nabídky</p>
                       <div className="flex flex-wrap gap-3">
                         <label className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm ${newOffer.scope === 'national' ? 'border-[#1d4f7d] text-[#1d4f7d]' : 'border-gray-200 text-gray-600'}`}>
@@ -744,7 +860,7 @@ export default function AdminPage() {
                             name="offerScope"
                             value="national"
                             checked={newOffer.scope === 'national'}
-                            onChange={(e) => setNewOffer({ ...newOffer, scope: e.target.value as PartnerScope })}
+                            onChange={(e) => handleOfferFieldChange('scope', e.target.value as PartnerScope)}
                             disabled={!isCouncilUser}
                           />
                           Celostátní
@@ -755,11 +871,14 @@ export default function AdminPage() {
                             name="offerScope"
                             value="local"
                             checked={newOffer.scope === 'local'}
-                            onChange={(e) => setNewOffer({ ...newOffer, scope: e.target.value as PartnerScope })}
+                            onChange={(e) => handleOfferFieldChange('scope', e.target.value as PartnerScope)}
                           />
                           Lokální
                         </label>
                       </div>
+                      {offerErrors.scope && (
+                        <p className="text-xs text-red-600">{offerErrors.scope}</p>
+                      )}
                       {!isCouncilUser && (
                         <p className="text-xs text-gray-500">
                           Manažeři s @psychocas.cz mohou přidávat pouze lokální nabídky.
@@ -775,9 +894,14 @@ export default function AdminPage() {
                         type="text"
                         placeholder="Praha, Brno, Online..."
                         value={newOffer.city}
-                        onChange={(e) => setNewOffer({ ...newOffer, city: e.target.value })}
+                        onChange={(e) => handleOfferFieldChange('city', e.target.value)}
                         className="psychocas-input"
+                        aria-invalid={Boolean(offerErrors.city)}
+                        style={offerErrors.city ? { borderColor: '#c62828' } : undefined}
                       />
+                      {offerErrors.city && (
+                        <p className="mt-2 text-xs text-red-600">{offerErrors.city}</p>
+                      )}
                     </div>
                     <div>
                       <label className="mb-1 block text-sm font-medium text-gray-600" htmlFor="offer-branch">
@@ -786,8 +910,10 @@ export default function AdminPage() {
                       <select
                         id="offer-branch"
                         value={newOffer.branchId}
-                        onChange={(e) => setNewOffer({ ...newOffer, branchId: e.target.value })}
+                        onChange={(e) => handleOfferFieldChange('branchId', e.target.value)}
                         className="psychocas-input"
+                        aria-invalid={Boolean(offerErrors.branchId)}
+                        style={offerErrors.branchId ? { borderColor: '#c62828' } : undefined}
                         disabled={newOffer.scope === 'national' && isCouncilUser}
                       >
                         <option value="">Vyberte pobočku</option>
@@ -797,6 +923,9 @@ export default function AdminPage() {
                           </option>
                         ))}
                       </select>
+                      {offerErrors.branchId && (
+                        <p className="mt-2 text-xs text-red-600">{offerErrors.branchId}</p>
+                      )}
                     </div>
                   </div>
                   <button type="submit" className="psychocas-button" disabled={isSavingOffer}>
@@ -806,21 +935,33 @@ export default function AdminPage() {
               </div>
 
               <div className="psychocas-card">
-                <h2 className="mb-4">Aktivní partnerské nabídky ({partnerOffers.length})</h2>
+                <h2 className="mb-4">Správa partnerských nabídek ({activePartnerCount} aktivních / {inactivePartnerCount} neaktivních)</h2>
                 <div className="space-y-4">
                   {partnerOffers.length === 0 && (
                     <p className="text-sm text-gray-600">Zatím nejsou nastaveny žádné partnerské nabídky.</p>
                   )}
                   {partnerOffers.map((offer) => (
-                    <div key={offer.id} className="rounded-xl border border-gray-200 p-4">
+                    <div
+                      key={offer.id}
+                      className={`rounded-xl border p-4 ${offer.active ? 'border-gray-200 bg-white' : 'border-dashed border-gray-300 bg-gray-50'}`}
+                    >
                       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                         <div>
                           <p className="text-lg font-semibold text-gray-800">{offer.title}</p>
                           <div className="mt-2 flex flex-wrap items-center gap-3 text-xs font-semibold uppercase tracking-wide">
+                            <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 ${offer.active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}>
+                              {offer.active ? 'Aktivní' : 'Neaktivní'}
+                            </span>
                             <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 ${offer.scope === 'national' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
                               <Tag className="h-3 w-3" />
                               {offer.scope === 'national' ? 'Celostátní' : 'Lokální'}
                             </span>
+                            {offer.scope === 'local' && offer.branch && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-3 py-1 text-teal-700">
+                                <MapPin className="h-3 w-3" />
+                                {offer.branch.name}
+                              </span>
+                            )}
                             {offer.city && (
                               <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-blue-700">
                                 <MapPin className="h-3 w-3" />
@@ -841,14 +982,22 @@ export default function AdminPage() {
                           {offer.description && (
                             <p className="mt-3 text-sm text-gray-600">{offer.description}</p>
                           )}
+                          <div className="mt-3 space-y-1 text-xs text-gray-500">
+                            <p>
+                              Vytvořil: {offer.creator?.full_name || offer.creator?.email || '—'} • {formatAuditTimestamp(offer.created_at)}
+                            </p>
+                            <p>
+                              Upravil: {offer.updater?.full_name || offer.updater?.email || '—'} • {formatAuditTimestamp(offer.updated_at)}
+                            </p>
+                          </div>
                         </div>
                         <div className="flex flex-col items-start gap-2 md:items-end">
                           <button
                             onClick={() => toggleOfferActive(offer)}
-                            className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${offer.active ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                            className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${offer.active ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
                           >
                             <ToggleRight className="h-4 w-4" />
-                            {offer.active ? 'Aktivní' : 'Neaktivní'}
+                            {offer.active ? 'Deaktivovat' : 'Aktivovat'}
                           </button>
                           <button
                             onClick={() => deletePartnerOffer(offer.id)}

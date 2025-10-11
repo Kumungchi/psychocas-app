@@ -6,6 +6,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import type { User } from '@supabase/supabase-js';
 import { CheckCircle2, Clock, Copy, MapPin, QrCode, ShieldAlert } from 'lucide-react';
+import {
+  groupPartnersForMember,
+  diagnosePartnerVisibility,
+  type PartnerOfferRecord,
+} from '@/lib/partners';
 
 type MemberRole = 'member' | 'manager' | 'council' | 'technician';
 
@@ -30,27 +35,6 @@ interface MemberData {
   branch?: BranchInfo | null;
 }
 
-type PartnerScope = 'national' | 'local';
-
-interface PartnerBranchInfo {
-  id: string;
-  name: string;
-  city?: string | null;
-}
-
-interface Partner {
-  id: string;
-  title: string;
-  description?: string | null;
-  discount_code?: string | null;
-  discount_percentage?: number | null;
-  scope: PartnerScope;
-  branch_id?: string | null;
-  city?: string | null;
-  active?: boolean | null;
-  branch?: PartnerBranchInfo | null;
-}
-
 interface TokenData {
   code: string;
   expiresAt: string;
@@ -68,7 +52,7 @@ function HomeContent() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [partners, setPartners] = useState<Partner[]>([]);
+  const [partners, setPartners] = useState<PartnerOfferRecord[]>([]);
   const [partnersLoading, setPartnersLoading] = useState(true);
   const [partnersError, setPartnersError] = useState<string | null>(null);
   const [token, setToken] = useState<TokenData | null>(null);
@@ -242,12 +226,12 @@ function HomeContent() {
         setPartners([]);
         setPartnersError('Nepodařilo se načíst partnerské podniky.');
       } else {
-        type PartnerRow = Omit<Partner, 'branch'> & {
-          branch: PartnerBranchInfo | PartnerBranchInfo[] | null;
+        type PartnerRow = PartnerOfferRecord & {
+          branch: PartnerOfferRecord['branch'] | PartnerOfferRecord['branch'][] | null;
         };
 
         const partnerRows = (partnersResponse.data ?? []) as PartnerRow[];
-        const normalizedPartners: Partner[] = partnerRows.map((partner) => ({
+        const normalizedPartners: PartnerOfferRecord[] = partnerRows.map((partner) => ({
           ...partner,
           branch: Array.isArray(partner.branch)
             ? partner.branch[0] ?? null
@@ -373,38 +357,20 @@ function HomeContent() {
     }
   }, [token]);
 
-  const partnerGroups = useMemo(() => {
-    if (!partners.length) {
-      return { national: [] as Partner[], local: [] as Partner[], other: [] as Partner[] };
-    }
+  const partnerGroups = useMemo(
+    () => groupPartnersForMember(partners, memberData?.branch_id ?? null),
+    [partners, memberData?.branch_id]
+  );
 
-    const activePartners = partners.filter((partner) => partner.active ?? true);
-    const memberBranchId = memberData?.branch_id ?? null;
+  const partnerDiagnostics = useMemo(
+    () => diagnosePartnerVisibility(memberData?.branch_id ?? null, partnerGroups),
+    [memberData?.branch_id, partnerGroups]
+  );
 
-    const national: Partner[] = [];
-    const local: Partner[] = [];
-    const other: Partner[] = [];
-
-    activePartners.forEach((partner) => {
-      if (partner.scope === 'national') {
-        national.push(partner);
-        return;
-      }
-
-      if (partner.scope === 'local' && partner.branch_id && memberBranchId && partner.branch_id === memberBranchId) {
-        local.push(partner);
-        return;
-      }
-
-      other.push(partner);
-    });
-
-    return { national, local, other };
-  }, [partners, memberData]);
-
-  const renderPartnerCard = useCallback((partner: Partner) => {
+  const renderPartnerCard = useCallback((partner: PartnerOfferRecord) => {
     const locationLabel = partner.city || partner.branch?.city || partner.branch?.name || null;
     const hasDiscount = typeof partner.discount_percentage === 'number' && !Number.isNaN(partner.discount_percentage);
+    const branchLabel = partner.scope === 'local' ? partner.branch?.name ?? null : null;
 
     return (
       <div
@@ -418,6 +384,11 @@ function HomeContent() {
             <p className="mt-1 flex items-center gap-2 text-sm" style={{ color: '#666666' }}>
               <MapPin className="h-4 w-4" />
               {locationLabel}
+            </p>
+          )}
+          {branchLabel && (
+            <p className="mt-1 text-xs font-medium uppercase tracking-wide" style={{ color: '#1d4f7d' }}>
+              Pobočka: {branchLabel}
             </p>
           )}
           {partner.description && (
@@ -460,9 +431,9 @@ function HomeContent() {
   const branchName = memberData?.branch?.name ?? null;
   const branchLocation = memberData?.branch?.location || memberData?.branch?.city || null;
   const memberEmail = memberData?.email || user?.email || '';
-  const partnerSectionHasContent =
-    partnerGroups.national.length > 0 || partnerGroups.local.length > 0 || partnerGroups.other.length > 0;
+  const partnerSectionHasContent = partnerGroups.national.length > 0 || partnerGroups.local.length > 0;
   const showManagementShortcuts = memberData ? ['manager', 'council', 'technician'].includes(memberData.role) : false;
+  const showPartnerDiagnostics = showManagementShortcuts;
 
   if (loading) {
     return (
@@ -698,6 +669,10 @@ function HomeContent() {
             <div className="flex justify-center py-6">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2" style={{ borderColor: '#1d4f7d' }}></div>
             </div>
+          ) : !isApproved ? (
+            <p className="text-sm" style={{ color: '#c2410c' }}>
+              Jakmile bude vaše členství schváleno, zobrazí se zde celostátní i lokální nabídky vašeho regionu.
+            </p>
           ) : (
             <div className="space-y-5">
               {partnerGroups.national.length > 0 && (
@@ -714,12 +689,6 @@ function HomeContent() {
                   {partnerGroups.local.map(renderPartnerCard)}
                 </div>
               )}
-              {partnerGroups.other.length > 0 && (
-                <div className="space-y-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#1d4f7d' }}>Další výhody</h3>
-                  {partnerGroups.other.map(renderPartnerCard)}
-                </div>
-              )}
               {!partnerSectionHasContent && !partnersError && (
                 <p className="text-sm" style={{ color: '#666666' }}>
                   Zatím zde nejsou zveřejněni žádní partneři. Jakmile budou k dispozici, objeví se na tomto místě.
@@ -727,6 +696,50 @@ function HomeContent() {
               )}
               {partnersError && (
                 <p className="text-sm" style={{ color: '#c62828' }}>{partnersError}</p>
+              )}
+              {showPartnerDiagnostics && (
+                <div
+                  className={`rounded-lg border px-4 py-3 ${
+                    partnerDiagnostics.hasIssues ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50'
+                  }`}
+                >
+                  <p
+                    className="text-sm font-semibold"
+                    style={{ color: partnerDiagnostics.hasIssues ? '#b91c1c' : '#047857' }}
+                  >
+                    Kontrola viditelnosti partnerů:
+                    {' '}
+                    {partnerDiagnostics.hasIssues ? 'vyžaduje pozornost' : 'vše v pořádku'}
+                  </p>
+                  {partnerDiagnostics.hasIssues ? (
+                    <ul className="mt-2 list-disc space-y-1 pl-4 text-xs" style={{ color: '#991b1b' }}>
+                      {partnerDiagnostics.hiddenEligible.length > 0 && (
+                        <li>
+                          {partnerDiagnostics.hiddenEligible.length} lokálních nabídek odpovídá vaší pobočce, ale zůstává skryto.
+                        </li>
+                      )}
+                      {partnerDiagnostics.extraneousLocal.length > 0 && (
+                        <li>
+                          {partnerDiagnostics.extraneousLocal.length} zobrazených lokálních nabídek neodpovídá přiřazené pobočce.
+                        </li>
+                      )}
+                      {partnerDiagnostics.extraneousNational.length > 0 && (
+                        <li>
+                          {partnerDiagnostics.extraneousNational.length} nabídek je označeno jako celostátní, ale nesplňuje tuto podmínku.
+                        </li>
+                      )}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-xs" style={{ color: '#047857' }}>
+                      Všechny zobrazené nabídky odpovídají aktuálnímu přiřazení člena.
+                    </p>
+                  )}
+                  {partnerGroups.excluded.length > 0 && !partnerDiagnostics.hasIssues && (
+                    <p className="mt-2 text-xs" style={{ color: '#4b5563' }}>
+                      Skrytých nabídek mimo vaši pobočku: {partnerGroups.excluded.length}.
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           )}
