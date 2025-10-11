@@ -5,7 +5,16 @@ import { supabase } from '@/lib/supabaseClient';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import type { User } from '@supabase/supabase-js';
-import { CheckCircle2, Clock, Copy, MapPin, QrCode, ShieldAlert } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Copy,
+  Download,
+  MapPin,
+  QrCode,
+  ShieldAlert,
+} from 'lucide-react';
 import {
   groupPartnersForMember,
   diagnosePartnerVisibility,
@@ -14,6 +23,7 @@ import {
 import { loadHomeSnapshot, saveHomeSnapshot, clearHomeSnapshot } from '@/lib/offlineCache';
 import type { BranchInfo, MemberData, MemberRole, TokenData } from '@/types/member';
 import useNetworkStatus from '@/hooks/useNetworkStatus';
+import usePwaInstallPrompt from '@/hooks/usePwaInstallPrompt';
 
 const ROLE_LABELS: Record<MemberRole, string> = {
   member: 'Člen',
@@ -25,6 +35,8 @@ const ROLE_LABELS: Record<MemberRole, string> = {
 const OFFLINE_REFRESH_MESSAGE = 'Pro obnovení dat se prosím připojte k internetu.';
 const OFFLINE_TOKEN_MESSAGE = 'Pro vygenerování nového kódu je nutné připojení k internetu.';
 const OFFLINE_CARD_HINT = 'Pro generování nebo obnovu členského kódu je vyžadováno připojení k internetu.';
+const TOKEN_QUEUE_MESSAGE = 'Žádost o nový kód bude odeslána, jakmile se znovu připojíte k internetu.';
+const REFRESH_GENERIC_ERROR = 'Nepodařilo se obnovit data. Zkuste to prosím znovu.';
 
 function HomeContent() {
   const [memberData, setMemberData] = useState<MemberData | null>(null);
@@ -44,9 +56,14 @@ function HomeContent() {
   const [snapshotChecked, setSnapshotChecked] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshStatus, setLastRefreshStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [lastRefreshAttemptAt, setLastRefreshAttemptAt] = useState<string | null>(null);
+  const [pendingTokenRequest, setPendingTokenRequest] = useState(false);
+  const [installError, setInstallError] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const isOnline = useNetworkStatus();
+  const { canInstall, installed, promptInstall } = usePwaInstallPrompt();
 
   useEffect(() => {
     const errorParam = searchParams.get('error');
@@ -109,6 +126,12 @@ function HomeContent() {
     setTokenError((prev) => (prev === OFFLINE_TOKEN_MESSAGE ? null : prev));
   }, [isOnline]);
 
+  useEffect(() => {
+    if (installed) {
+      setInstallError(null);
+    }
+  }, [installed]);
+
   const loadActiveToken = useCallback(async (userId: string): Promise<TokenData | null> => {
     let activeToken: TokenData | null = null;
     try {
@@ -144,7 +167,7 @@ function HomeContent() {
   }, []);
 
   const fetchMemberContext = useCallback(
-    async (options?: { forceLoading?: boolean }) => {
+    async (options?: { forceLoading?: boolean }): Promise<boolean> => {
       const shouldShowLoaders = options?.forceLoading ?? !restoredFromSnapshot;
       if (shouldShowLoaders) {
         setLoading(true);
@@ -157,141 +180,148 @@ function HomeContent() {
           setPartnersLoading(false);
         }
         setError((prev) => prev ?? OFFLINE_REFRESH_MESSAGE);
-        return;
+        return false;
       }
-    try {
-      const {
-        data: { user: currentUser },
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user: currentUser },
+        } = await supabase.auth.getUser();
 
-      if (!currentUser) {
-        setLoading(false);
-        setPartnersLoading(false);
-        router.push('/login');
-        return;
-      }
+        if (!currentUser) {
+          setLoading(false);
+          setPartnersLoading(false);
+          router.push('/login');
+          return false;
+        }
 
-      setUser(currentUser);
+        setUser(currentUser);
 
-      const memberPromise = supabase
-        .from('members')
-        .select(`
-          membership_active,
-          membership_expires,
-          full_name,
-          role,
-          branch_id,
-          email,
-          approved,
-          approved_at,
-          branch:branch_id (
-            id,
-            name,
-            location,
-            city,
-            discount_percentage,
-            active
+        const memberPromise = supabase
+          .from('members')
+          .select(`
+            membership_active,
+            membership_expires,
+            full_name,
+            role,
+            branch_id,
+            email,
+            approved,
+            approved_at,
+            branch:branch_id (
+              id,
+              name,
+              location,
+              city,
+              discount_percentage,
+              active
+            )
+          `)
+          .eq('user_id', currentUser.id)
+          .limit(1);
+
+        const partnersPromise = supabase
+          .from('partner_offers')
+          .select(
+            `id, title, description, discount_code, discount_percentage, scope, branch_id, city, active,
+             branch:branch_id (id, name, city)`
           )
-        `)
-        .eq('user_id', currentUser.id)
-        .limit(1);
+          .order('title');
 
-      const partnersPromise = supabase
-        .from('partner_offers')
-        .select(
-          `id, title, description, discount_code, discount_percentage, scope, branch_id, city, active,
-           branch:branch_id (id, name, city)`
-        )
-        .order('title');
+        const [memberResponse, partnersResponse] = await Promise.all([memberPromise, partnersPromise]);
 
-      const [memberResponse, partnersResponse] = await Promise.all([memberPromise, partnersPromise]);
+        let normalizedMember: MemberData | null = null;
+        let normalizedPartners: PartnerOfferRecord[] = [];
 
-      let normalizedMember: MemberData | null = null;
-      let normalizedPartners: PartnerOfferRecord[] = [];
-
-      if (memberResponse.error) {
-        console.error('Error fetching member data:', memberResponse.error);
-        setMemberData(null);
-        setError((prev) => prev ?? 'Nepodařilo se načíst informace o členství.');
-      } else {
-        type MemberRow = {
-          membership_active: boolean;
-          membership_expires: string | null;
-          full_name: string | null;
-          role: string | null;
-          branch_id: string | null;
-          email?: string | null;
-          approved?: boolean | null;
-          approved_at?: string | null;
-          branch: BranchInfo | BranchInfo[] | null;
-        };
-
-        const memberRows = (memberResponse.data ?? []) as MemberRow[];
-        const memberRow = memberRows[0] ?? null;
-
-        if (memberRow) {
-          const normalizedBranch = Array.isArray(memberRow.branch)
-            ? memberRow.branch[0] ?? null
-            : memberRow.branch ?? null;
-
-          normalizedMember = {
-            membership_active: memberRow.membership_active,
-            membership_expires: memberRow.membership_expires,
-            full_name: memberRow.full_name,
-            role: (memberRow.role ?? 'member') as MemberRole,
-            branch_id: memberRow.branch_id,
-            email: memberRow.email ?? null,
-            approved: memberRow.approved ?? null,
-            approved_at: memberRow.approved_at ?? null,
-            branch: normalizedBranch,
+        if (memberResponse.error) {
+          console.error('Error fetching member data:', memberResponse.error);
+          setMemberData(null);
+          setError((prev) => prev ?? 'Nepodařilo se načíst informace o členství.');
+        } else {
+          type MemberRow = {
+            membership_active: boolean;
+            membership_expires: string | null;
+            full_name: string | null;
+            role: string | null;
+            branch_id: string | null;
+            email?: string | null;
+            approved?: boolean | null;
+            approved_at?: string | null;
+            branch: BranchInfo | BranchInfo[] | null;
           };
 
-          setMemberData(normalizedMember);
-        } else {
-          setMemberData(null);
+          const memberRows = (memberResponse.data ?? []) as MemberRow[];
+          const memberRow = memberRows[0] ?? null;
+
+          if (memberRow) {
+            const normalizedBranch = Array.isArray(memberRow.branch)
+              ? memberRow.branch[0] ?? null
+              : memberRow.branch ?? null;
+
+            normalizedMember = {
+              membership_active: memberRow.membership_active,
+              membership_expires: memberRow.membership_expires,
+              full_name: memberRow.full_name,
+              role: (memberRow.role ?? 'member') as MemberRole,
+              branch_id: memberRow.branch_id,
+              email: memberRow.email ?? null,
+              approved: memberRow.approved ?? null,
+              approved_at: memberRow.approved_at ?? null,
+              branch: normalizedBranch,
+            };
+
+            setMemberData(normalizedMember);
+          } else {
+            setMemberData(null);
+          }
         }
+
+        if (partnersResponse.error) {
+          console.error('Error fetching partner data:', partnersResponse.error);
+          setPartners([]);
+          setPartnersError('Nepodařilo se načíst partnerské podniky.');
+        } else {
+          type PartnerRow = PartnerOfferRecord & {
+            branch: PartnerOfferRecord['branch'] | PartnerOfferRecord['branch'][] | null;
+          };
+
+          const partnerRows = (partnersResponse.data ?? []) as PartnerRow[];
+          normalizedPartners = partnerRows.map((partner) => ({
+            ...partner,
+            branch: Array.isArray(partner.branch)
+              ? partner.branch[0] ?? null
+              : partner.branch ?? null,
+          }));
+
+          setPartners(normalizedPartners);
+          setPartnersError(null);
+        }
+
+        const activeToken = await loadActiveToken(currentUser.id);
+
+        const hasMemberError = Boolean(memberResponse.error);
+        const hasPartnerError = Boolean(partnersResponse.error);
+        const requestSuccessful = !hasMemberError && !hasPartnerError;
+
+        if (requestSuccessful) {
+          const saved = saveHomeSnapshot({
+            member: normalizedMember,
+            partners: normalizedPartners,
+            token: activeToken,
+          });
+          setRestoredFromSnapshot(false);
+          setSnapshotSavedAt(null);
+          setLastSyncedAt(saved.savedAt);
+          return true;
+        }
+      } catch (fetchError) {
+        console.error('Unexpected error loading home screen:', fetchError);
+        setError((prev) => prev ?? 'Došlo k neočekávané chybě při načítání údajů.');
+        return false;
+      } finally {
+        setLoading(false);
+        setPartnersLoading(false);
       }
-
-      if (partnersResponse.error) {
-        console.error('Error fetching partner data:', partnersResponse.error);
-        setPartners([]);
-        setPartnersError('Nepodařilo se načíst partnerské podniky.');
-      } else {
-        type PartnerRow = PartnerOfferRecord & {
-          branch: PartnerOfferRecord['branch'] | PartnerOfferRecord['branch'][] | null;
-        };
-
-        const partnerRows = (partnersResponse.data ?? []) as PartnerRow[];
-        normalizedPartners = partnerRows.map((partner) => ({
-          ...partner,
-          branch: Array.isArray(partner.branch)
-            ? partner.branch[0] ?? null
-            : partner.branch ?? null,
-        }));
-
-        setPartners(normalizedPartners);
-        setPartnersError(null);
-      }
-
-      const activeToken = await loadActiveToken(currentUser.id);
-
-      if (!memberResponse.error && !partnersResponse.error) {
-        const saved = saveHomeSnapshot({
-          member: normalizedMember,
-          partners: normalizedPartners,
-          token: activeToken,
-        });
-        setRestoredFromSnapshot(false);
-        setSnapshotSavedAt(null);
-        setLastSyncedAt(saved.savedAt);
-      }
-    } catch (fetchError) {
-      console.error('Unexpected error loading home screen:', fetchError);
-      setError((prev) => prev ?? 'Došlo k neočekávané chybě při načítání údajů.');
-    } finally {
-      setLoading(false);
-      setPartnersLoading(false);
-    }
+      return false;
     },
     [isOnline, loadActiveToken, restoredFromSnapshot, router]
   );
@@ -300,8 +330,28 @@ function HomeContent() {
     if (!snapshotChecked) {
       return;
     }
-    fetchMemberContext();
-  }, [fetchMemberContext, snapshotChecked]);
+
+    let cancelled = false;
+    const attemptTimestamp = new Date().toISOString();
+
+    const loadContext = async () => {
+      const success = await fetchMemberContext();
+      if (cancelled) {
+        return;
+      }
+      setLastRefreshAttemptAt(attemptTimestamp);
+      setLastRefreshStatus(success ? 'success' : 'error');
+      if (!success && isOnline) {
+        setError((prev) => prev ?? REFRESH_GENERIC_ERROR);
+      }
+    };
+
+    void loadContext();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchMemberContext, isOnline, snapshotChecked]);
 
   useEffect(() => {
     if (!token) {
@@ -340,12 +390,14 @@ function HomeContent() {
       return;
     }
 
+    setPendingTokenRequest(false);
     setTokenLoading(true);
     setTokenError(null);
 
     if (!isOnline) {
       setTokenLoading(false);
       setTokenError(OFFLINE_TOKEN_MESSAGE);
+      setPendingTokenRequest(true);
       return;
     }
 
@@ -386,6 +438,7 @@ function HomeContent() {
       setToken({ code: payload.code, expiresAt });
       setTimeLeft(Math.max(0, new Date(expiresAt).getTime() - Date.now()));
       setTokenError(null);
+      setPendingTokenRequest(false);
     } catch (generationError) {
       console.error('Error generating token:', generationError);
       setTokenError(
@@ -410,6 +463,21 @@ function HomeContent() {
       setTokenError('Nepodařilo se zkopírovat kód do schránky.');
     }
   }, [token]);
+
+  const handleInstallClick = useCallback(async () => {
+    setInstallError(null);
+    try {
+      const result = await promptInstall();
+      if (result.outcome === 'unavailable') {
+        setInstallError('Instalaci je potřeba spustit přímo z nabídky prohlížeče „Přidat na plochu“.');
+      } else if (result.outcome === 'dismissed') {
+        setInstallError('Instalace byla zrušena. Zkuste to prosím znovu později.');
+      }
+    } catch (installErrorInstance) {
+      console.error('Error triggering PWA install:', installErrorInstance);
+      setInstallError('Instalaci se nepodařilo spustit. Zkuste to prosím znovu.');
+    }
+  }, [promptInstall]);
 
   const partnerGroups = useMemo(
     () => groupPartnersForMember(partners, memberData?.branch_id ?? null),
@@ -447,9 +515,26 @@ function HomeContent() {
     }
   }, [lastSyncedAt]);
 
+  const lastRefreshAttemptLabel = useMemo(() => {
+    if (!lastRefreshAttemptAt) return null;
+    try {
+      return new Intl.DateTimeFormat('cs-CZ', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+      }).format(new Date(lastRefreshAttemptAt));
+    } catch (formatError) {
+      console.error('Error formatting refresh attempt timestamp:', formatError);
+      return lastRefreshAttemptAt;
+    }
+  }, [lastRefreshAttemptAt]);
+
   const handleRefresh = useCallback(async () => {
+    const attemptTimestamp = new Date().toISOString();
+
     if (!isOnline) {
       setError(OFFLINE_REFRESH_MESSAGE);
+      setLastRefreshStatus('error');
+      setLastRefreshAttemptAt(attemptTimestamp);
       return;
     }
 
@@ -457,7 +542,12 @@ function HomeContent() {
     setError(null);
     setPartnersError(null);
     try {
-      await fetchMemberContext({ forceLoading: true });
+      const success = await fetchMemberContext({ forceLoading: true });
+      setLastRefreshStatus(success ? 'success' : 'error');
+      setLastRefreshAttemptAt(attemptTimestamp);
+      if (!success) {
+        setError((prev) => prev ?? REFRESH_GENERIC_ERROR);
+      }
     } finally {
       setIsRefreshing(false);
     }
@@ -531,6 +621,12 @@ function HomeContent() {
   const showManagementShortcuts = memberData ? ['manager', 'council', 'technician'].includes(memberData.role) : false;
   const showPartnerDiagnostics = showManagementShortcuts;
 
+  useEffect(() => {
+    if (isOnline && pendingTokenRequest && canGenerateToken && !tokenLoading) {
+      void handleGenerateToken();
+    }
+  }, [canGenerateToken, handleGenerateToken, isOnline, pendingTokenRequest, tokenLoading]);
+
   if (loading) {
     return (
       <main className="psychocas-section flex items-center justify-center">
@@ -597,7 +693,21 @@ function HomeContent() {
           </div>
         )}
 
-        <div className="flex justify-end">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+          {lastRefreshStatus !== 'idle' && lastRefreshAttemptLabel && (
+            <div className="flex items-center gap-2 text-sm" style={{ color: lastRefreshStatus === 'success' ? '#047857' : '#b91c1c' }}>
+              {lastRefreshStatus === 'success' ? (
+                <CheckCircle2 className="h-4 w-4" />
+              ) : (
+                <AlertTriangle className="h-4 w-4" />
+              )}
+              <span>
+                {lastRefreshStatus === 'success'
+                  ? `Obnoveno ${lastRefreshAttemptLabel}`
+                  : `Obnovení selhalo ${lastRefreshAttemptLabel}`}
+              </span>
+            </div>
+          )}
           <button
             type="button"
             onClick={handleRefresh}
@@ -636,6 +746,50 @@ function HomeContent() {
           </div>
           <h1 className="mb-2">Vítejte zpět!</h1>
           <p style={{ color: '#666666' }}>{memberData.full_name || memberEmail}</p>
+        </div>
+
+        <div className="psychocas-card">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-2">
+              <h2 style={{ color: '#333333' }}>Stáhněte si Psychočas do zařízení</h2>
+              <p className="text-sm" style={{ color: '#666666' }}>
+                Instalací aplikace na plochu můžete využívat členský průkaz i bez připojení k internetu.
+              </p>
+              {!canInstall && !installed && (
+                <p className="text-xs" style={{ color: '#1d4f7d' }}>
+                  Pokud tlačítko není aktivní, otevřete nabídku prohlížeče a zvolte možnost „Přidat na plochu“.
+                </p>
+              )}
+              {installed && (
+                <p className="text-xs" style={{ color: '#047857' }}>
+                  Aplikace je již nainstalována na tomto zařízení.
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={handleInstallClick}
+              disabled={!canInstall || installed}
+              className="flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
+              style={{
+                backgroundColor: !canInstall || installed ? '#e5e7eb' : '#1d4f7d',
+                color: !canInstall || installed ? '#9ca3af' : '#ffffff',
+                cursor: !canInstall || installed ? 'not-allowed' : 'pointer',
+                minWidth: '12rem',
+              }}
+            >
+              <Download className="h-4 w-4" />
+              Stáhnout aplikaci
+            </button>
+          </div>
+          {canInstall && !installed && (
+            <p className="mt-3 text-xs" style={{ color: '#666666' }}>
+              Po stisknutí tlačítka potvrďte instalaci v dialogu vašeho prohlížeče.
+            </p>
+          )}
+          {installError && (
+            <p className="mt-3 text-sm" style={{ color: '#b91c1c' }}>{installError}</p>
+          )}
         </div>
 
         {memberData.approved === false && (
@@ -726,6 +880,11 @@ function HomeContent() {
               >
                 {OFFLINE_CARD_HINT}
               </div>
+            )}
+            {pendingTokenRequest && !isOnline && (
+              <p className="text-sm" style={{ color: '#1d4f7d' }}>
+                {TOKEN_QUEUE_MESSAGE}
+              </p>
             )}
             {token ? (
               <div className="rounded-2xl border px-4 py-5" style={{ borderColor: '#bbdefb', backgroundColor: '#e3f2fd' }}>
