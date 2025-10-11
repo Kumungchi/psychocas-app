@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import Navigation from '@/components/Navigation';
-import { Users, Shield, Store, UserCheck, UserX, Mail, Phone } from 'lucide-react';
+import { Users, Shield, Store, UserCheck, UserX, Mail, Phone, MapPin, Tag, Trash2, ToggleRight } from 'lucide-react';
 import type { User } from '@supabase/supabase-js';
 
 interface Member {
@@ -29,6 +29,8 @@ interface TrustedUser {
   last_name: string;
   phone: string | null;
   role: string;
+  branch_id: string | null;
+  branch?: { id: string; name: string; city?: string | null } | null;
   notes: string | null;
   added_at: string;
 }
@@ -37,7 +39,23 @@ interface Branch {
   id: string;
   name: string;
   location: string | null;
+  city?: string | null;
   discount_percentage: number;
+  active: boolean;
+  created_at: string;
+}
+
+type PartnerScope = 'national' | 'local';
+
+interface PartnerOffer {
+  id: string;
+  title: string;
+  description: string | null;
+  discount_code: string | null;
+  discount_percentage: number | null;
+  scope: PartnerScope;
+  branch_id: string | null;
+  city: string | null;
   active: boolean;
   created_at: string;
 }
@@ -46,6 +64,7 @@ export default function AdminPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [memberProfile, setMemberProfile] = useState<{ role: string; email: string; branch_id: string | null } | null>(null);
   const [activeTab, setActiveTab] = useState<'members' | 'trusted' | 'codes' | 'partners'>('members');
   
   // Members state
@@ -60,9 +79,10 @@ export default function AdminPage() {
     last_name: '',
     phone: '',
     role: 'member',
+    branch_id: '',
     notes: ''
   });
-  
+
   // Branches state
   const [branches, setBranches] = useState<Branch[]>([]);
   const [newBranch, setNewBranch] = useState({
@@ -70,6 +90,19 @@ export default function AdminPage() {
     location: '',
     discount_percentage: 10
   });
+
+  // Partner offers state
+  const [partnerOffers, setPartnerOffers] = useState<PartnerOffer[]>([]);
+  const [newOffer, setNewOffer] = useState({
+    title: '',
+    description: '',
+    discountCode: '',
+    discountPercentage: 10,
+    scope: 'national' as PartnerScope,
+    branchId: '',
+    city: '',
+  });
+  const [isSavingOffer, setIsSavingOffer] = useState(false);
   
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -89,10 +122,10 @@ export default function AdminPage() {
   const loadTrustedUsers = useCallback(async () => {
     const { data } = await supabase
       .from('trusted_users')
-      .select('*')
+      .select('id, email, first_name, last_name, phone, role, branch_id, notes, added_at, branch:branch_id (id, name, city)')
       .order('added_at', { ascending: false });
 
-    if (data) setTrustedUsers(data);
+    if (data) setTrustedUsers(data as TrustedUser[]);
   }, []);
 
   const loadBranches = useCallback(async () => {
@@ -102,6 +135,15 @@ export default function AdminPage() {
       .order('name');
 
     if (data) setBranches(data);
+  }, []);
+
+  const loadPartnerOffers = useCallback(async () => {
+    const { data } = await supabase
+      .from('partner_offers')
+      .select('id, title, description, discount_code, discount_percentage, scope, branch_id, city, active, created_at')
+      .order('title');
+
+    if (data) setPartnerOffers(data as PartnerOffer[]);
   }, []);
 
   const checkAuth = useCallback(async () => {
@@ -117,7 +159,7 @@ export default function AdminPage() {
     // Check if user is admin (council or @psychočas.cz manager)
     const { data: memberData } = await supabase
       .from('members')
-      .select('role, email')
+      .select('role, email, branch_id')
       .eq('user_id', user.id)
       .single();
 
@@ -135,17 +177,31 @@ export default function AdminPage() {
     }
 
     setUserRole(memberData.role);
+    setMemberProfile({ role: memberData.role, email: memberData.email, branch_id: memberData.branch_id ?? null });
     setIsLoading(false);
 
     // Load data
     loadMembers();
     loadTrustedUsers();
     loadBranches();
-  }, [loadBranches, loadMembers, loadTrustedUsers, router]);
+    loadPartnerOffers();
+  }, [loadBranches, loadMembers, loadPartnerOffers, loadTrustedUsers, router]);
 
   useEffect(() => {
     void checkAuth();
   }, [checkAuth]);
+
+  useEffect(() => {
+    if (!memberProfile) return;
+    const isCouncil = ['council', 'technician'].includes(memberProfile.role);
+    if (!isCouncil) {
+      setNewOffer((prev) => ({
+        ...prev,
+        scope: 'local',
+        branchId: memberProfile.branch_id ?? prev.branchId,
+      }));
+    }
+  }, [memberProfile]);
 
   const approveMember = async (memberId: string) => {
     if (!currentUser) {
@@ -178,6 +234,7 @@ export default function AdminPage() {
       .from('trusted_users')
       .insert([{
         ...newTrusted,
+        branch_id: newTrusted.branch_id || null,
         added_by: currentUser.id
       }]);
 
@@ -185,7 +242,7 @@ export default function AdminPage() {
       setMessage({ type: 'error', text: `Chyba: ${error.message}` });
     } else {
       setMessage({ type: 'success', text: 'Trusted user přidán!' });
-      setNewTrusted({ email: '', first_name: '', last_name: '', phone: '', role: 'member', notes: '' });
+      setNewTrusted({ email: '', first_name: '', last_name: '', phone: '', role: 'member', branch_id: '', notes: '' });
       loadTrustedUsers();
     }
   };
@@ -238,6 +295,103 @@ export default function AdminPage() {
       loadBranches();
     }
   };
+
+  const addPartnerOffer = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!currentUser || !memberProfile) {
+      setMessage({ type: 'error', text: 'Uživatel není přihlášen.' });
+      return;
+    }
+
+    const isCouncil = ['council', 'technician'].includes(memberProfile.role);
+    const isPsychocasManager =
+      memberProfile.role === 'manager' && memberProfile.email.toLowerCase().endsWith('@psychocas.cz');
+
+    if (!isCouncil && !isPsychocasManager) {
+      setMessage({ type: 'error', text: 'Nemáte oprávnění přidávat partnery.' });
+      return;
+    }
+
+    const effectiveScope: PartnerScope = isCouncil ? newOffer.scope : 'local';
+    const branchForLocal = effectiveScope === 'local'
+      ? (isCouncil ? newOffer.branchId : memberProfile.branch_id)
+      : null;
+
+    if (effectiveScope === 'local' && !branchForLocal) {
+      setMessage({ type: 'error', text: 'Lokální nabídka musí mít přiřazenou pobočku.' });
+      return;
+    }
+
+    setIsSavingOffer(true);
+
+    const payload = {
+      title: newOffer.title.trim(),
+      description: newOffer.description?.trim() || null,
+      discount_code: newOffer.discountCode?.trim() || null,
+      discount_percentage: Number.isFinite(newOffer.discountPercentage)
+        ? Number(newOffer.discountPercentage)
+        : null,
+      scope: effectiveScope,
+      branch_id: branchForLocal || null,
+      city: newOffer.city?.trim() || null,
+      active: true,
+      created_by: currentUser.id,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from('partner_offers').insert([payload]);
+
+    if (error) {
+      setMessage({ type: 'error', text: `Chyba: ${error.message}` });
+    } else {
+      setMessage({ type: 'success', text: 'Partnerská nabídka přidána!' });
+      setNewOffer({
+        title: '',
+        description: '',
+        discountCode: '',
+        discountPercentage: 10,
+        scope: effectiveScope,
+        branchId: branchForLocal ?? '',
+        city: '',
+      });
+      loadPartnerOffers();
+    }
+
+    setIsSavingOffer(false);
+  };
+
+  const toggleOfferActive = async (offer: PartnerOffer) => {
+    const { error } = await supabase
+      .from('partner_offers')
+      .update({ active: !offer.active, updated_at: new Date().toISOString() })
+      .eq('id', offer.id);
+
+    if (error) {
+      setMessage({ type: 'error', text: `Chyba: ${error.message}` });
+    } else {
+      setMessage({ type: 'success', text: `Partner byl ${offer.active ? 'deaktivován' : 'aktivován'}.` });
+      loadPartnerOffers();
+    }
+  };
+
+  const deletePartnerOffer = async (offerId: string) => {
+    if (!confirm('Opravdu smazat partnera?')) return;
+
+    const { error } = await supabase
+      .from('partner_offers')
+      .delete()
+      .eq('id', offerId);
+
+    if (error) {
+      setMessage({ type: 'error', text: `Chyba: ${error.message}` });
+    } else {
+      setMessage({ type: 'success', text: 'Partnerská sleva byla odstraněna.' });
+      loadPartnerOffers();
+    }
+  };
+
+  const isCouncilUser = memberProfile ? ['council', 'technician'].includes(memberProfile.role) : false;
 
   if (isLoading) {
     return (
@@ -295,7 +449,7 @@ export default function AdminPage() {
               }`}
             >
               <Store className="inline-block mr-2 h-5 w-5" />
-              Partnerské podniky
+              Partnerské slevy
             </button>
           </div>
 
@@ -411,7 +565,7 @@ export default function AdminPage() {
               <div className="psychocas-card">
                 <h2 className="mb-4">Přidat Trusted User</h2>
                 <form onSubmit={addTrustedUser} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <input
                       type="email"
                       placeholder="Email"
@@ -453,6 +607,18 @@ export default function AdminPage() {
                       <option value="council">Rada</option>
                       <option value="technician">Technik</option>
                     </select>
+                    <select
+                      value={newTrusted.branch_id}
+                      onChange={(e) => setNewTrusted({ ...newTrusted, branch_id: e.target.value })}
+                      className="psychocas-input"
+                    >
+                      <option value="">Bez pobočky / celostátní</option>
+                      {branches.map((branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </option>
+                      ))}
+                    </select>
                     <input
                       type="text"
                       placeholder="Poznámka (volitelné)"
@@ -473,23 +639,32 @@ export default function AdminPage() {
                 <h2 className="mb-4">Seznam Trusted Users ({trustedUsers.length})</h2>
                 <div className="space-y-3">
                   {trustedUsers.map((user) => (
-                    <div key={user.id} className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+                    <div
+                      key={user.id}
+                      className="flex flex-col gap-3 rounded-lg border border-blue-100 bg-blue-50 p-4 md:flex-row md:items-center md:justify-between"
+                    >
                       <div>
                         <p className="font-medium">{user.first_name} {user.last_name}</p>
                         <p className="text-sm text-gray-600">{user.email}</p>
                         {user.phone && <p className="text-sm text-gray-600">{user.phone}</p>}
-                        <div className="flex gap-2 mt-2">
-                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                          <span className="rounded-full bg-blue-100 px-2 py-1 font-medium uppercase tracking-wide text-blue-800">
                             {user.role}
                           </span>
+                          {user.branch && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-blue-700">
+                              <MapPin className="h-3 w-3" />
+                              {user.branch.name}
+                            </span>
+                          )}
                           {user.notes && (
-                            <span className="text-xs text-gray-500">{user.notes}</span>
+                            <span className="text-gray-500">{user.notes}</span>
                           )}
                         </div>
                       </div>
                       <button
                         onClick={() => deleteTrustedUser(user.id)}
-                        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                        className="self-start rounded-lg bg-red-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-600 md:self-auto"
                       >
                         Smazat
                       </button>
@@ -503,54 +678,219 @@ export default function AdminPage() {
           {/* Partners Tab */}
           {activeTab === 'partners' && (
             <div className="space-y-8">
-              {/* Add New Branch */}
               <div className="psychocas-card">
-                <h2 className="mb-4">Přidat Partnerský podnik</h2>
-                <form onSubmit={addBranch} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <h2 className="mb-4 flex items-center">
+                  <Store className="mr-2 h-5 w-5" />
+                  Přidat partnerskou nabídku
+                </h2>
+                <form onSubmit={addPartnerOffer} className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
                     <input
                       type="text"
-                      placeholder="Název podniku"
-                      value={newBranch.name}
-                      onChange={(e) => setNewBranch({...newBranch, name: e.target.value})}
+                      placeholder="Název partnera"
+                      value={newOffer.title}
+                      onChange={(e) => setNewOffer({ ...newOffer, title: e.target.value })}
                       className="psychocas-input"
                       required
                     />
                     <input
                       type="text"
-                      placeholder="Lokalita (volitelné)"
-                      value={newBranch.location}
-                      onChange={(e) => setNewBranch({...newBranch, location: e.target.value})}
+                      placeholder="Slevový kód (volitelné)"
+                      value={newOffer.discountCode}
+                      onChange={(e) => setNewOffer({ ...newOffer, discountCode: e.target.value })}
                       className="psychocas-input"
                     />
-                    <input
-                      type="number"
-                      placeholder="Sleva %"
-                      value={newBranch.discount_percentage}
-                      onChange={(e) => setNewBranch({...newBranch, discount_percentage: parseInt(e.target.value)})}
-                      className="psychocas-input"
-                      min="0"
-                      max="100"
-                      required
+                    <textarea
+                      placeholder="Popis slevy (volitelné)"
+                      value={newOffer.description}
+                      onChange={(e) => setNewOffer({ ...newOffer, description: e.target.value })}
+                      className="psychocas-input md:col-span-2"
+                      rows={3}
                     />
+                    <div className="flex items-center gap-3">
+                      <label className="text-sm font-medium text-gray-600" htmlFor="offer-discount">
+                        Sleva %
+                      </label>
+                      <input
+                        id="offer-discount"
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={newOffer.discountPercentage}
+                        onChange={(e) => setNewOffer({ ...newOffer, discountPercentage: parseInt(e.target.value, 10) || 0 })}
+                        className="psychocas-input"
+                        style={{ maxWidth: '120px' }}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-gray-600">Typ nabídky</p>
+                      <div className="flex flex-wrap gap-3">
+                        <label className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm ${newOffer.scope === 'national' ? 'border-[#1d4f7d] text-[#1d4f7d]' : 'border-gray-200 text-gray-600'}`}>
+                          <input
+                            type="radio"
+                            name="offerScope"
+                            value="national"
+                            checked={newOffer.scope === 'national'}
+                            onChange={(e) => setNewOffer({ ...newOffer, scope: e.target.value as PartnerScope })}
+                            disabled={!isCouncilUser}
+                          />
+                          Celostátní
+                        </label>
+                        <label className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm ${newOffer.scope === 'local' ? 'border-[#1d4f7d] text-[#1d4f7d]' : 'border-gray-200 text-gray-600'}`}>
+                          <input
+                            type="radio"
+                            name="offerScope"
+                            value="local"
+                            checked={newOffer.scope === 'local'}
+                            onChange={(e) => setNewOffer({ ...newOffer, scope: e.target.value as PartnerScope })}
+                          />
+                          Lokální
+                        </label>
+                      </div>
+                      {!isCouncilUser && (
+                        <p className="text-xs text-gray-500">
+                          Manažeři s @psychocas.cz mohou přidávat pouze lokální nabídky.
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-gray-600" htmlFor="offer-city">
+                        Město / lokalita (volitelné)
+                      </label>
+                      <input
+                        id="offer-city"
+                        type="text"
+                        placeholder="Praha, Brno, Online..."
+                        value={newOffer.city}
+                        onChange={(e) => setNewOffer({ ...newOffer, city: e.target.value })}
+                        className="psychocas-input"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-gray-600" htmlFor="offer-branch">
+                        Pobočka (pro lokální nabídky)
+                      </label>
+                      <select
+                        id="offer-branch"
+                        value={newOffer.branchId}
+                        onChange={(e) => setNewOffer({ ...newOffer, branchId: e.target.value })}
+                        className="psychocas-input"
+                        disabled={newOffer.scope === 'national' && isCouncilUser}
+                      >
+                        <option value="">Vyberte pobočku</option>
+                        {branches.map((branch) => (
+                          <option key={branch.id} value={branch.id}>
+                            {branch.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                  <button type="submit" className="psychocas-button">
-                    <Store className="h-4 w-4 mr-2" />
-                    Přidat pobočku
+                  <button type="submit" className="psychocas-button" disabled={isSavingOffer}>
+                    {isSavingOffer ? 'Ukládám…' : 'Přidat nabídku'}
                   </button>
                 </form>
               </div>
 
-              {/* Branches List */}
               <div className="psychocas-card">
-                <h2 className="mb-4">Partnerské podniky ({branches.length})</h2>
-                <div className="overflow-x-auto">
+                <h2 className="mb-4">Aktivní partnerské nabídky ({partnerOffers.length})</h2>
+                <div className="space-y-4">
+                  {partnerOffers.length === 0 && (
+                    <p className="text-sm text-gray-600">Zatím nejsou nastaveny žádné partnerské nabídky.</p>
+                  )}
+                  {partnerOffers.map((offer) => (
+                    <div key={offer.id} className="rounded-xl border border-gray-200 p-4">
+                      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <p className="text-lg font-semibold text-gray-800">{offer.title}</p>
+                          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs font-semibold uppercase tracking-wide">
+                            <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 ${offer.scope === 'national' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                              <Tag className="h-3 w-3" />
+                              {offer.scope === 'national' ? 'Celostátní' : 'Lokální'}
+                            </span>
+                            {offer.city && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-blue-700">
+                                <MapPin className="h-3 w-3" />
+                                {offer.city}
+                              </span>
+                            )}
+                            {offer.discount_code && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-3 py-1 text-purple-700">
+                                Kód: {offer.discount_code}
+                              </span>
+                            )}
+                            {typeof offer.discount_percentage === 'number' && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-3 py-1 text-sky-700">
+                                Sleva {offer.discount_percentage}%
+                              </span>
+                            )}
+                          </div>
+                          {offer.description && (
+                            <p className="mt-3 text-sm text-gray-600">{offer.description}</p>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-start gap-2 md:items-end">
+                          <button
+                            onClick={() => toggleOfferActive(offer)}
+                            className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${offer.active ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                          >
+                            <ToggleRight className="h-4 w-4" />
+                            {offer.active ? 'Aktivní' : 'Neaktivní'}
+                          </button>
+                          <button
+                            onClick={() => deletePartnerOffer(offer.id)}
+                            className="flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-100"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Odebrat
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="psychocas-card">
+                <h2 className="mb-4">Správa poboček ({branches.length})</h2>
+                <form onSubmit={addBranch} className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <input
+                      type="text"
+                      placeholder="Název pobočky"
+                      value={newBranch.name}
+                      onChange={(e) => setNewBranch({ ...newBranch, name: e.target.value })}
+                      className="psychocas-input"
+                      required
+                    />
+                    <input
+                      type="text"
+                      placeholder="Město"
+                      value={newBranch.location}
+                      onChange={(e) => setNewBranch({ ...newBranch, location: e.target.value })}
+                      className="psychocas-input"
+                    />
+                    <input
+                      type="number"
+                      placeholder="Výchozí sleva %"
+                      value={newBranch.discount_percentage}
+                      onChange={(e) => setNewBranch({ ...newBranch, discount_percentage: parseInt(e.target.value, 10) || 0 })}
+                      className="psychocas-input"
+                      min="0"
+                      max="100"
+                    />
+                  </div>
+                  <button type="submit" className="psychocas-button">
+                    Přidat pobočku
+                  </button>
+                </form>
+                <div className="mt-6 overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Název</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Lokalita</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Sleva</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Město</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Výchozí sleva</th>
                         <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Status</th>
                         <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Akce</th>
                       </tr>
@@ -559,7 +899,7 @@ export default function AdminPage() {
                       {branches.map((branch) => (
                         <tr key={branch.id} className="hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm font-medium">{branch.name}</td>
-                          <td className="px-4 py-3 text-sm">{branch.location || 'N/A'}</td>
+                          <td className="px-4 py-3 text-sm">{branch.location || branch.city || 'N/A'}</td>
                           <td className="px-4 py-3 text-sm">{branch.discount_percentage}%</td>
                           <td className="px-4 py-3 text-sm">
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${

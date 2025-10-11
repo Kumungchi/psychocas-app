@@ -30,13 +30,25 @@ interface MemberData {
   branch?: BranchInfo | null;
 }
 
-interface Partner {
+type PartnerScope = 'national' | 'local';
+
+interface PartnerBranchInfo {
   id: string;
   name: string;
-  location?: string | null;
   city?: string | null;
+}
+
+interface Partner {
+  id: string;
+  title: string;
+  description?: string | null;
+  discount_code?: string | null;
   discount_percentage?: number | null;
+  scope: PartnerScope;
+  branch_id?: string | null;
+  city?: string | null;
   active?: boolean | null;
+  branch?: PartnerBranchInfo | null;
 }
 
 interface TokenData {
@@ -175,9 +187,12 @@ function HomeContent() {
         .limit(1);
 
       const partnersPromise = supabase
-        .from('branches')
-        .select('id, name, location, city, discount_percentage, active')
-        .order('name');
+        .from('partner_offers')
+        .select(
+          `id, title, description, discount_code, discount_percentage, scope, branch_id, city, active,
+           branch:branch_id (id, name, city)`
+        )
+        .order('title');
 
       const [memberResponse, partnersResponse] = await Promise.all([memberPromise, partnersPromise]);
 
@@ -203,7 +218,7 @@ function HomeContent() {
         setPartners([]);
         setPartnersError('Nepodařilo se načíst partnerské podniky.');
       } else {
-        setPartners(partnersResponse.data ?? []);
+        setPartners((partnersResponse.data as Partner[]) ?? []);
         setPartnersError(null);
       }
 
@@ -328,25 +343,19 @@ function HomeContent() {
     }
 
     const activePartners = partners.filter((partner) => partner.active ?? true);
-    const branchLocation = (memberData?.branch?.location || memberData?.branch?.city || '').trim().toLowerCase();
+    const memberBranchId = memberData?.branch_id ?? null;
 
     const national: Partner[] = [];
     const local: Partner[] = [];
     const other: Partner[] = [];
 
     activePartners.forEach((partner) => {
-      const locationLabel = (partner.location || partner.city || '').trim();
-      const normalizedLocation = locationLabel.toLowerCase();
-
-      const isNational = !locationLabel || /cel(á|a)\s*čr|celorepublik|národ|online/.test(normalizedLocation);
-      const isLocal = Boolean(branchLocation) && normalizedLocation.includes(branchLocation);
-
-      if (isNational) {
+      if (partner.scope === 'national') {
         national.push(partner);
         return;
       }
 
-      if (isLocal) {
+      if (partner.scope === 'local' && partner.branch_id && memberBranchId && partner.branch_id === memberBranchId) {
         local.push(partner);
         return;
       }
@@ -358,7 +367,7 @@ function HomeContent() {
   }, [partners, memberData]);
 
   const renderPartnerCard = useCallback((partner: Partner) => {
-    const locationLabel = partner.location || partner.city || null;
+    const locationLabel = partner.city || partner.branch?.city || partner.branch?.name || null;
     const hasDiscount = typeof partner.discount_percentage === 'number' && !Number.isNaN(partner.discount_percentage);
 
     return (
@@ -368,15 +377,32 @@ function HomeContent() {
         style={{ borderColor: '#e0e0e0', backgroundColor: '#f9fafb' }}
       >
         <div>
-          <p className="font-medium" style={{ color: '#333333' }}>{partner.name}</p>
+          <p className="font-medium" style={{ color: '#333333' }}>{partner.title}</p>
           {locationLabel && (
             <p className="mt-1 flex items-center gap-2 text-sm" style={{ color: '#666666' }}>
               <MapPin className="h-4 w-4" />
               {locationLabel}
             </p>
           )}
+          {partner.description && (
+            <p className="mt-2 text-sm" style={{ color: '#4b5563' }}>{partner.description}</p>
+          )}
         </div>
-        {hasDiscount && (
+        <div className="flex flex-col items-end gap-2">
+          {partner.discount_code && (
+            <span
+              className="px-3 py-1 text-xs font-semibold uppercase"
+              style={{
+                backgroundColor: '#ede9fe',
+                color: '#5b21b6',
+                borderRadius: '9999px',
+                letterSpacing: '0.08em',
+              }}
+            >
+              {partner.discount_code}
+            </span>
+          )}
+          {hasDiscount && (
           <span
             className="px-3 py-1 text-sm font-semibold"
             style={{
@@ -387,7 +413,8 @@ function HomeContent() {
           >
             -{partner.discount_percentage}%
           </span>
-        )}
+          )}
+        </div>
       </div>
     );
   }, []);
@@ -397,7 +424,8 @@ function HomeContent() {
   const branchName = memberData?.branch?.name ?? null;
   const branchLocation = memberData?.branch?.location || memberData?.branch?.city || null;
   const memberEmail = memberData?.email || user?.email || '';
-  const partnerSectionHasContent = partnerGroups.national.length > 0 || partnerGroups.local.length > 0 || partnerGroups.other.length > 0;
+  const partnerSectionHasContent =
+    partnerGroups.national.length > 0 || partnerGroups.local.length > 0 || partnerGroups.other.length > 0;
   const showManagementShortcuts = memberData ? ['manager', 'council', 'technician'].includes(memberData.role) : false;
 
   if (loading) {

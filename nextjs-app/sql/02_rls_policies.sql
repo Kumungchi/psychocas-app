@@ -3,6 +3,7 @@ alter table public.members enable row level security;
 alter table public.tokens enable row level security;
 alter table public.redemptions enable row level security;
 alter table public.branches enable row level security;
+alter table public.partner_offers enable row level security;
 
 -- Member policies
 create policy "member_read_self" on public.members
@@ -48,3 +49,50 @@ for select using (exists (
 -- Insert redemptions only from server-side function
 create policy "redemptions_insert_server_only" on public.redemptions
 for insert with check (false);
+
+-- Partner offers policies
+create policy "members_read_partner_offers" on public.partner_offers
+for select using (
+  partner_offers.active = true
+  and (
+    partner_offers.scope = 'national'
+    or exists (
+      select 1 from public.members me
+      where me.user_id = auth.uid()
+        and (
+          me.role in ('manager','council','technician')
+          or me.branch_id = partner_offers.branch_id
+        )
+    )
+  )
+);
+
+create policy "council_manage_partner_offers" on public.partner_offers
+for all using (exists (
+  select 1 from public.members me
+  where me.user_id = auth.uid()
+    and me.role in ('council','technician')
+))
+with check (exists (
+  select 1 from public.members me
+  where me.user_id = auth.uid()
+    and me.role in ('council','technician')
+));
+
+create policy "managers_manage_branch_partner_offers" on public.partner_offers
+for all using (exists (
+  select 1 from public.members me
+  where me.user_id = auth.uid()
+    and me.role = 'manager'
+    and me.email like '%@psychocas.cz'
+    and partner_offers.scope = 'local'
+    and partner_offers.branch_id = me.branch_id
+))
+with check (exists (
+  select 1 from public.members me
+  where me.user_id = auth.uid()
+    and me.role = 'manager'
+    and me.email like '%@psychocas.cz'
+    and partner_offers.scope = 'local'
+    and partner_offers.branch_id = me.branch_id
+));
