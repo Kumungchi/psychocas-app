@@ -271,7 +271,7 @@ export default function Redeem() {
                   onClick={generateToken}
                   className="psychocas-button-primary flex items-center gap-3 justify-center"
                 >
-                  � Vygenerovat nový kód
+                  🔄 Vygenerovat nový kód
                 </button>
               )}
 
