@@ -123,7 +123,7 @@ export default function SupabaseHealthCheck() {
         <p className="font-medium text-sm">{result.message}</p>
       </div>
 
-      {result.data && (
+      {result.data != null && (
         <div className="bg-gray-50 p-3 rounded border text-xs">
           <details>
             <summary className="cursor-pointer font-medium text-gray-700 mb-2">

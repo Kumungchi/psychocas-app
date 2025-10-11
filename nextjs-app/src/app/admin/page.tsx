@@ -22,15 +22,17 @@ interface Member {
   created_at: string;
 }
 
+type TrustedBranch = { id: string; name: string; city?: string | null } | null;
+
 interface TrustedUser {
   id: string;
   email: string;
-  first_name: string;
-  last_name: string;
+  first_name: string | null;
+  last_name: string | null;
   phone: string | null;
   role: string;
   branch_id: string | null;
-  branch?: { id: string; name: string; city?: string | null } | null;
+  branch?: TrustedBranch;
   notes: string | null;
   added_at: string;
 }
@@ -120,12 +122,23 @@ export default function AdminPage() {
   }, []);
 
   const loadTrustedUsers = useCallback(async () => {
+    type TrustedUserRow = Omit<TrustedUser, 'branch'> & {
+      branch: TrustedBranch | TrustedBranch[] | null;
+    };
+
     const { data } = await supabase
       .from('trusted_users')
       .select('id, email, first_name, last_name, phone, role, branch_id, notes, added_at, branch:branch_id (id, name, city)')
       .order('added_at', { ascending: false });
 
-    if (data) setTrustedUsers(data as TrustedUser[]);
+    if (data) {
+      const normalized: TrustedUser[] = (data as TrustedUserRow[]).map((user) => ({
+        ...user,
+        branch: Array.isArray(user.branch) ? user.branch[0] ?? null : user.branch ?? null,
+      }));
+
+      setTrustedUsers(normalized);
+    }
   }, []);
 
   const loadBranches = useCallback(async () => {

@@ -201,12 +201,36 @@ function HomeContent() {
         setMemberData(null);
         setError((prev) => prev ?? 'Nepodařilo se načíst informace o členství.');
       } else {
-        const memberRow = memberResponse.data?.[0] ?? null;
+        type MemberRow = {
+          membership_active: boolean;
+          membership_expires: string | null;
+          full_name: string | null;
+          role: string | null;
+          branch_id: string | null;
+          email?: string | null;
+          approved?: boolean | null;
+          approved_at?: string | null;
+          branch: BranchInfo | BranchInfo[] | null;
+        };
+
+        const memberRows = (memberResponse.data ?? []) as MemberRow[];
+        const memberRow = memberRows[0] ?? null;
+
         if (memberRow) {
+          const normalizedBranch = Array.isArray(memberRow.branch)
+            ? memberRow.branch[0] ?? null
+            : memberRow.branch ?? null;
+
           setMemberData({
-            ...memberRow,
+            membership_active: memberRow.membership_active,
+            membership_expires: memberRow.membership_expires,
+            full_name: memberRow.full_name,
             role: (memberRow.role ?? 'member') as MemberRole,
-            branch: memberRow.branch ?? null,
+            branch_id: memberRow.branch_id,
+            email: memberRow.email ?? null,
+            approved: memberRow.approved ?? null,
+            approved_at: memberRow.approved_at ?? null,
+            branch: normalizedBranch,
           });
         } else {
           setMemberData(null);
@@ -218,7 +242,19 @@ function HomeContent() {
         setPartners([]);
         setPartnersError('Nepodařilo se načíst partnerské podniky.');
       } else {
-        setPartners((partnersResponse.data as Partner[]) ?? []);
+        type PartnerRow = Omit<Partner, 'branch'> & {
+          branch: PartnerBranchInfo | PartnerBranchInfo[] | null;
+        };
+
+        const partnerRows = (partnersResponse.data ?? []) as PartnerRow[];
+        const normalizedPartners: Partner[] = partnerRows.map((partner) => ({
+          ...partner,
+          branch: Array.isArray(partner.branch)
+            ? partner.branch[0] ?? null
+            : partner.branch ?? null,
+        }));
+
+        setPartners(normalizedPartners);
         setPartnersError(null);
       }
 

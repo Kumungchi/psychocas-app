@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function Login() {
+function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
@@ -235,5 +235,23 @@ export default function Login() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function Login() {
+  return (
+    <Suspense
+      fallback={(
+        <main className="psychocas-section flex items-center justify-center">
+          <div className="psychocas-container fade-in-up">
+            <div className="psychocas-card text-center">
+              <p>Načítání přihlášení...</p>
+            </div>
+          </div>
+        </main>
+      )}
+    >
+      <LoginContent />
+    </Suspense>
   );
 }

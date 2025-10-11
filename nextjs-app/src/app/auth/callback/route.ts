@@ -73,7 +73,7 @@ export async function GET(request: Request) {
   const redirectTo = requestUrl.searchParams.get('redirectTo') ?? '/home'
   const redirectUrl = new URL(redirectTo, requestUrl.origin)
   const loginUrl = new URL('/login', requestUrl.origin)
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
 
   const code = requestUrl.searchParams.get('code')
   const token_hash = requestUrl.searchParams.get('token_hash')
@@ -98,21 +98,18 @@ export async function GET(request: Request) {
   if (code || (token_hash && typeParam) || (token && typeParam) || (access_token && refresh_token)) {
     const response = createRedirectResponse(redirectUrl)
 
-    type CookieOptions = Parameters<typeof response.cookies.set>[1]
-
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
+          getAll() {
+            return cookieStore.getAll()
           },
-          set(name: string, value: string, options?: CookieOptions) {
-            response.cookies.set({ name, value, ...(options ?? {}) })
-          },
-          remove(name: string, options?: CookieOptions) {
-            response.cookies.set({ name, value: '', ...(options ?? {}) })
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              response.cookies.set(name, value, options)
+            })
           },
         },
       }
