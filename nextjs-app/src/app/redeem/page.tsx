@@ -5,11 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import QRCode from 'react-qr-code';
 import Navigation from '@/components/Navigation';
-
-interface TokenData {
-  code: string;
-  expiresAt: string;
-}
+import type { TokenData } from '@/types/member';
 
 export default function Redeem() {
   const [token, setToken] = useState<TokenData | null>(null);

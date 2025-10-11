@@ -11,34 +11,8 @@ import {
   diagnosePartnerVisibility,
   type PartnerOfferRecord,
 } from '@/lib/partners';
-
-type MemberRole = 'member' | 'manager' | 'council' | 'technician';
-
-interface BranchInfo {
-  id: string;
-  name: string;
-  location?: string | null;
-  city?: string | null;
-  discount_percentage?: number | null;
-  active?: boolean | null;
-}
-
-interface MemberData {
-  membership_active: boolean;
-  membership_expires: string | null;
-  full_name: string | null;
-  role: MemberRole;
-  branch_id: string | null;
-  email?: string | null;
-  approved?: boolean | null;
-  approved_at?: string | null;
-  branch?: BranchInfo | null;
-}
-
-interface TokenData {
-  code: string;
-  expiresAt: string;
-}
+import { loadHomeSnapshot, saveHomeSnapshot, clearHomeSnapshot } from '@/lib/offlineCache';
+import type { BranchInfo, MemberData, MemberRole, TokenData } from '@/types/member';
 
 const ROLE_LABELS: Record<MemberRole, string> = {
   member: 'Člen',
@@ -60,6 +34,9 @@ function HomeContent() {
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [copied, setCopied] = useState(false);
+  const [restoredFromSnapshot, setRestoredFromSnapshot] = useState(false);
+  const [snapshotSavedAt, setSnapshotSavedAt] = useState<string | null>(null);
+  const [snapshotChecked, setSnapshotChecked] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -99,7 +76,23 @@ function HomeContent() {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   }, []);
 
-  const loadActiveToken = useCallback(async (userId: string) => {
+  useEffect(() => {
+    const snapshot = loadHomeSnapshot();
+    if (snapshot) {
+      setMemberData(snapshot.member);
+      setPartners(snapshot.partners);
+      setToken(snapshot.token);
+      setLoading(false);
+      setPartnersLoading(false);
+      setRestoredFromSnapshot(true);
+      setSnapshotSavedAt(snapshot.savedAt);
+      setTokenError(null);
+    }
+    setSnapshotChecked(true);
+  }, []);
+
+  const loadActiveToken = useCallback(async (userId: string): Promise<TokenData | null> => {
+    let activeToken: TokenData | null = null;
     try {
       const { data, error } = await supabase
         .from('tokens')
@@ -112,14 +105,15 @@ function HomeContent() {
 
       if (error) {
         console.error('Error loading active token:', error);
-        return;
+        return null;
       }
 
       if (data && data.length > 0) {
-        setToken({
+        activeToken = {
           code: data[0].code,
           expiresAt: data[0].expires_at,
-        });
+        };
+        setToken(activeToken);
         setTokenError(null);
       } else {
         setToken(null);
@@ -128,11 +122,12 @@ function HomeContent() {
     } catch (loadError) {
       console.error('Unexpected error loading active token:', loadError);
     }
+    return activeToken;
   }, []);
 
   const fetchMemberContext = useCallback(async () => {
-    setLoading(true);
-    setPartnersLoading(true);
+    setLoading((prev) => (restoredFromSnapshot ? prev : true));
+    setPartnersLoading((prev) => (restoredFromSnapshot ? prev : true));
     try {
       const {
         data: { user: currentUser },
@@ -180,6 +175,9 @@ function HomeContent() {
 
       const [memberResponse, partnersResponse] = await Promise.all([memberPromise, partnersPromise]);
 
+      let normalizedMember: MemberData | null = null;
+      let normalizedPartners: PartnerOfferRecord[] = [];
+
       if (memberResponse.error) {
         console.error('Error fetching member data:', memberResponse.error);
         setMemberData(null);
@@ -205,7 +203,7 @@ function HomeContent() {
             ? memberRow.branch[0] ?? null
             : memberRow.branch ?? null;
 
-          setMemberData({
+          normalizedMember = {
             membership_active: memberRow.membership_active,
             membership_expires: memberRow.membership_expires,
             full_name: memberRow.full_name,
@@ -215,7 +213,9 @@ function HomeContent() {
             approved: memberRow.approved ?? null,
             approved_at: memberRow.approved_at ?? null,
             branch: normalizedBranch,
-          });
+          };
+
+          setMemberData(normalizedMember);
         } else {
           setMemberData(null);
         }
@@ -231,7 +231,7 @@ function HomeContent() {
         };
 
         const partnerRows = (partnersResponse.data ?? []) as PartnerRow[];
-        const normalizedPartners: PartnerOfferRecord[] = partnerRows.map((partner) => ({
+        normalizedPartners = partnerRows.map((partner) => ({
           ...partner,
           branch: Array.isArray(partner.branch)
             ? partner.branch[0] ?? null
@@ -242,7 +242,17 @@ function HomeContent() {
         setPartnersError(null);
       }
 
-      await loadActiveToken(currentUser.id);
+      const activeToken = await loadActiveToken(currentUser.id);
+
+      if (!memberResponse.error && !partnersResponse.error) {
+        saveHomeSnapshot({
+          member: normalizedMember,
+          partners: normalizedPartners,
+          token: activeToken,
+        });
+        setRestoredFromSnapshot(false);
+        setSnapshotSavedAt(null);
+      }
     } catch (fetchError) {
       console.error('Unexpected error loading home screen:', fetchError);
       setError((prev) => prev ?? 'Došlo k neočekávané chybě při načítání údajů.');
@@ -250,11 +260,14 @@ function HomeContent() {
       setLoading(false);
       setPartnersLoading(false);
     }
-  }, [loadActiveToken, router]);
+  }, [loadActiveToken, restoredFromSnapshot, router]);
 
   useEffect(() => {
+    if (!snapshotChecked) {
+      return;
+    }
     fetchMemberContext();
-  }, [fetchMemberContext]);
+  }, [fetchMemberContext, snapshotChecked]);
 
   useEffect(() => {
     if (!token) {
@@ -283,6 +296,7 @@ function HomeContent() {
   }, [token?.code]);
 
   const handleSignOut = async () => {
+    clearHomeSnapshot();
     await supabase.auth.signOut();
     router.push('/login');
   };
@@ -366,6 +380,19 @@ function HomeContent() {
     () => diagnosePartnerVisibility(memberData?.branch_id ?? null, partnerGroups),
     [memberData?.branch_id, partnerGroups]
   );
+
+  const offlineSnapshotLabel = useMemo(() => {
+    if (!snapshotSavedAt) return null;
+    try {
+      return new Intl.DateTimeFormat('cs-CZ', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+      }).format(new Date(snapshotSavedAt));
+    } catch (formatError) {
+      console.error('Error formatting snapshot timestamp:', formatError);
+      return snapshotSavedAt;
+    }
+  }, [snapshotSavedAt]);
 
   const renderPartnerCard = useCallback((partner: PartnerOfferRecord) => {
     const locationLabel = partner.city || partner.branch?.city || partner.branch?.name || null;
@@ -477,6 +504,26 @@ function HomeContent() {
             <div className="flex items-center gap-3">
               <div className="text-2xl">⚠️</div>
               <p style={{ color: '#c62828', fontWeight: 500 }}>{error}</p>
+            </div>
+          </div>
+        )}
+
+        {restoredFromSnapshot && offlineSnapshotLabel && (
+          <div
+            className="psychocas-card"
+            style={{ backgroundColor: '#eff6ff', borderLeft: '4px solid #1d4f7d' }}
+          >
+            <div className="flex items-start gap-3">
+              <Clock className="h-5 w-5 flex-shrink-0" style={{ color: '#1d4f7d' }} />
+              <div className="space-y-1">
+                <h3 className="text-base font-semibold" style={{ color: '#1d4f7d' }}>
+                  Offline režim
+                </h3>
+                <p className="text-sm" style={{ color: '#1d4f7d' }}>
+                  Zobrazujeme uložená data ze {offlineSnapshotLabel}. Po připojení k internetu se údaje
+                  automaticky aktualizují.
+                </p>
+              </div>
             </div>
           </div>
         )}
