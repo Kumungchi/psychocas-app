@@ -5,6 +5,31 @@ import { supabase } from '@/lib/supabaseClient';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 
+type SupportedOtpType =
+  | 'signup'
+  | 'magiclink'
+  | 'recovery'
+  | 'invite'
+  | 'email_change'
+  | 'sms'
+  | 'phone_change';
+
+const isSupportedOtpType = (value: string | null): value is SupportedOtpType => {
+  if (!value) {
+    return false;
+  }
+
+  return [
+    'signup',
+    'magiclink',
+    'recovery',
+    'invite',
+    'email_change',
+    'sms',
+    'phone_change',
+  ].includes(value as SupportedOtpType);
+};
+
 function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -30,11 +55,11 @@ function CallbackContent() {
 
         // If we have token in URL params, use verifyOtp
         const authToken = token || token_hash;
-        if (authToken && type) {
+        if (authToken && isSupportedOtpType(type)) {
           console.log('Using token from URL params:', authToken.substring(0, 10) + '...');
           const { data, error } = await supabase.auth.verifyOtp({
             token_hash: authToken,
-            type: type as any,
+            type,
           });
 
           if (error) {
@@ -52,6 +77,8 @@ function CallbackContent() {
             setTimeout(() => router.replace(redirectTo), 800);
             return;
           }
+        } else if (authToken && type) {
+          console.warn('Unsupported OTP type received:', type);
         }
 
         // Check hash fragment for direct tokens

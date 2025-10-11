@@ -1,16 +1,105 @@
 import { createServerClient } from '@supabase/ssr'
+import type { VerifyOtpParams } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
+function createRedirectResponse(url: URL) {
+  return NextResponse.redirect(url)
+}
+
+type MemberRole = 'member' | 'manager' | 'council' | 'technician'
+
+const ROLE_DEFAULT_REDIRECT: Record<MemberRole, string> = {
+  member: '/home',
+  manager: '/stats',
+  council: '/admin',
+  technician: '/technician',
+}
+
+const ROLE_ALLOWED_PATHS: Record<MemberRole, readonly string[]> = {
+  member: ['/home', '/redeem'],
+  manager: ['/home', '/redeem', '/validate', '/stats'],
+  council: ['/home', '/redeem', '/validate', '/stats', '/admin', '/technician'],
+  technician: ['/home', '/redeem', '/technician'],
+}
+
+const isSafeRelativePath = (path: string | null): path is string => {
+  if (!path) {
+    return false
+  }
+
+  return path.startsWith('/') && !path.startsWith('//') && !path.includes('://')
+}
+
+const getPathWithoutQueryOrHash = (path: string) => {
+  const [cleanPath] = path.split('#', 1)
+  return cleanPath.split('?')[0]
+}
+
+const hasPsychocasEmail = (email: string | null | undefined) =>
+  typeof email === 'string' && email.toLowerCase().endsWith('@psychocas.cz')
+
+type MemberSummary = { role: MemberRole; email: string | null }
+
+const normaliseRole = (member: MemberSummary | null): MemberRole => {
+  if (!member) {
+    return 'member'
+  }
+
+  if (member.role === 'council') {
+    return 'council'
+  }
+
+  if (member.role === 'technician') {
+    return hasPsychocasEmail(member.email) ? 'technician' : 'member'
+  }
+
+  if (member.role === 'manager' && hasPsychocasEmail(member.email)) {
+    return 'manager'
+  }
+
+  return 'member'
+}
+
+const isAllowedRedirect = (path: string, role: MemberRole) => {
+  const basePath = getPathWithoutQueryOrHash(path)
+  return ROLE_ALLOWED_PATHS[role].some((allowed) =>
+    basePath === allowed || basePath.startsWith(`${allowed}/`)
+  )
+}
+
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
-  const token_hash = requestUrl.searchParams.get('token_hash')
-  const type = requestUrl.searchParams.get('type')
+  const redirectTo = requestUrl.searchParams.get('redirectTo') ?? '/home'
+  const redirectUrl = new URL(redirectTo, requestUrl.origin)
+  const loginUrl = new URL('/login', requestUrl.origin)
+  const cookieStore = cookies()
 
-  // If we have token_hash, verify it
-  if (token_hash && type) {
-    const cookieStore = await cookies()
-    
+  const code = requestUrl.searchParams.get('code')
+  const token_hash = requestUrl.searchParams.get('token_hash')
+  const token = requestUrl.searchParams.get('token')
+  const typeParam = (requestUrl.searchParams.get('type') ?? 'magiclink') as VerifyOtpParams['type']
+  const access_token = requestUrl.searchParams.get('access_token')
+  const refresh_token = requestUrl.searchParams.get('refresh_token')
+
+  const handleAuthError = (reason: string, message?: string) => {
+    const errorUrl = new URL(loginUrl)
+    errorUrl.searchParams.set('error', reason)
+    if (message) {
+      errorUrl.searchParams.set('message', message)
+    }
+    const redirectParam = requestUrl.searchParams.get('redirectTo')
+    if (redirectParam) {
+      errorUrl.searchParams.set('redirectTo', redirectParam)
+    }
+    return NextResponse.redirect(errorUrl)
+  }
+
+  if (code || (token_hash && typeParam) || (token && typeParam) || (access_token && refresh_token)) {
+    const response = createRedirectResponse(redirectUrl)
+
+    type CookieOptions = Parameters<typeof response.cookies.set>[1]
+
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -19,33 +108,75 @@ export async function GET(request: Request) {
           get(name: string) {
             return cookieStore.get(name)?.value
           },
-          set(name: string, value: string, options: any) {
-            cookieStore.set({ name, value, ...options })
+          set(name: string, value: string, options?: CookieOptions) {
+            response.cookies.set({ name, value, ...(options ?? {}) })
           },
-          remove(name: string, options: any) {
-            cookieStore.set({ name, value: '', ...options })
+          remove(name: string, options?: CookieOptions) {
+            response.cookies.set({ name, value: '', ...(options ?? {}) })
           },
         },
       }
     )
 
-    const { error } = await supabase.auth.verifyOtp({
-      token_hash,
-      type: type as any,
-    })
+    let error: { message: string } | null = null
 
-    if (!error) {
-      return NextResponse.redirect(new URL('/home', request.url))
+    if (code) {
+      const result = await supabase.auth.exchangeCodeForSession(code)
+      error = result.error
+    } else if (token_hash || token) {
+      const verifyParams: VerifyOtpParams = token_hash
+        ? ({ token_hash, type: typeParam } as VerifyOtpParams)
+        : ({ token: token!, type: typeParam } as VerifyOtpParams)
+
+      const result = await supabase.auth.verifyOtp(verifyParams)
+      error = result.error
+    } else if (access_token && refresh_token) {
+      const result = await supabase.auth.setSession({
+        access_token,
+        refresh_token,
+      })
+      error = result.error
     }
-    
-    return NextResponse.redirect(new URL('/login?error=verification_failed', request.url))
+
+    if (error) {
+      return handleAuthError('callback_failed', error.message)
+    }
+
+    const { data: { user } } = await supabase.auth.getUser()
+
+    let member: MemberSummary | null = null
+    if (user) {
+      const { data } = await supabase
+        .from('members')
+        .select('role, email')
+        .eq('user_id', user.id)
+        .single<MemberSummary>()
+      member = data ?? null
+    }
+
+    const effectiveRole = normaliseRole(member)
+    const requestedRedirect = isSafeRelativePath(redirectTo)
+      ? redirectTo
+      : null
+
+    const finalRedirect = requestedRedirect && isAllowedRedirect(requestedRedirect, effectiveRole)
+      ? requestedRedirect
+      : ROLE_DEFAULT_REDIRECT[effectiveRole]
+
+    response.headers.set('Location', new URL(finalRedirect, requestUrl.origin).toString())
+
+    return response
   }
 
-  // If no token_hash, return page that will handle hash fragment on client side
+  const safeRedirect = JSON.stringify(redirectTo)
+  const callbackPath = JSON.stringify(requestUrl.pathname)
+
   return new NextResponse(
     `<!DOCTYPE html>
-    <html>
+    <html lang="cs">
       <head>
+        <meta charset="utf-8" />
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
         <title>Přihlašování...</title>
         <style>
           body {
@@ -83,20 +214,40 @@ export async function GET(request: Request) {
           <p>Prosím čekejte</p>
         </div>
         <script>
-          // Supabase returns tokens in hash fragment, we need to process them client-side
-          if (window.location.hash) {
-            // Redirect to home, browser will automatically set the session from hash
-            window.location.href = '/home' + window.location.hash;
-          } else {
-            // No hash means no tokens, redirect to login
-            window.location.href = '/login?error=no_token';
-          }
+          (function () {
+            var redirectTo = ${safeRedirect};
+            var callbackPath = ${callbackPath};
+            if (window.location.hash) {
+              var hashParams = new URLSearchParams(window.location.hash.substring(1));
+              var accessToken = hashParams.get('access_token');
+              var refreshToken = hashParams.get('refresh_token');
+              var type = hashParams.get('type') || 'magiclink';
+              if (accessToken && refreshToken) {
+                var query = new URLSearchParams({
+                  access_token: accessToken,
+                  refresh_token: refreshToken,
+                  type: type,
+                  redirectTo: redirectTo,
+                });
+                window.location.replace(callbackPath + '?' + query.toString());
+                return;
+              }
+            }
+            var loginUrl = new URL('/login', window.location.origin);
+            loginUrl.searchParams.set('error', 'no_token');
+            loginUrl.searchParams.set('redirectTo', redirectTo);
+            window.location.replace(loginUrl.toString());
+          })();
         </script>
       </body>
     </html>`,
     {
       status: 200,
-      headers: { 'Content-Type': 'text/html' },
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Language': 'cs',
+        'Cache-Control': 'no-store, max-age=0',
+      },
     }
   )
 }

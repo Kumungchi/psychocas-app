@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import Navigation from '@/components/Navigation';
-import { Users, Shield, Tag, Store, UserCheck, UserX, Calendar, Mail, Phone } from 'lucide-react';
+import { Users, Shield, Store, UserCheck, UserX, Mail, Phone } from 'lucide-react';
+import type { User } from '@supabase/supabase-js';
 
 interface Member {
   user_id: string;
@@ -43,7 +44,7 @@ interface Branch {
 
 export default function AdminPage() {
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'members' | 'trusted' | 'codes' | 'partners'>('members');
   
@@ -71,15 +72,41 @@ export default function AdminPage() {
   });
   
   const [isLoading, setIsLoading] = useState(true);
-  const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  useEffect(() => {
-    checkAuth();
+  const loadMembers = useCallback(async () => {
+    const { data } = await supabase
+      .from('members')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (data) {
+      setMembers(data.filter(m => m.approved));
+      setPendingMembers(data.filter(m => !m.approved));
+    }
   }, []);
 
-  const checkAuth = async () => {
+  const loadTrustedUsers = useCallback(async () => {
+    const { data } = await supabase
+      .from('trusted_users')
+      .select('*')
+      .order('added_at', { ascending: false });
+
+    if (data) setTrustedUsers(data);
+  }, []);
+
+  const loadBranches = useCallback(async () => {
+    const { data } = await supabase
+      .from('branches')
+      .select('*')
+      .order('name');
+
+    if (data) setBranches(data);
+  }, []);
+
+  const checkAuth = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    
+
     if (!user) {
       router.push('/login');
       return;
@@ -109,44 +136,23 @@ export default function AdminPage() {
 
     setUserRole(memberData.role);
     setIsLoading(false);
-    
+
     // Load data
     loadMembers();
     loadTrustedUsers();
     loadBranches();
-  };
+  }, [loadBranches, loadMembers, loadTrustedUsers, router]);
 
-  const loadMembers = async () => {
-    const { data, error } = await supabase
-      .from('members')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (data) {
-      setMembers(data.filter(m => m.approved));
-      setPendingMembers(data.filter(m => !m.approved));
-    }
-  };
-
-  const loadTrustedUsers = async () => {
-    const { data } = await supabase
-      .from('trusted_users')
-      .select('*')
-      .order('added_at', { ascending: false });
-
-    if (data) setTrustedUsers(data);
-  };
-
-  const loadBranches = async () => {
-    const { data } = await supabase
-      .from('branches')
-      .select('*')
-      .order('name');
-
-    if (data) setBranches(data);
-  };
+  useEffect(() => {
+    void checkAuth();
+  }, [checkAuth]);
 
   const approveMember = async (memberId: string) => {
+    if (!currentUser) {
+      setMessage({ type: 'error', text: 'Uživatel není přihlášen.' });
+      return;
+    }
+
     const { error } = await supabase.rpc('approve_member', {
       member_user_id: memberId,
       approver_user_id: currentUser.id
@@ -162,7 +168,12 @@ export default function AdminPage() {
 
   const addTrustedUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    if (!currentUser) {
+      setMessage({ type: 'error', text: 'Uživatel není přihlášen.' });
+      return;
+    }
+
     const { error } = await supabase
       .from('trusted_users')
       .insert([{

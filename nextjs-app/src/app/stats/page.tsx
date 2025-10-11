@@ -5,7 +5,15 @@ import { supabase } from '@/lib/supabaseClient';
 import { TrendingUp, Users, Percent, Clock } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 
-const mockData = {
+type Period = 'day' | 'week' | 'month';
+
+type DayChartItem = { time: string; validations: number };
+type WeekChartItem = { day: string; validations: number };
+type MonthChartItem = { week: string; validations: number };
+
+type ChartItem = DayChartItem | WeekChartItem | MonthChartItem;
+
+const mockData: Record<Period, ChartItem[]> = {
   day: [
     { time: '9:00', validations: 12 },
     { time: '10:00', validations: 18 },
@@ -33,8 +41,20 @@ const mockData = {
   ]
 };
 
+const getLabel = (item: ChartItem): string => {
+  if ('time' in item) {
+    return item.time;
+  }
+
+  if ('day' in item) {
+    return item.day;
+  }
+
+  return item.week;
+};
+
 export default function Statistics() {
-  const [period, setPeriod] = useState<'day' | 'week' | 'month'>('week');
+  const [period, setPeriod] = useState<Period>('week');
   const [userRole, setUserRole] = useState<'member' | 'manager' | 'council' | 'technician'>('manager');
 
   // Fetch user role on mount
@@ -153,7 +173,7 @@ export default function Statistics() {
           
           <div className="space-y-3">
             {data.map((item, index) => {
-              const label = period === 'day' ? (item as any).time : period === 'week' ? (item as any).day : (item as any).week;
+              const label = getLabel(item);
               const percentage = (item.validations / maxValidation) * 100;
               
               return (
@@ -186,7 +206,7 @@ export default function Statistics() {
               <strong style={{ color: '#333333' }}>
                 {(() => {
                   const maxItem = data.reduce((max, item) => item.validations > max.validations ? item : max, data[0]);
-                  return (maxItem as any)[period === 'day' ? 'time' : period === 'week' ? 'day' : 'week'];
+                  return getLabel(maxItem);
                 })()}
               </strong>
             </p>

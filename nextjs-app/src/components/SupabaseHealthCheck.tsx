@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 interface HealthCheckResult {
   status: 'loading' | 'success' | 'error';
   message: string;
-  data?: any;
+  data?: unknown;
 }
 
 export default function SupabaseHealthCheck() {
