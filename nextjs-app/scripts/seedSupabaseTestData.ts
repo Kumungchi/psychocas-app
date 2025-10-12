@@ -41,6 +41,14 @@ const branches: BranchSeed[] = [
 
 const trustedUsers: TrustedUserSeed[] = [
   {
+    email: 'bunnik.matias@seznam.cz',
+    first_name: 'Matias',
+    last_name: 'Bunnik',
+    role: 'member',
+    branch_id: branches[0].id,
+    notes: 'Předem schválený člen pro QA scénáře',
+  },
+  {
     email: 'member.tester@psychocas.test',
     first_name: 'Test',
     last_name: 'Člen',

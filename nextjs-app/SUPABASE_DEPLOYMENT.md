@@ -34,6 +34,7 @@ npm run seed:supabase
 ```
 Skript vytvoří/aktualizuje větve, trusted users a přes Admin API založí
 ověřené uživatele:
+- `bunnik.matias@seznam.cz` – předem schválený člen (Praha)
 - `member.tester@psychocas.test` – běžný člen (Praha)
 - `manager@psychocas.cz` – manažer pražské pobočky
 - `tajemnik@psychocas.cz`, `viceprezident@psychocas.cz`, `prezident@psychocas.cz` – rada (council)

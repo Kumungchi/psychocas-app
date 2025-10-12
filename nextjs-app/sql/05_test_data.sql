@@ -61,6 +61,7 @@ ON CONFLICT (title) DO UPDATE SET
 -- Trusted user directory ---------------------------------------
 INSERT INTO public.trusted_users (email, first_name, last_name, role, branch_id, notes)
 VALUES
+  ('bunnik.matias@seznam.cz', 'Matias', 'Bunnik', 'member', '550e8400-e29b-41d4-a716-446655440000', 'Předem schválený člen pro QA'),
   ('member.tester@psychocas.test', 'Test', 'Člen', 'member', '550e8400-e29b-41d4-a716-446655440000', 'Ukázkový člen pro testování'),
   ('manager@psychocas.cz', 'Manažer', 'Pobočky', 'manager', '550e8400-e29b-41d4-a716-446655440000', 'Manažerský účet s přístupem k lokálním partnerům'),
   ('tajemnik@psychocas.cz', 'Tajemník', 'Psychočas', 'council', NULL, 'Členská rada – národní přehled'),
