@@ -10,13 +10,17 @@ Tento dokument obsahuje instrukce pro nastavení databáze v Supabase projektu.
 - Service Role Key: Je nastavený v `.env.local`
 
 ### 2. Spuštění SQL skriptů
-V Supabase Dashboard → SQL Editor postupně spusťte následující soubory:
+Nejrychlejší cesta je použít připravený skript:
 
-1. **`sql/01_schema.sql`** - Vytvoří základní tabulky
-2. **`sql/02_rls_policies.sql`** - Nastaví Row Level Security
-3. **`sql/03_triggers.sql`** - Přidá anti-spam triggery
-4. **`sql/04_views.sql`** - Vytvoří pohledy pro statistiky
-5. **`sql/05_test_data.sql`** - Přidá testovací data
+```bash
+SUPABASE_DB_URL="postgresql://..." npm run deploy:schema
+```
+
+Příkaz spustí sekvenci souborů `01_schema.sql`, `02_rls_policies.sql`,
+`03_triggers.sql`, `04_views.sql`, `08_trusted_users.sql` a `05_test_data.sql`.
+
+> Alternativně lze stejné skripty spustit ručně v Supabase Dashboard → SQL
+> Editoru ve výše uvedeném pořadí.
 
 ### 3. Testování
 Po spuštění SQL skriptů:
@@ -42,6 +46,9 @@ Po spuštění SQL skriptů:
 - `role` (enum: member, manager, council, technician)
 - `membership_active` (boolean)
 - `membership_expires` (date)
+- `approved` (boolean)
+- `approved_at` (timestamptz)
+- `first_name`, `last_name`, `phone` (text)
 - `created_at` (timestamptz)
 
 #### `tokens` - Žetony
@@ -51,6 +58,16 @@ Po spuštění SQL skriptů:
 - `issued_at` (timestamptz)
 - `expires_at` (timestamptz)
 - `consumed_at` (timestamptz, nullable)
+
+#### `trusted_users` - Předem schválení členové
+- `id` (uuid, PK)
+- `email` (text, unique)
+- `first_name`, `last_name`, `phone`
+- `role` (enum: member, manager, council, technician)
+- `branch_id` (uuid, FK → branches.id)
+- `added_by` (uuid, FK → members.user_id)
+- `added_at` (timestamptz)
+- `notes` (text)
 
 #### `redemptions` - Uplatnění
 - `id` (uuid, PK)
@@ -90,7 +107,8 @@ Aplikace obsahuje automatický health check na `/test`, který testuje:
 - Všechny tabulky mají povolené RLS
 - Redemptions lze vkládat pouze přes server-side funkce
 - UUID extension musí být povoleno
-- Test data obsahují jednu pobočku pro testování
+- Test data zakládají dvě pobočky (Praha, Brno), národní i lokální partnery a
+  trusted users odpovídající rolím MVP
 
 ## 🔄 Aktualizace schématu
 
