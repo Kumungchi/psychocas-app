@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 interface HealthCheckResult {
   status: 'loading' | 'success' | 'error';
   message: string;
-  data?: any;
+  data?: unknown;
 }
 
 export default function SupabaseHealthCheck() {
@@ -55,20 +55,35 @@ export default function SupabaseHealthCheck() {
           .from('branches')
           .select('id, name, city, created_at')
           .limit(5);
-        
+
         if (dbError) {
           setDbStatus({
             status: 'error',
             message: `DB chyba: ${dbError.message}`,
             data: dbError
           });
-        } else {
-          setDbStatus({
-            status: 'success',
-            message: `Databáze OK - nalezeno ${branchData?.length || 0} poboček ✅`,
-            data: branchData
-          });
+          return;
         }
+
+        const { data: offerData, error: offersError } = await supabase
+          .from('partner_offers')
+          .select('id, title, scope, active')
+          .limit(5);
+
+        if (offersError) {
+          setDbStatus({
+            status: 'error',
+            message: `DB chyba (partner_offers): ${offersError.message}`,
+            data: offersError
+          });
+          return;
+        }
+
+        setDbStatus({
+          status: 'success',
+          message: `Databáze OK - ${branchData?.length || 0} poboček, ${offerData?.length || 0} partnerských nabídek ✅`,
+          data: { branches: branchData, offers: offerData }
+        });
       } catch (error) {
         setDbStatus({
           status: 'error',
@@ -108,7 +123,7 @@ export default function SupabaseHealthCheck() {
         <p className="font-medium text-sm">{result.message}</p>
       </div>
 
-      {result.data && (
+      {result.data != null && (
         <div className="bg-gray-50 p-3 rounded border text-xs">
           <details>
             <summary className="cursor-pointer font-medium text-gray-700 mb-2">
@@ -152,7 +167,7 @@ export default function SupabaseHealthCheck() {
         <h3 className="font-semibold mb-2">Co testujeme:</h3>
         <ul className="space-y-1">
           <li>• <strong>Auth:</strong> supabase.auth.getUser() - očekáváme {"{ user: null }"}</li>
-          <li>• <strong>DB:</strong> SELECT z tabulky branches - test RLS políček</li>
+          <li>• <strong>DB:</strong> SELECT z tabulek branches a partner_offers - test RLS políček</li>
           <li>• <strong>Konfigurace:</strong> URL a API klíče z .env.local</li>
         </ul>
       </div>

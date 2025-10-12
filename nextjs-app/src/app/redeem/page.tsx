@@ -5,11 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import QRCode from 'react-qr-code';
 import Navigation from '@/components/Navigation';
-
-interface TokenData {
-  code: string;
-  expiresAt: string;
-}
+import type { TokenData } from '@/types/member';
 
 export default function Redeem() {
   const [token, setToken] = useState<TokenData | null>(null);
@@ -271,7 +267,7 @@ export default function Redeem() {
                   onClick={generateToken}
                   className="psychocas-button-primary flex items-center gap-3 justify-center"
                 >
-                  � Vygenerovat nový kód
+                  🔄 Vygenerovat nový kód
                 </button>
               )}
 

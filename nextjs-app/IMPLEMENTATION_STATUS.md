@@ -31,49 +31,26 @@
 
 ## ⏳ Zbývající úkoly
 
-### 1. SQL schéma nasazení
+### 1. Backend deploy checklist
 **Priorita: VYSOKÁ**
-```bash
-# Spusťte v Supabase SQL Editoru:
-sql/complete_schema.sql
-```
+- [ ] `SUPABASE_DB_URL=... npm run deploy:schema`
+- [ ] `NEXT_PUBLIC_SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... npm run seed:supabase`
+- [ ] `SUPABASE_PROJECT_REF=... npm run deploy:functions`
+- [ ] Ověřit `/test`, že databáze je dostupná
 
-### 2. Edge Functions deploy
-**Priorita: VYSOKÁ**  
-```bash
-# Instalace Supabase CLI
-npm install -g supabase
-
-# Přihlášení a deploy
-supabase login
-supabase link --project-ref wsgmbtcsyccnzfenfucl
-supabase functions deploy
-```
-
-### 3. Testovací uživatelé
+### 2. Statistiky
 **Priorita: STŘEDNÍ**
-- [ ] Vytvořit test člena (`member@test.com`)
-- [ ] Vytvořit test manažera (`manager@test.com`)
-- [ ] Přidat je do `members` tabulky
+- [ ] Napojit dashboard na reálné agregace místo mock dat
 
-### 4. PWA funktionalita
-**Priorita: STŘEDNÍ**
-- [ ] Opravit next-pwa konfiguraci
-- [ ] Přidat app ikony (72x72 až 512x512)
-- [ ] Testovat instalaci na mobile/desktop
-
-### 5. QR Scanner
+### 3. Rozšíření (volitelné)
 **Priorita: NÍZKÁ**
-- [ ] Přidat camera API pro QR scanning
-- [ ] Integrace do validate stránky
-
-### 6. Advanced features
-**Priorita: NÍZKÁ**
-- [ ] Push notifications
-- [ ] Offline mode
-- [ ] Export statistik
+- [ ] QR scanner pro validaci v terénu
+- [ ] Push notifikace / background sync
+- [ ] Export statistik do CSV/PDF
 
 ## 🧪 Testing Checklist
+
+- [ ] `npm run verify` (lint + unit tests + produkční build)
 
 ### Manuální testy
 - [ ] **Login flow**: Magic link → redirect → home
@@ -114,23 +91,22 @@ npm run dev  # http://localhost:3000
 - [x] start_url, display: standalone  
 - [x] theme_color: #1d4f7d
 
-### Service Worker ⏳
-- [ ] Cache static assets
-- [ ] Offline functionality
-- [ ] Background sync
+### Service Worker ✅
+- [x] Cache static assets
+- [x] Offline functionality
+- [x] Background sync (queued token request)
 
-### Installation ⏳
-- [ ] Add to homescreen prompt
-- [ ] iOS Safari support
-- [ ] Desktop Chrome support
+### Installation ✅
+- [x] Add to homescreen prompt / PWA install karta
+- [x] iOS Safari support (manifest + standalone)
+- [x] Desktop Chrome support
 
 ---
 
 ## 🎯 Aktuální priorita
 
-1. **Nasadit SQL schéma** - spustit `sql/complete_schema.sql`
-2. **Deploy Edge Functions** - `supabase functions deploy`  
-3. **Vytvořit test uživatele** a otestovat complete flow
-4. **PWA setup** - opravit next-pwa a přidat ikony
+1. **Spustit backend deploy checklist** (schema → seed → functions)
+2. **Napojit statistiky na reálná data**
+3. **Dokončit volitelné rozšíření podle priorit**
 
-**Aktuální stav**: Aplikace je funkčně kompletní, potřebuje jen backend setup! 🎉
+**Aktuální stav**: Frontend + PWA hotové, zbývá databázový deploy a přechod na živá data. 🎉

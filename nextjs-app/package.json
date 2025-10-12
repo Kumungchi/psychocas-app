@@ -6,7 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "deploy:schema": "tsx scripts/applyDatabaseSchema.ts",
+    "seed:supabase": "tsx scripts/seedSupabaseTestData.ts",
+    "deploy:functions": "supabase functions deploy generate_token redeem_token",
+    "deploy:all": "npm run deploy:schema && npm run seed:supabase && npm run deploy:functions",
+    "verify": "npm run lint && npm run test && CI=1 npm run build"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",
@@ -17,6 +23,7 @@
     "lucide-react": "^0.544.0",
     "next": "15.5.4",
     "next-pwa": "^5.6.0",
+    "pg": "^8.16.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-qr-code": "^2.0.18"
@@ -25,11 +32,14 @@
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.15.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.5.4",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "tsx": "^4.20.6",
+    "typescript": "^5",
+    "vitest": "^2.1.4"
   }
 }

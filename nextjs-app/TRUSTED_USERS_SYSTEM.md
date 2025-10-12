@@ -18,6 +18,7 @@ trusted_users
 ├── last_name (text) ✨ NOVÉ
 ├── phone (text)
 ├── role (text: member/manager/council/technician)
+├── branch_id (uuid → branches.id) ✨ NOVÉ
 ├── added_by (uuid → members.user_id)
 ├── added_at (timestamptz)
 └── notes (text)

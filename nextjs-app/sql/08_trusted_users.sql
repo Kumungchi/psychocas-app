@@ -6,7 +6,7 @@
 -- Step 1: Add columns to members table for better user management
 -- ========================================
 
-ALTER TABLE public.members 
+ALTER TABLE public.members
 ADD COLUMN IF NOT EXISTS first_name text,
 ADD COLUMN IF NOT EXISTS last_name text,
 ADD COLUMN IF NOT EXISTS phone text,
@@ -20,6 +20,9 @@ ADD COLUMN IF NOT EXISTS approved_by uuid REFERENCES public.members(user_id);
 -- Step 2: Create trusted_users table (pre-approved members)
 -- ========================================
 
+ALTER TABLE IF EXISTS public.trusted_users
+ADD COLUMN IF NOT EXISTS branch_id uuid REFERENCES public.branches(id);
+
 CREATE TABLE IF NOT EXISTS public.trusted_users (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   email text UNIQUE NOT NULL,
@@ -27,6 +30,7 @@ CREATE TABLE IF NOT EXISTS public.trusted_users (
   last_name text NOT NULL,
   phone text,
   role text NOT NULL CHECK (role IN ('member','manager','council','technician')) DEFAULT 'member',
+  branch_id uuid REFERENCES public.branches(id),
   added_by uuid REFERENCES public.members(user_id),
   added_at timestamptz DEFAULT now(),
   notes text
@@ -68,6 +72,7 @@ DECLARE
   new_first_name text := NULL;
   new_last_name text := NULL;
   new_phone text := NULL;
+  new_branch_id uuid := NULL;
   is_approved boolean := false;
   trusted_user_record RECORD;
 BEGIN
@@ -82,6 +87,7 @@ BEGIN
     new_first_name := trusted_user_record.first_name;
     new_last_name := trusted_user_record.last_name;
     new_phone := trusted_user_record.phone;
+    new_branch_id := trusted_user_record.branch_id;
     is_approved := true;
   ELSE
     -- Check special emails
@@ -114,6 +120,7 @@ BEGIN
     first_name,
     last_name,
     phone,
+    branch_id,
     full_name,
     membership_active,
     membership_expires,
@@ -127,8 +134,9 @@ BEGIN
     new_first_name,
     new_last_name,
     new_phone,
-    CASE 
-      WHEN new_first_name IS NOT NULL AND new_last_name IS NOT NULL 
+    new_branch_id,
+    CASE
+      WHEN new_first_name IS NOT NULL AND new_last_name IS NOT NULL
       THEN new_first_name || ' ' || new_last_name
       ELSE NULL
     END,
@@ -142,6 +150,7 @@ BEGIN
     first_name = COALESCE(EXCLUDED.first_name, public.members.first_name),
     last_name = COALESCE(EXCLUDED.last_name, public.members.last_name),
     phone = COALESCE(EXCLUDED.phone, public.members.phone),
+    branch_id = COALESCE(EXCLUDED.branch_id, public.members.branch_id),
     full_name = COALESCE(EXCLUDED.full_name, public.members.full_name),
     membership_active = EXCLUDED.membership_active,
     membership_expires = EXCLUDED.membership_expires,
@@ -165,14 +174,15 @@ GRANT ALL ON public.trusted_users TO authenticated, service_role;
 -- ========================================
 
 -- Example: Pre-approve some test users
-INSERT INTO public.trusted_users (email, first_name, last_name, role, notes)
-VALUES 
-  ('bunnik.matias@seznam.cz', 'Matias', 'Bunnik', 'member', 'Test account - developer'),
-  ('viceprezident@psychočas.cz', 'Viceprezident', 'Psychočas', 'council', 'Council member')
+INSERT INTO public.trusted_users (email, first_name, last_name, role, branch_id, notes)
+VALUES
+  ('bunnik.matias@seznam.cz', 'Matias', 'Bunnik', 'member', '550e8400-e29b-41d4-a716-446655440000', 'Test account - developer'),
+  ('viceprezident@psychočas.cz', 'Viceprezident', 'Psychočas', 'council', NULL, 'Council member')
 ON CONFLICT (email) DO UPDATE SET
   first_name = EXCLUDED.first_name,
   last_name = EXCLUDED.last_name,
   role = EXCLUDED.role,
+  branch_id = EXCLUDED.branch_id,
   notes = EXCLUDED.notes;
 
 -- Step 6: Create helper function to approve members

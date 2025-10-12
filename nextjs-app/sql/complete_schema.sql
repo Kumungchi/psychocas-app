@@ -32,6 +32,23 @@ CREATE TABLE IF NOT EXISTS public.members (
   created_at timestamptz DEFAULT now()
 );
 
+-- Partner offers table
+CREATE TABLE IF NOT EXISTS public.partner_offers (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  title text NOT NULL,
+  description text,
+  discount_code text,
+  discount_percentage numeric(5,2),
+  scope text NOT NULL CHECK (scope IN ('national','local')),
+  branch_id uuid REFERENCES public.branches(id),
+  city text,
+  active boolean NOT NULL DEFAULT true,
+  created_by uuid REFERENCES public.members(user_id) ON DELETE SET NULL,
+  updated_by uuid REFERENCES public.members(user_id) ON DELETE SET NULL,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
 -- Tokens table
 CREATE TABLE IF NOT EXISTS public.tokens (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -58,6 +75,7 @@ ALTER TABLE public.members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.redemptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.branches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.partner_offers ENABLE ROW LEVEL SECURITY;
 
 -- 4. RLS POLICIES
 -- ============================================================================
@@ -107,6 +125,53 @@ FOR SELECT USING (EXISTS (
 CREATE POLICY "redemptions_insert_server_only" ON public.redemptions
 FOR INSERT WITH CHECK (false);
 
+-- Partner offers policies
+CREATE POLICY "members_read_partner_offers" ON public.partner_offers
+FOR SELECT USING (
+  partner_offers.active = true
+  AND (
+    partner_offers.scope = 'national'
+    OR EXISTS (
+      SELECT 1 FROM public.members me
+      WHERE me.user_id = auth.uid()
+        AND (
+          me.role IN ('manager','council','technician')
+          OR me.branch_id = partner_offers.branch_id
+        )
+    )
+  )
+);
+
+CREATE POLICY "council_manage_partner_offers" ON public.partner_offers
+FOR ALL USING (EXISTS (
+  SELECT 1 FROM public.members me
+  WHERE me.user_id = auth.uid()
+    AND me.role IN ('council','technician')
+))
+WITH CHECK (EXISTS (
+  SELECT 1 FROM public.members me
+  WHERE me.user_id = auth.uid()
+    AND me.role IN ('council','technician')
+));
+
+CREATE POLICY "managers_manage_branch_partner_offers" ON public.partner_offers
+FOR ALL USING (EXISTS (
+  SELECT 1 FROM public.members me
+  WHERE me.user_id = auth.uid()
+    AND me.role = 'manager'
+    AND me.email LIKE '%@psychocas.cz'
+    AND partner_offers.scope = 'local'
+    AND partner_offers.branch_id = me.branch_id
+))
+WITH CHECK (EXISTS (
+  SELECT 1 FROM public.members me
+  WHERE me.user_id = auth.uid()
+    AND me.role = 'manager'
+    AND me.email LIKE '%@psychocas.cz'
+    AND partner_offers.scope = 'local'
+    AND partner_offers.branch_id = me.branch_id
+));
+
 -- 5. TRIGGERS
 -- ============================================================================
 
@@ -141,9 +206,13 @@ GROUP BY 1,2;
 -- ============================================================================
 
 -- Create one test branch
-INSERT INTO public.branches (id, name, city) 
+INSERT INTO public.branches (id, name, city)
 VALUES ('550e8400-e29b-41d4-a716-446655440000', 'Praha - testovací pobočka', 'Praha')
 ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.partner_offers (title, description, discount_percentage, scope, active)
+VALUES ('Testovací celostátní partner', 'Ukázková sleva dostupná všem členům Psychočas.', 10, 'national', true)
+ON CONFLICT DO NOTHING;
 
 -- ============================================================================
 -- SETUP COMPLETE! 

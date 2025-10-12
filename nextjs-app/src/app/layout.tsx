@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
+import OfflineToast from "@/components/OfflineToast";
 
 export const metadata: Metadata = {
   title: "Psychočas - Členská aplikace",
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         {children}
+        <OfflineToast />
       </body>
     </html>
   );

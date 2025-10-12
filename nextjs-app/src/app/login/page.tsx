@@ -1,26 +1,40 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function Login() {
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+
+  const requestedRedirect = searchParams.get('redirectTo');
+  const sanitizedRedirect = useMemo(() => {
+    if (!requestedRedirect) {
+      return '/home';
+    }
+
+    if (!requestedRedirect.startsWith('/') || requestedRedirect.startsWith('//') || requestedRedirect.includes('://')) {
+      return '/home';
+    }
+
+    return requestedRedirect;
+  }, [requestedRedirect]);
 
   // Check if user is already logged in
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        router.push('/home');
+        router.push(sanitizedRedirect);
       }
     };
     checkUser();
-  }, [router]);
+  }, [router, sanitizedRedirect]);
 
   const handleSendMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,12 +44,13 @@ export default function Login() {
     try {
       const cleanEmail = email.trim().toLowerCase();
       
-      const redirectTo = `${window.location.origin}/auth/callback?redirectTo=/home`;
+      const callbackUrl = new URL('/auth/callback', window.location.origin);
+      callbackUrl.searchParams.set('redirectTo', sanitizedRedirect);
       const { error } = await supabase.auth.signInWithOtp({
         email: cleanEmail,
         options: {
           shouldCreateUser: true,
-          emailRedirectTo: redirectTo,
+          emailRedirectTo: callbackUrl.toString(),
         },
       });
 
@@ -220,5 +235,23 @@ export default function Login() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function Login() {
+  return (
+    <Suspense
+      fallback={(
+        <main className="psychocas-section flex items-center justify-center">
+          <div className="psychocas-container fade-in-up">
+            <div className="psychocas-card text-center">
+              <p>Načítání přihlášení...</p>
+            </div>
+          </div>
+        </main>
+      )}
+    >
+      <LoginContent />
+    </Suspense>
   );
 }

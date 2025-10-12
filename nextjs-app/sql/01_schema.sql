@@ -9,6 +9,7 @@ create table if not exists public.branches (
   created_at timestamptz default now()
 );
 
+-- Create partner offers table for national and local discounts
 -- Create members table
 create table if not exists public.members (
   user_id uuid primary key references auth.users(id) on delete cascade,
@@ -19,6 +20,23 @@ create table if not exists public.members (
   membership_active boolean not null default false,
   membership_expires date,
   created_at timestamptz default now()
+);
+
+-- Create partner offers table for national and local discounts
+create table if not exists public.partner_offers (
+  id uuid primary key default uuid_generate_v4(),
+  title text not null,
+  description text,
+  discount_code text,
+  discount_percentage numeric(5,2),
+  scope text not null check (scope in ('national','local')),
+  branch_id uuid references public.branches(id),
+  city text,
+  active boolean not null default true,
+  created_by uuid references public.members(user_id) on delete set null,
+  updated_by uuid references public.members(user_id) on delete set null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
 -- Create tokens table
