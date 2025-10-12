@@ -187,13 +187,17 @@ function HomeContent() {
           data: { user: currentUser },
         } = await supabase.auth.getUser();
 
+        console.log('🔍 DEBUG: currentUser from getUser():', currentUser);
+
         if (!currentUser) {
+          console.log('❌ No currentUser found, redirecting to login');
           setLoading(false);
           setPartnersLoading(false);
           router.push('/login');
           return false;
         }
 
+        console.log('✅ CurrentUser found:', { id: currentUser.id, email: currentUser.email });
         setUser(currentUser);
 
         const memberPromise = supabase
