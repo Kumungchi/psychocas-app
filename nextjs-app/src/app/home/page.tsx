@@ -200,28 +200,98 @@ function HomeContent() {
         console.log('✅ CurrentUser found:', { id: currentUser.id, email: currentUser.email });
         setUser(currentUser);
 
-        const memberPromise = supabase
-          .from('members')
-          .select(`
-            membership_active,
-            membership_expires,
-            full_name,
-            role,
-            branch_id,
-            email,
-            approved,
-            approved_at,
-            branch:branch_id (
-              id,
-              name,
-              location,
-              city,
-              discount_percentage,
-              active
-            )
-          `)
-          .eq('user_id', currentUser.id)
-          .limit(1);
+        // Robust member query with graceful fallbacks when optional columns are missing
+        type MemberRow = {
+          membership_active: boolean;
+          membership_expires: string | null;
+          full_name: string | null;
+          role: string | null;
+          branch_id: string | null;
+          email?: string | null;
+          approved?: boolean | null;
+          approved_at?: string | null;
+          branch?: BranchInfo | BranchInfo[] | null;
+        };
+
+        const selectFull = `
+          membership_active,
+          membership_expires,
+          full_name,
+          role,
+          branch_id,
+          email,
+          approved,
+          approved_at,
+          branch:branch_id (
+            id,
+            name,
+            location,
+            city,
+            discount_percentage,
+            active
+          )
+        `;
+
+        const selectReducedBranch = `
+          membership_active,
+          membership_expires,
+          full_name,
+          role,
+          branch_id,
+          email,
+          approved,
+          approved_at,
+          branch:branch_id (
+            id,
+            name
+          )
+        `;
+
+        const selectNoBranch = `
+          membership_active,
+          membership_expires,
+          full_name,
+          role,
+          branch_id,
+          email,
+          approved,
+          approved_at
+        `;
+
+        async function fetchMemberWithFallback(): Promise<{
+          data: MemberRow[] | null;
+          error: any | null;
+        }> {
+          // 1) Try full selection (may fail on minimal DB)
+          let res = await supabase
+            .from('members')
+            .select(selectFull)
+            .eq('user_id', currentUser.id)
+            .limit(1);
+          if (!res.error) return res as any;
+
+          // If undefined column (42703), retry with reduced branch
+          if (res.error?.code === '42703') {
+            console.warn('Member query: falling back to reduced branch selection (missing columns).', res.error);
+            res = await supabase
+              .from('members')
+              .select(selectReducedBranch)
+              .eq('user_id', currentUser.id)
+              .limit(1);
+            if (!res.error) return res as any;
+          }
+
+          // Final fallback – no branch join
+          console.warn('Member query: falling back to no-branch selection.', res.error);
+          res = await supabase
+            .from('members')
+            .select(selectNoBranch)
+            .eq('user_id', currentUser.id)
+            .limit(1);
+          return res as any;
+        }
+
+        const memberPromise = fetchMemberWithFallback();
 
         const partnersPromise = supabase
           .from('partner_offers')
@@ -231,7 +301,8 @@ function HomeContent() {
           )
           .order('title');
 
-        const [memberResponse, partnersResponse] = await Promise.all([memberPromise, partnersPromise]);
+  const [memberResponse, partnersResponse] = await Promise.all([memberPromise, partnersPromise]);
+  console.log('🔍 DEBUG: memberResponse', memberResponse);
 
         let normalizedMember: MemberData | null = null;
         let normalizedPartners: PartnerOfferRecord[] = [];
@@ -275,6 +346,7 @@ function HomeContent() {
 
             setMemberData(normalizedMember);
           } else {
+            console.warn('⚠️ No member row found for current user.');
             setMemberData(null);
           }
         }
