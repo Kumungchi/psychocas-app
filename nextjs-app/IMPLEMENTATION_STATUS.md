@@ -50,6 +50,8 @@
 
 ## 🧪 Testing Checklist
 
+- [ ] `npm run verify` (lint + unit tests + produkční build)
+
 ### Manuální testy
 - [ ] **Login flow**: Magic link → redirect → home
 - [ ] **Member flow**: Active member → generate code → QR shows
