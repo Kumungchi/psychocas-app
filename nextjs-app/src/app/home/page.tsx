@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, Suspense, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Navigation from '@/components/Navigation';
-import type { User } from '@supabase/supabase-js';
+import type { PostgrestResponse, User } from '@supabase/supabase-js';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -37,6 +37,13 @@ const OFFLINE_TOKEN_MESSAGE = 'Pro vygenerování nového kódu je nutné připo
 const OFFLINE_CARD_HINT = 'Pro generování nebo obnovu členského kódu je vyžadováno připojení k internetu.';
 const TOKEN_QUEUE_MESSAGE = 'Žádost o nový kód bude odeslána, jakmile se znovu připojíte k internetu.';
 const REFRESH_GENERIC_ERROR = 'Nepodařilo se obnovit data. Zkuste to prosím znovu.';
+const MEMBER_FETCH_MAX_ATTEMPTS = 3;
+const MEMBER_FETCH_RETRY_DELAY_MS = 400;
+
+const delay = (ms: number) =>
+  new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
 
 function HomeContent() {
   const [memberData, setMemberData] = useState<MemberData | null>(null);
@@ -258,40 +265,37 @@ function HomeContent() {
           approved_at
         `;
 
-        async function fetchMemberWithFallback(): Promise<{
-          data: MemberRow[] | null;
-          error: any | null;
-        }> {
+        type MemberQueryResponse = PostgrestResponse<MemberRow>;
+
+        async function fetchMemberWithFallback(): Promise<MemberQueryResponse> {
           // 1) Try full selection (may fail on minimal DB)
-          let res = await supabase
-            .from('members')
+          let res: MemberQueryResponse = await supabase
+            .from<MemberRow>('members')
             .select(selectFull)
             .eq('user_id', currentUser.id)
             .limit(1);
-          if (!res.error) return res as any;
+          if (!res.error) return res;
 
           // If undefined column (42703), retry with reduced branch
           if (res.error?.code === '42703') {
             console.warn('Member query: falling back to reduced branch selection (missing columns).', res.error);
             res = await supabase
-              .from('members')
+              .from<MemberRow>('members')
               .select(selectReducedBranch)
               .eq('user_id', currentUser.id)
               .limit(1);
-            if (!res.error) return res as any;
+            if (!res.error) return res;
           }
 
           // Final fallback – no branch join
           console.warn('Member query: falling back to no-branch selection.', res.error);
           res = await supabase
-            .from('members')
+            .from<MemberRow>('members')
             .select(selectNoBranch)
             .eq('user_id', currentUser.id)
             .limit(1);
-          return res as any;
+          return res;
         }
-
-        const memberPromise = fetchMemberWithFallback();
 
         const partnersPromise = supabase
           .from('partner_offers')
@@ -301,8 +305,24 @@ function HomeContent() {
           )
           .order('title');
 
-  const [memberResponse, partnersResponse] = await Promise.all([memberPromise, partnersPromise]);
-  console.log('🔍 DEBUG: memberResponse', memberResponse);
+        let memberResponse = await fetchMemberWithFallback();
+        let memberAttempts = 1;
+
+        while (
+          !memberResponse.error &&
+          (!memberResponse.data || memberResponse.data.length === 0) &&
+          memberAttempts < MEMBER_FETCH_MAX_ATTEMPTS
+        ) {
+          memberAttempts += 1;
+          console.warn(
+            `⚠️ Member data empty on attempt ${memberAttempts - 1}. Retrying (${memberAttempts}/${MEMBER_FETCH_MAX_ATTEMPTS})...`
+          );
+          await delay(MEMBER_FETCH_RETRY_DELAY_MS);
+          memberResponse = await fetchMemberWithFallback();
+        }
+
+        const partnersResponse = await partnersPromise;
+        console.log('🔍 DEBUG: memberResponse', { memberResponse, memberAttempts });
 
         let normalizedMember: MemberData | null = null;
         let normalizedPartners: PartnerOfferRecord[] = [];
