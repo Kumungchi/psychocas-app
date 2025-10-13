@@ -246,7 +246,10 @@ function HomeContent() {
         console.log('✅ CurrentUser found:', { id: currentUser.id, email: currentUser.email });
         setUser(currentUser);
 
-        const trustedUserEmail = currentUser.email?.toLowerCase() ?? null;
+        const trustedUserEmailRaw = currentUser.email ?? null;
+        const trustedUserEmail = trustedUserEmailRaw?.trim().toLowerCase() ?? null;
+
+        const escapeIlikePattern = (value: string) => value.replace(/[\\%_]/g, (char) => `\\${char}`);
 
         const fetchTrustedUserFallback = async (): Promise<MemberData | null> => {
           if (!trustedUserEmail) {
@@ -261,14 +264,35 @@ function HomeContent() {
             branch?: BranchInfo | BranchInfo[] | null;
           };
 
-          const { data, error } = await supabase
+          const emailPatterns = Array.from(
+            new Set(
+              [trustedUserEmailRaw, trustedUserEmail]
+                .filter((value): value is string => Boolean(value && value.length > 0))
+                .map((value) => escapeIlikePattern(value.toLowerCase()))
+            )
+          );
+
+          if (emailPatterns.length === 0) {
+            return null;
+          }
+
+          let trustedQuery = supabase
             .from<TrustedUserRow>('trusted_users')
             .select(
               `first_name, last_name, role, branch_id,
                branch:branch_id (id, name, location, city, discount_percentage, active)`
             )
-            .eq('email', trustedUserEmail)
             .limit(1);
+
+          if (emailPatterns.length === 1) {
+            trustedQuery = trustedQuery.filter('email', 'ilike', emailPatterns[0]!);
+          } else {
+            trustedQuery = trustedQuery.or(
+              emailPatterns.map((pattern) => `email.ilike.${pattern}`).join(',')
+            );
+          }
+
+          const { data, error } = await trustedQuery;
 
           if (error) {
             console.error('Error loading trusted user fallback:', error);
