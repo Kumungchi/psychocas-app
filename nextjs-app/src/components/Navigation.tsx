@@ -3,7 +3,6 @@
 import { useRouter, usePathname } from 'next/navigation';
 import { Home, QrCode, BarChart3, Settings, LogOut } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
-import PsychocasLogo from './PsychocasLogo';
 
 interface NavigationProps {
   userRole: 'member' | 'manager' | 'council' | 'technician';
@@ -33,15 +32,17 @@ export default function Navigation({ userRole }: NavigationProps) {
         {visibleItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.id;
-          
+
           return (
             <button
               key={item.id}
               onClick={() => router.push(item.id)}
-              className="flex flex-col items-center gap-1 p-3 transition-colors duration-200 hover:opacity-80"
+              aria-label={item.label}
+              aria-current={isActive ? 'page' : undefined}
+              className="flex flex-col items-center gap-1 p-3 transition-colors duration-200 hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#1d4f7d]"
             >
-              <Icon 
-                className="w-5 h-5" 
+              <Icon
+                className="w-5 h-5"
                 style={{ color: isActive ? '#1d4f7d' : '#666666' }}
               />
               <span 
@@ -56,10 +57,11 @@ export default function Navigation({ userRole }: NavigationProps) {
         
         <button
           onClick={handleLogout}
-          className="flex flex-col items-center gap-1 p-3 transition-colors duration-200 hover:opacity-80"
+          aria-label="Odhlásit se"
+          className="flex flex-col items-center gap-1 p-3 transition-colors duration-200 hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#c62828]"
         >
-          <LogOut 
-            className="w-5 h-5" 
+          <LogOut
+            className="w-5 h-5"
             style={{ color: '#c62828' }}
           />
           <span 

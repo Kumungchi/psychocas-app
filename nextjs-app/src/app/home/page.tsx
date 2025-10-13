@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo, Suspense, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Navigation from '@/components/Navigation';
-import type { PostgrestResponse, User } from '@supabase/supabase-js';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -21,9 +20,11 @@ import {
   type PartnerOfferRecord,
 } from '@/lib/partners';
 import { loadHomeSnapshot, saveHomeSnapshot, clearHomeSnapshot } from '@/lib/offlineCache';
-import type { BranchInfo, MemberData, MemberRole, TokenData } from '@/types/member';
+import type { MemberData, MemberRole, TokenData } from '@/types/member';
 import useNetworkStatus from '@/hooks/useNetworkStatus';
 import usePwaInstallPrompt from '@/hooks/usePwaInstallPrompt';
+import useMemberContext from '@/hooks/useMemberContext';
+import { logDebug, logError, logWarn } from '@/lib/logging';
 
 const ROLE_LABELS: Record<MemberRole, string> = {
   member: 'Člen',
@@ -37,14 +38,6 @@ const OFFLINE_TOKEN_MESSAGE = 'Pro vygenerování nového kódu je nutné připo
 const OFFLINE_CARD_HINT = 'Pro generování nebo obnovu členského kódu je vyžadováno připojení k internetu.';
 const TOKEN_QUEUE_MESSAGE = 'Žádost o nový kód bude odeslána, jakmile se znovu připojíte k internetu.';
 const REFRESH_GENERIC_ERROR = 'Nepodařilo se obnovit data. Zkuste to prosím znovu.';
-const MEMBER_FETCH_MAX_ATTEMPTS = 3;
-const MEMBER_FETCH_RETRY_DELAY_MS = 400;
-
-const delay = (ms: number) =>
-  new Promise<void>((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-
 const copyTextToClipboard = async (text: string): Promise<boolean> => {
   if (
     typeof navigator !== 'undefined' &&
@@ -55,7 +48,7 @@ const copyTextToClipboard = async (text: string): Promise<boolean> => {
       await navigator.clipboard.writeText(text);
       return true;
     } catch (error) {
-      console.warn('Primary clipboard API failed, attempting fallback copy.', error);
+      logWarn('clipboard', 'Primary clipboard API failed, attempting fallback copy.', error);
     }
   }
 
@@ -79,7 +72,7 @@ const copyTextToClipboard = async (text: string): Promise<boolean> => {
     document.body.removeChild(textarea);
     return successful;
   } catch (fallbackError) {
-    console.warn('Fallback clipboard copy failed.', fallbackError);
+    logWarn('clipboard', 'Fallback clipboard copy failed.', fallbackError);
     return false;
   }
 };
@@ -87,7 +80,6 @@ const copyTextToClipboard = async (text: string): Promise<boolean> => {
 function HomeContent() {
   const [memberData, setMemberData] = useState<MemberData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [partners, setPartners] = useState<PartnerOfferRecord[]>([]);
   const [partnersLoading, setPartnersLoading] = useState(true);
@@ -110,6 +102,17 @@ function HomeContent() {
   const searchParams = useSearchParams();
   const isOnline = useNetworkStatus();
   const { canInstall, installed, promptInstall } = usePwaInstallPrompt();
+  const {
+    member: resolvedMember,
+    user,
+    error: memberContextError,
+    refresh: resolveMemberContext,
+    lastSyncedAt: memberLastSyncedAt,
+  } = useMemberContext({
+    enabled: false,
+    scope: 'home',
+    onUnauthorized: () => router.push('/login'),
+  });
 
   useEffect(() => {
     const errorParam = searchParams.get('error');
@@ -132,7 +135,7 @@ function HomeContent() {
         day: 'numeric',
       }).format(new Date(dateStr));
     } catch (dateError) {
-      console.error('Error formatting expiry date:', dateError);
+      logError('home', 'Error formatting expiry date.', dateError);
       return 'Neuvedeno';
     }
   }, []);
@@ -159,6 +162,7 @@ function HomeContent() {
       setSnapshotSavedAt(snapshot.savedAt);
       setLastSyncedAt(snapshot.savedAt);
       setTokenError(null);
+      setPartnersError(null);
     }
     setSnapshotChecked(true);
   }, []);
@@ -171,6 +175,24 @@ function HomeContent() {
     setError((prev) => (prev === OFFLINE_REFRESH_MESSAGE ? null : prev));
     setTokenError((prev) => (prev === OFFLINE_TOKEN_MESSAGE ? null : prev));
   }, [isOnline]);
+
+  useEffect(() => {
+    if (memberContextError && isOnline) {
+      setError((prev) => prev ?? memberContextError);
+    }
+  }, [isOnline, memberContextError]);
+
+  useEffect(() => {
+    if (resolvedMember) {
+      setMemberData(resolvedMember);
+    }
+  }, [resolvedMember]);
+
+  useEffect(() => {
+    if (memberLastSyncedAt) {
+      setLastSyncedAt(memberLastSyncedAt);
+    }
+  }, [memberLastSyncedAt]);
 
   useEffect(() => {
     if (installed) {
@@ -191,7 +213,7 @@ function HomeContent() {
         .limit(1);
 
       if (error) {
-        console.error('Error loading active token:', error);
+        logError('home', 'Error loading active token.', error);
         return null;
       }
 
@@ -207,7 +229,7 @@ function HomeContent() {
         setTimeLeft(0);
       }
     } catch (loadError) {
-      console.error('Unexpected error loading active token:', loadError);
+      logError('home', 'Unexpected error loading active token.', loadError);
     }
     return activeToken;
   }, []);
@@ -228,197 +250,33 @@ function HomeContent() {
         setError((prev) => prev ?? OFFLINE_REFRESH_MESSAGE);
         return false;
       }
+
       try {
-        const {
-          data: { user: currentUser },
-        } = await supabase.auth.getUser();
+        const memberResult = await resolveMemberContext();
 
-        console.log('🔍 DEBUG: currentUser from getUser():', currentUser);
-
-        if (!currentUser) {
-          console.log('❌ No currentUser found, redirecting to login');
+        if (memberResult.status === 'unauthenticated') {
           setLoading(false);
           setPartnersLoading(false);
-          router.push('/login');
           return false;
         }
 
-        console.log('✅ CurrentUser found:', { id: currentUser.id, email: currentUser.email });
-        setUser(currentUser);
-
-        const trustedUserEmailRaw = currentUser.email ?? null;
-        const trustedUserEmail = trustedUserEmailRaw?.trim().toLowerCase() ?? null;
-
-        const escapeIlikePattern = (value: string) => value.replace(/[\\%_]/g, (char) => `\\${char}`);
-
-        const fetchTrustedUserFallback = async (): Promise<MemberData | null> => {
-          if (!trustedUserEmail) {
-            return null;
-          }
-
-          type TrustedUserRow = {
-            first_name: string | null;
-            last_name: string | null;
-            role: string | null;
-            branch_id: string | null;
-            branch?: BranchInfo | BranchInfo[] | null;
-          };
-
-          const emailPatterns = Array.from(
-            new Set(
-              [trustedUserEmailRaw, trustedUserEmail]
-                .filter((value): value is string => Boolean(value && value.length > 0))
-                .map((value) => escapeIlikePattern(value.toLowerCase()))
-            )
-          );
-
-          if (emailPatterns.length === 0) {
-            return null;
-          }
-
-          let trustedQuery = supabase
-            .from<TrustedUserRow>('trusted_users')
-            .select(
-              `first_name, last_name, role, branch_id,
-               branch:branch_id (id, name, location, city, discount_percentage, active)`
-            )
-            .limit(1);
-
-          if (emailPatterns.length === 1) {
-            trustedQuery = trustedQuery.filter('email', 'ilike', emailPatterns[0]!);
-          } else {
-            trustedQuery = trustedQuery.or(
-              emailPatterns.map((pattern) => `email.ilike.${pattern}`).join(',')
-            );
-          }
-
-          const { data, error } = await trustedQuery;
-
-          if (error) {
-            console.error('Error loading trusted user fallback:', error);
-            return null;
-          }
-
-          const trustedRecord = data?.[0];
-          if (!trustedRecord) {
-            return null;
-          }
-
-          const fallbackBranch = Array.isArray(trustedRecord.branch)
-            ? trustedRecord.branch[0] ?? null
-            : trustedRecord.branch ?? null;
-
-          const nameParts = [trustedRecord.first_name, trustedRecord.last_name].filter(
-            (part): part is string => typeof part === 'string' && part.trim().length > 0
-          );
-
-          const fallbackMember: MemberData = {
-            membership_active: true,
-            membership_expires: null,
-            full_name: nameParts.length > 0 ? nameParts.join(' ') : null,
-            role: (trustedRecord.role ?? 'member') as MemberRole,
-            branch_id: trustedRecord.branch_id ?? null,
-            email: currentUser.email ?? null,
-            approved: true,
-            approved_at: null,
-            branch: fallbackBranch,
-          };
-
-          console.info('ℹ️ Using trusted_users fallback for member context.');
-          return fallbackMember;
-        };
-
-        // Robust member query with graceful fallbacks when optional columns are missing
-        type MemberRow = {
-          membership_active: boolean;
-          membership_expires: string | null;
-          full_name: string | null;
-          role: string | null;
-          branch_id: string | null;
-          email?: string | null;
-          approved?: boolean | null;
-          approved_at?: string | null;
-          branch?: BranchInfo | BranchInfo[] | null;
-        };
-
-        const selectFull = `
-          membership_active,
-          membership_expires,
-          full_name,
-          role,
-          branch_id,
-          email,
-          approved,
-          approved_at,
-          branch:branch_id (
-            id,
-            name,
-            location,
-            city,
-            discount_percentage,
-            active
-          )
-        `;
-
-        const selectReducedBranch = `
-          membership_active,
-          membership_expires,
-          full_name,
-          role,
-          branch_id,
-          email,
-          approved,
-          approved_at,
-          branch:branch_id (
-            id,
-            name
-          )
-        `;
-
-        const selectNoBranch = `
-          membership_active,
-          membership_expires,
-          full_name,
-          role,
-          branch_id,
-          email,
-          approved,
-          approved_at
-        `;
-
-        type MemberQueryResponse = PostgrestResponse<MemberRow>;
-
-        async function fetchMemberWithFallback(): Promise<MemberQueryResponse> {
-          // 1) Try full selection (may fail on minimal DB)
-          let res: MemberQueryResponse = await supabase
-            .from<MemberRow>('members')
-            .select(selectFull)
-            .eq('user_id', currentUser.id)
-            .limit(1);
-          if (!res.error) return res;
-
-          // If undefined column (42703), retry with reduced branch
-          if (res.error?.code === '42703') {
-            console.warn('Member query: falling back to reduced branch selection (missing columns).', res.error);
-            res = await supabase
-              .from<MemberRow>('members')
-              .select(selectReducedBranch)
-              .eq('user_id', currentUser.id)
-              .limit(1);
-            if (!res.error) return res;
-          }
-
-          // Final fallback – no branch join
-          console.warn('Member query: falling back to no-branch selection.', res.error);
-          res = await supabase
-            .from<MemberRow>('members')
-            .select(selectNoBranch)
-            .eq('user_id', currentUser.id)
-            .limit(1);
-          return res;
+        if (memberResult.status === 'error' || !memberResult.user || !memberResult.member) {
+          const message = memberResult.error ?? 'Nepodařilo se načíst informace o členství.';
+          setError((prev) => prev ?? message);
+          return false;
         }
 
-        const partnersPromise = supabase
+        const currentUser = memberResult.user;
+        const hydratedMember = memberResult.member;
+        logDebug('home', 'Member context resolved.', {
+          userId: currentUser.id,
+          origin: hydratedMember.origin,
+        });
+
+        setMemberData(hydratedMember);
+        setError(null);
+
+        const partnersResponse = await supabase
           .from('partner_offers')
           .select(
             `id, title, description, discount_code, discount_percentage, scope, branch_id, city, active,
@@ -426,121 +284,58 @@ function HomeContent() {
           )
           .order('title');
 
-        let memberResponse = await fetchMemberWithFallback();
-        let memberAttempts = 1;
-
-        while (
-          !memberResponse.error &&
-          (!memberResponse.data || memberResponse.data.length === 0) &&
-          memberAttempts < MEMBER_FETCH_MAX_ATTEMPTS
-        ) {
-          memberAttempts += 1;
-          console.warn(
-            `⚠️ Member data empty on attempt ${memberAttempts - 1}. Retrying (${memberAttempts}/${MEMBER_FETCH_MAX_ATTEMPTS})...`
-          );
-          await delay(MEMBER_FETCH_RETRY_DELAY_MS);
-          memberResponse = await fetchMemberWithFallback();
-        }
-
-        const partnersResponse = await partnersPromise;
-        console.log('🔍 DEBUG: memberResponse', { memberResponse, memberAttempts });
-
-        let normalizedMember: MemberData | null = null;
-        let normalizedPartners: PartnerOfferRecord[] = [];
-
-        if (memberResponse.error) {
-          console.error('Error fetching member data:', memberResponse.error);
-          setMemberData(null);
-          setError((prev) => prev ?? 'Nepodařilo se načíst informace o členství.');
-        } else {
-          type MemberRow = {
-            membership_active: boolean;
-            membership_expires: string | null;
-            full_name: string | null;
-            role: string | null;
-            branch_id: string | null;
-            email?: string | null;
-            approved?: boolean | null;
-            approved_at?: string | null;
-            branch: BranchInfo | BranchInfo[] | null;
-          };
-
-          const memberRows = (memberResponse.data ?? []) as MemberRow[];
-          const memberRow = memberRows[0] ?? null;
-
-          if (memberRow) {
-            const normalizedBranch = Array.isArray(memberRow.branch)
-              ? memberRow.branch[0] ?? null
-              : memberRow.branch ?? null;
-
-            normalizedMember = {
-              membership_active: memberRow.membership_active,
-              membership_expires: memberRow.membership_expires,
-              full_name: memberRow.full_name,
-              role: (memberRow.role ?? 'member') as MemberRole,
-              branch_id: memberRow.branch_id,
-              email: memberRow.email ?? null,
-              approved: memberRow.approved ?? null,
-              approved_at: memberRow.approved_at ?? null,
-              branch: normalizedBranch,
-            };
-          } else {
-            console.warn('⚠️ No member row found for current user. Attempting trusted_users fallback.');
-            normalizedMember = await fetchTrustedUserFallback();
-          }
-
-          setMemberData(normalizedMember);
-        }
-
         if (partnersResponse.error) {
-          console.error('Error fetching partner data:', partnersResponse.error);
+          logError('home', 'Error fetching partner data', partnersResponse.error);
           setPartners([]);
           setPartnersError('Nepodařilo se načíst partnerské podniky.');
-        } else {
-          type PartnerRow = PartnerOfferRecord & {
-            branch: PartnerOfferRecord['branch'] | PartnerOfferRecord['branch'][] | null;
-          };
-
-          const partnerRows = (partnersResponse.data ?? []) as PartnerRow[];
-          normalizedPartners = partnerRows.map((partner) => ({
-            ...partner,
-            branch: Array.isArray(partner.branch)
-              ? partner.branch[0] ?? null
-              : partner.branch ?? null,
-          }));
-
-          setPartners(normalizedPartners);
-          setPartnersError(null);
+          return false;
         }
+
+        type PartnerRow = PartnerOfferRecord & {
+          branch: PartnerOfferRecord['branch'] | PartnerOfferRecord['branch'][] | null;
+        };
+
+        const partnerRows = (partnersResponse.data ?? []) as PartnerRow[];
+        const normalizedPartners = partnerRows.map((partner) => ({
+          ...partner,
+          branch: Array.isArray(partner.branch) ? partner.branch[0] ?? null : partner.branch ?? null,
+        }));
+
+        setPartners(normalizedPartners);
+        setPartnersError(null);
 
         const activeToken = await loadActiveToken(currentUser.id);
+        const diagnostics = diagnosePartnerVisibility(
+          hydratedMember.branch_id,
+          groupPartnersForMember(normalizedPartners, hydratedMember.branch_id)
+        );
 
-        const hasMemberError = Boolean(memberResponse.error);
-        const hasPartnerError = Boolean(partnersResponse.error);
-        const requestSuccessful = !hasMemberError && !hasPartnerError;
+        const saved = saveHomeSnapshot({
+          member: hydratedMember,
+          partners: normalizedPartners,
+          token: activeToken,
+          partnerDiagnostics: diagnostics,
+        });
 
-        if (requestSuccessful) {
-          const saved = saveHomeSnapshot({
-            member: normalizedMember,
-            partners: normalizedPartners,
-            token: activeToken,
-          });
-          setRestoredFromSnapshot(false);
-          setSnapshotSavedAt(null);
-          setLastSyncedAt(saved.savedAt);
-          return true;
-        }
+        setRestoredFromSnapshot(false);
+        setSnapshotSavedAt(null);
+        setLastSyncedAt(memberResult.lastSyncedAt ?? saved.savedAt);
+        return true;
       } catch (fetchError) {
-        console.error('Unexpected error loading home screen:', fetchError);
+        logError('home', 'Unexpected error loading home screen.', fetchError);
         setError((prev) => prev ?? 'Došlo k neočekávané chybě při načítání údajů.');
         return false;
       } finally {
         setLoading(false);
         setPartnersLoading(false);
       }
-      return false;
     },
-    [isOnline, loadActiveToken, restoredFromSnapshot, router]
+    [
+      isOnline,
+      loadActiveToken,
+      resolveMemberContext,
+      restoredFromSnapshot,
+    ]
   );
 
   useEffect(() => {
@@ -657,7 +452,7 @@ function HomeContent() {
       setTokenError(null);
       setPendingTokenRequest(false);
     } catch (generationError) {
-      console.error('Error generating token:', generationError);
+      logError('home', 'Error generating token.', generationError);
       setTokenError(
         generationError instanceof Error
           ? generationError.message
@@ -691,7 +486,7 @@ function HomeContent() {
         setInstallError('Instalace byla zrušena. Zkuste to prosím znovu později.');
       }
     } catch (installErrorInstance) {
-      console.error('Error triggering PWA install:', installErrorInstance);
+      logError('home', 'Error triggering PWA install.', installErrorInstance);
       setInstallError('Instalaci se nepodařilo spustit. Zkuste to prosím znovu.');
     }
   }, [promptInstall]);
@@ -714,7 +509,7 @@ function HomeContent() {
         timeStyle: 'short',
       }).format(new Date(snapshotSavedAt));
     } catch (formatError) {
-      console.error('Error formatting snapshot timestamp:', formatError);
+      logError('home', 'Error formatting snapshot timestamp.', formatError);
       return snapshotSavedAt;
     }
   }, [snapshotSavedAt]);
@@ -727,7 +522,7 @@ function HomeContent() {
         timeStyle: 'short',
       }).format(new Date(lastSyncedAt));
     } catch (formatError) {
-      console.error('Error formatting last synced timestamp:', formatError);
+      logError('home', 'Error formatting last synced timestamp.', formatError);
       return lastSyncedAt;
     }
   }, [lastSyncedAt]);
@@ -740,7 +535,7 @@ function HomeContent() {
         timeStyle: 'short',
       }).format(new Date(lastRefreshAttemptAt));
     } catch (formatError) {
-      console.error('Error formatting refresh attempt timestamp:', formatError);
+      logError('home', 'Error formatting refresh attempt timestamp.', formatError);
       return lastRefreshAttemptAt;
     }
   }, [lastRefreshAttemptAt]);
@@ -1306,7 +1101,7 @@ function HomeContent() {
         )}
       </div>
 
-      <Navigation userRole={memberData.role} />
+      {memberData && <Navigation userRole={memberData.role} />}
     </main>
   );
 }

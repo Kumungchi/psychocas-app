@@ -1,9 +1,10 @@
 import type { MemberData, TokenData } from '@/types/member';
-import type { PartnerOfferRecord } from '@/lib/partners';
+import type { PartnerOfferRecord, PartnerVisibilityDiagnostics } from '@/lib/partners';
 
 const SNAPSHOT_VERSION = 1;
 const SNAPSHOT_KEY_BASE = 'psychocas.home.snapshot';
 export const HOME_SNAPSHOT_STORAGE_KEY = `${SNAPSHOT_KEY_BASE}.v${SNAPSHOT_VERSION}`;
+const DEFAULT_MAX_AGE_MS = 1000 * 60 * 30; // 30 minutes
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
@@ -26,22 +27,30 @@ function getStorage(): StorageLike | null {
 export interface HomeSnapshot {
   version: number;
   savedAt: string;
+  expiresAt: string | null;
   member: MemberData | null;
   partners: PartnerOfferRecord[];
   token: TokenData | null;
+  partnerDiagnostics?: PartnerVisibilityDiagnostics | null;
 }
 
 export function saveHomeSnapshot(input: {
   member: MemberData | null;
   partners: PartnerOfferRecord[];
   token: TokenData | null;
+  partnerDiagnostics?: PartnerVisibilityDiagnostics | null;
+  maxAgeMs?: number;
 }): HomeSnapshot {
+  const maxAgeMs = input.maxAgeMs ?? DEFAULT_MAX_AGE_MS;
+  const savedAt = new Date();
   const snapshot: HomeSnapshot = {
     version: SNAPSHOT_VERSION,
-    savedAt: new Date().toISOString(),
+    savedAt: savedAt.toISOString(),
+    expiresAt: Number.isFinite(maxAgeMs) ? new Date(savedAt.getTime() + maxAgeMs).toISOString() : null,
     member: input.member,
     partners: input.partners,
     token: input.token,
+    partnerDiagnostics: input.partnerDiagnostics ?? null,
   };
 
   const storage = getStorage();
@@ -70,6 +79,14 @@ export function loadHomeSnapshot(): HomeSnapshot | null {
     if (parsed.version !== SNAPSHOT_VERSION) {
       clearHomeSnapshot();
       return null;
+    }
+
+    if (parsed.expiresAt) {
+      const expiresAt = new Date(parsed.expiresAt).getTime();
+      if (Number.isFinite(expiresAt) && expiresAt < Date.now()) {
+        clearHomeSnapshot();
+        return null;
+      }
     }
 
     return parsed;

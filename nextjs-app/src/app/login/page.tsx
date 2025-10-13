@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { logError } from '@/lib/logging';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 function LoginContent() {
@@ -10,7 +11,7 @@ function LoginContent() {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
-  const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  const [message, setMessage] = useState<{type: 'success' | 'error' | 'info', text: string} | null>(null);
 
   const requestedRedirect = searchParams.get('redirectTo');
   const sanitizedRedirect = useMemo(() => {
@@ -39,7 +40,7 @@ function LoginContent() {
   const handleSendMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setMessage(null);
+    setMessage({ type: 'info', text: 'Odesíláme přihlašovací odkaz…' });
 
     try {
       const cleanEmail = email.trim().toLowerCase();
@@ -55,9 +56,16 @@ function LoginContent() {
       });
 
       if (error) {
+        let errorText = typeof error === 'object' && error && 'message' in error && typeof (error as { message?: unknown }).message === 'string'
+          ? (error as { message: string }).message
+          : 'Nastala chyba při odesílání odkazu.';
+        const status = typeof error === 'object' && error && 'status' in error ? (error as { status?: number }).status : undefined;
+        if (status === 429) {
+          errorText = 'Překročili jste limit pro odesílání odkazů. Počkejte prosím minutu a zkuste to znovu.';
+        }
         setMessage({
           type: 'error',
-          text: error.message
+          text: errorText
         });
       } else {
         setEmailSent(true);
@@ -67,6 +75,7 @@ function LoginContent() {
         });
       }
     } catch (error) {
+      logError('login', 'Unexpected error sending magic link.', error);
       setMessage({
         type: 'error',
         text: 'Nastala neočekávaná chyba'
@@ -78,7 +87,12 @@ function LoginContent() {
 
   const handleResend = () => {
     setEmailSent(false);
-    setMessage(null);
+    setMessage((prev) =>
+      prev ?? {
+        type: 'info',
+        text: 'Zadejte svůj email pro odeslání nového odkazu.',
+      }
+    );
   };
 
   return (
@@ -224,11 +238,24 @@ function LoginContent() {
 
           {/* Message Display */}
           {message && (
-            <div className={`mt-6 p-4 rounded-xl text-sm ${
-              message.type === 'success' 
-                ? 'status-active' 
-                : 'status-inactive'
-            }`}>
+            <div
+              className={`mt-6 p-4 rounded-xl text-sm ${
+                message.type === 'success'
+                  ? 'status-active'
+                  : message.type === 'error'
+                    ? 'status-inactive'
+                    : ''
+              }`}
+              style={
+                message.type === 'info'
+                  ? {
+                      backgroundColor: '#e8f1ff',
+                      border: '1px solid #bcd0ff',
+                      color: '#1d4f7d',
+                    }
+                  : undefined
+              }
+            >
               {message.text}
             </div>
           )}
