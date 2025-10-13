@@ -46,6 +46,8 @@ Po spuštění zkontrolujte v **Table Editor**:
 - ✅ Policies aktivní
 - ✅ Testovací data vložena
 
+> 📋 **Další kroky:** Jakmile schéma běží, pokračujte kontrolním seznamem v [`OPERATIONS_CHECKLIST.md`](./OPERATIONS_CHECKLIST.md). Najdete tam podrobný postup pro přidávání trusted users, ověřování rolí (member, manager, council, technician) a rychlé smoke testy přihlášení.
+
 ---
 
 ## 📝 Detailed Schema
