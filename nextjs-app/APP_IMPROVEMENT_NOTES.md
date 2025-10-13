@@ -1,0 +1,29 @@
+# Psychočas App – Suggested Improvements
+
+## Authentication & Authorization
+- **Retire or protect the legacy password form.** `AuthComponent` still exposes Supabase email/password sign-up and login handlers even though the rest of the app only advertises magic-link access, which means anyone who finds the component could create arbitrary accounts unless the route is firewalled. Consider removing the component or hiding it behind an administrator-only route and replace the custom state handling with Supabase Auth UI so that rate limits, password rules, and error copy stay aligned with Supabase defaults. 【F:nextjs-app/src/components/AuthComponent.tsx†L1-L108】
+- **Centralise post-login member hydration.** The home page currently drives the trusted-user fallback and membership fetch on its own, so other pages (e.g. `/validate`) still rely on the members table directly and ignore the trusted-user allowance. Move the shared logic into a dedicated hook or context so every screen can reuse the same membership resolution and feature gating. 【F:nextjs-app/src/app/home/page.tsx†L215-L360】【F:nextjs-app/src/app/validate/page.tsx†L21-L101】
+- **Add explicit role guards to privileged routes.** The validator page defaults to the `manager` role before the async fetch resolves, which renders protected UI and allows `validateCode` calls even if the user ultimately lacks permission. Redirect early or show an access-denied state until the member role is confirmed, and consider checking the role inside the edge function as well. 【F:nextjs-app/src/app/validate/page.tsx†L21-L101】
+
+## Data Fetching & State Management
+- **Replace console debugging with structured logging.** The home screen still prints verbose console messages for every load. Swap these for a debug flag or a structured logger so production builds stay clean and privacy friendly. 【F:nextjs-app/src/app/home/page.tsx†L236-L247】【F:nextjs-app/src/app/home/page.tsx†L327-L328】
+- **Avoid redefining Supabase row types inline.** `MemberRow` is declared twice inside the home page fetcher. Move these shapes to `@/types` or generate them from the database schema to avoid drift and keep column changes type-safe. 【F:nextjs-app/src/app/home/page.tsx†L331-L360】【F:nextjs-app/src/app/home/page.tsx†L402-L424】
+- **Propagate trusted-user metadata.** When the trusted-user fallback runs, the synthetic member is always marked active with no expiry even if the trusted record carries approval limits. Storing optional expiry or approval timestamps in `trusted_users` would let you expire temporary access automatically. 【F:nextjs-app/src/app/home/page.tsx†L315-L325】
+
+## Caching & Offline Behaviour
+- **Add an eviction policy to the offline snapshot.** Cached member snapshots never expire, so an outdated role or revoked membership will continue to show until the user refreshes while online. Track a `maxAge` alongside `savedAt`, and purge or refresh once the payload becomes stale. 【F:nextjs-app/src/lib/offlineCache.ts†L5-L63】
+- **Persist partner diagnostics for debugging.** Consider storing the partner grouping results alongside the snapshot to help diagnose visibility bugs after offline sessions; right now that derived state is recomputed on every load and cannot be inspected if a user files a report. 【F:nextjs-app/src/lib/offlineCache.ts†L24-L63】【F:nextjs-app/src/lib/partners.ts†L138-L200】
+
+## UI & Accessibility
+- **Re-enable pinch zoom for accessibility.** The global viewport metadata disables user scaling, which conflicts with WCAG requirements for zoom. Removing `maximumScale` and `userScalable: false` (or only disabling them inside the native PWA shell) will make the UI friendlier for low-vision members. 【F:nextjs-app/src/app/layout.tsx†L25-L51】
+- **Surface validation errors inline.** The login page collapses the message area once the user re-sends a link, so slow email delivery leaves the page blank. Keep the latest status visible and include throttling feedback from Supabase so users know when they hit rate limits. 【F:nextjs-app/src/app/login/page.tsx†L39-L147】
+- **Audit navigation focus states.** The mobile nav bar renders icon buttons without focus outlines or aria labels, making keyboard use difficult. Add explicit `aria-label`s and accessible focus styles. 【F:nextjs-app/src/components/Navigation.tsx†L21-L73】
+
+## Testing & Tooling
+- **Expand automated coverage.** Only the partner helpers and offline cache currently have unit tests, leaving authentication, token redemption, and UI logic untested. Add Vitest suites (or Playwright E2E runs) around the login flow, token queueing, and trusted-user fallback to guard regressions. 【F:nextjs-app/tests/offlineCache.test.ts†L1-L82】【F:nextjs-app/tests/partners.test.ts†L1-L86】
+- **Lint for unused imports and semicolons.** Components such as `Navigation` import `PsychocasLogo` but never use it, and several files mix semicolon styles. Enabling the ESLint `unused-imports` plugin and Prettier (or the built-in Next formatting) will keep the codebase consistent. 【F:nextjs-app/src/components/Navigation.tsx†L3-L73】【F:nextjs-app/src/components/AuthComponent.tsx†L1-L108】
+
+## Operational Hardening
+- **Rate-limit token redemption.** The client calls the `redeem_token` edge function directly with each attempt; add per-member throttling and audit logging on the server side to prevent brute force attacks. The client can then surface cooldown messaging when it receives a 429. 【F:nextjs-app/src/app/validate/page.tsx†L57-L83】
+- **Guard environment access during build.** `supabaseClient` throws synchronously when keys are missing, which breaks static generation without a descriptive build error. Wrapping the proxy throw in an invariant helper that includes setup docs (or providing a mocked client during tests) will shorten debugging time. 【F:nextjs-app/src/lib/supabaseClient.ts†L1-L16】
+
