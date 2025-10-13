@@ -45,6 +45,45 @@ const delay = (ms: number) =>
     window.setTimeout(resolve, ms);
   });
 
+const copyTextToClipboard = async (text: string): Promise<boolean> => {
+  if (
+    typeof navigator !== 'undefined' &&
+    navigator.clipboard &&
+    typeof navigator.clipboard.writeText === 'function'
+  ) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (error) {
+      console.warn('Primary clipboard API failed, attempting fallback copy.', error);
+    }
+  }
+
+  if (typeof document === 'undefined' || !document.body) {
+    return false;
+  }
+
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    textarea.style.pointerEvents = 'none';
+
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+
+    const successful = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return successful;
+  } catch (fallbackError) {
+    console.warn('Fallback clipboard copy failed.', fallbackError);
+    return false;
+  }
+};
+
 function HomeContent() {
   const [memberData, setMemberData] = useState<MemberData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -548,14 +587,14 @@ function HomeContent() {
   }, [isOnline, memberData, router]);
 
   const handleCopyCode = useCallback(async () => {
-    if (!token) return;
+    if (!token?.code) return;
 
-    try {
-      await navigator.clipboard.writeText(token.code);
+    const success = await copyTextToClipboard(token.code);
+    if (success) {
+      setTokenError(null);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (copyError) {
-      console.error('Failed to copy code:', copyError);
+      window.setTimeout(() => setCopied(false), 2000);
+    } else {
       setTokenError('Nepodařilo se zkopírovat kód do schránky.');
     }
   }, [token]);
