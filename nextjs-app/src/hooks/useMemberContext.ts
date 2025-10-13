@@ -26,6 +26,7 @@ export interface MemberResolutionResult {
 
 export interface UseMemberContextOptions {
   enabled?: boolean;
+  autoResolve?: boolean;
   onUnauthorized?: () => void;
   scope?: string;
 }
@@ -237,7 +238,7 @@ async function fetchMemberWithFallback(scope: string, userId: string): Promise<P
 }
 
 export default function useMemberContext(options?: UseMemberContextOptions): UseMemberContextValue {
-  const { enabled = true, onUnauthorized, scope = DEFAULT_SCOPE } = options ?? {};
+  const { enabled = true, autoResolve = true, onUnauthorized, scope = DEFAULT_SCOPE } = options ?? {};
 
   const [status, setStatus] = useState<MemberContextStatus>('idle');
   const [member, setMember] = useState<MemberData | null>(null);
@@ -397,14 +398,14 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
   }, [resolveMember]);
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || !autoResolve) {
       return;
     }
 
     if (status === 'idle') {
       void refresh();
     }
-  }, [enabled, refresh, status]);
+  }, [autoResolve, enabled, refresh, status]);
 
   const memoizedValue = useMemo<UseMemberContextValue>(
     () => ({

@@ -109,7 +109,7 @@ function HomeContent() {
     refresh: resolveMemberContext,
     lastSyncedAt: memberLastSyncedAt,
   } = useMemberContext({
-    enabled: false,
+    autoResolve: false,
     scope: 'home',
     onUnauthorized: () => router.push('/login'),
   });

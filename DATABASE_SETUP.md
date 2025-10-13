@@ -8,6 +8,7 @@ Detailní návod pro nastavení Supabase databáze pro Psychočas app.
 
 - **branches** - Pobočky spolku (Praha, Brno, Ostrava...)
 - **members** - Uživatelské profily s rolemi
+- **trusted_users** - Předem schválené účty čekající na import do members
 - **tokens** - Dočasné slevové kódy (3min expiry)
 - **redemptions** - Anonymní tracking využití
 
@@ -78,6 +79,29 @@ CREATE TABLE members (
 
 **Purpose**: Uživatelské profily s role-based přístupem
 **RLS**: Uživatel vidí pouze svůj profil (+ manažeři svoji pobočku)
+
+### Table: trusted_users
+
+```sql
+CREATE TABLE trusted_users (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    email CITEXT NOT NULL UNIQUE,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    role user_role NOT NULL DEFAULT 'member',
+    branch_id UUID REFERENCES branches(id),
+    membership_active BOOLEAN DEFAULT TRUE,
+    access_expires_at TIMESTAMP WITH TIME ZONE,
+    approved_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX trusted_users_email_lower_idx ON trusted_users (lower(email));
+```
+
+**Purpose**: Whitelist kontaktů, kteří se mohou přihlásit i bez záznamu v `members` (např. noví členové nebo rada).
+
+**RLS**: Doporučeno povolit pouze servisnímu klíči (Edge Functions) a administrátorům. Běžní uživatelé tabulku nečtou.
 
 ### Table: tokens
 
@@ -195,12 +219,29 @@ DECLARE
 BEGIN
     DELETE FROM tokens
     WHERE expires_at < NOW() - INTERVAL '1 hour';
-    
+
     GET DIAGNOSTICS deleted_count = ROW_COUNT;
     RETURN deleted_count;
 END;
 $$ LANGUAGE plpgsql;
 ```
+
+---
+
+## ✅ Trusted User Login Flow
+
+Frontend využívá hook [`useMemberContext`](nextjs-app/src/hooks/useMemberContext.ts), který po přihlášení hledá aktivního člena
+podle `auth.users.id`. Pokud záznam v `members` neexistuje, automaticky provede fallback do `trusted_users` a porovná e-mail bez
+ohledu na velikost písmen.
+
+1. Přidejte uživatele do `trusted_users` alespoň s e-mailem a rolí. Volitelné sloupce:
+   - `membership_active = false` pozastaví přístup,
+   - `access_expires_at` stanoví datum vypršení dočasného povolení,
+   - `branch_id` a `role` se použijí přímo v aplikaci.
+2. Jakmile se uživatel přihlásí přes Supabase Auth (magic link), hook vrátí syntetický `MemberData` a uživatel se dostane do aplikace.
+3. Po finálním schválení můžete záznam přesunout do `members` – fallback se vypne automaticky, protože primární tabulka má přednost.
+
+> Poznámka: Fallback vybírá první záznam odpovídající e-mailu (`ilike`). Ujistěte se, že e-maily v tabulce jsou unikátní a že RLS dovolí výběr pro servisní klíč použitý ve webové aplikaci.
 
 ---
 
