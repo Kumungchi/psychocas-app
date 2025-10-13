@@ -246,6 +246,64 @@ function HomeContent() {
         console.log('✅ CurrentUser found:', { id: currentUser.id, email: currentUser.email });
         setUser(currentUser);
 
+        const trustedUserEmail = currentUser.email?.toLowerCase() ?? null;
+
+        const fetchTrustedUserFallback = async (): Promise<MemberData | null> => {
+          if (!trustedUserEmail) {
+            return null;
+          }
+
+          type TrustedUserRow = {
+            first_name: string | null;
+            last_name: string | null;
+            role: string | null;
+            branch_id: string | null;
+            branch?: BranchInfo | BranchInfo[] | null;
+          };
+
+          const { data, error } = await supabase
+            .from<TrustedUserRow>('trusted_users')
+            .select(
+              `first_name, last_name, role, branch_id,
+               branch:branch_id (id, name, location, city, discount_percentage, active)`
+            )
+            .eq('email', trustedUserEmail)
+            .limit(1);
+
+          if (error) {
+            console.error('Error loading trusted user fallback:', error);
+            return null;
+          }
+
+          const trustedRecord = data?.[0];
+          if (!trustedRecord) {
+            return null;
+          }
+
+          const fallbackBranch = Array.isArray(trustedRecord.branch)
+            ? trustedRecord.branch[0] ?? null
+            : trustedRecord.branch ?? null;
+
+          const nameParts = [trustedRecord.first_name, trustedRecord.last_name].filter(
+            (part): part is string => typeof part === 'string' && part.trim().length > 0
+          );
+
+          const fallbackMember: MemberData = {
+            membership_active: true,
+            membership_expires: null,
+            full_name: nameParts.length > 0 ? nameParts.join(' ') : null,
+            role: (trustedRecord.role ?? 'member') as MemberRole,
+            branch_id: trustedRecord.branch_id ?? null,
+            email: currentUser.email ?? null,
+            approved: true,
+            approved_at: null,
+            branch: fallbackBranch,
+          };
+
+          console.info('ℹ️ Using trusted_users fallback for member context.');
+          return fallbackMember;
+        };
+
         // Robust member query with graceful fallbacks when optional columns are missing
         type MemberRow = {
           membership_active: boolean;
@@ -402,12 +460,12 @@ function HomeContent() {
               approved_at: memberRow.approved_at ?? null,
               branch: normalizedBranch,
             };
-
-            setMemberData(normalizedMember);
           } else {
-            console.warn('⚠️ No member row found for current user.');
-            setMemberData(null);
+            console.warn('⚠️ No member row found for current user. Attempting trusted_users fallback.');
+            normalizedMember = await fetchTrustedUserFallback();
           }
+
+          setMemberData(normalizedMember);
         }
 
         if (partnersResponse.error) {
