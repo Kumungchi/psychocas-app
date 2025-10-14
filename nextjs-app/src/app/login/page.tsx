@@ -5,13 +5,15 @@ import { supabase } from '@/lib/supabaseClient';
 import { logError } from '@/lib/logging';
 import { useRouter, useSearchParams } from 'next/navigation';
 
+type MessageState = { type: 'success' | 'error' | 'info'; text: string };
+
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
-  const [message, setMessage] = useState<{type: 'success' | 'error' | 'info', text: string} | null>(null);
+  const [message, setMessage] = useState<MessageState | null>(null);
 
   const requestedRedirect = searchParams.get('redirectTo');
   const sanitizedRedirect = useMemo(() => {
@@ -26,16 +28,74 @@ function LoginContent() {
     return requestedRedirect;
   }, [requestedRedirect]);
 
+  // Surface any error returned by the callback handler so users understand why they landed here
+  useEffect(() => {
+    const errorParam = searchParams.get('error');
+    const messageParam = searchParams.get('message');
+
+    if (!errorParam && !messageParam) {
+      return;
+    }
+
+    let errorText = messageParam ?? 'Nastala chyba při přihlášení. Zkuste to prosím znovu.';
+
+    if (errorParam === 'unauthorized') {
+      errorText =
+        'Nemáte oprávnění pro zobrazení požadované stránky. Přihlaste se prosím jiným účtem nebo kontaktujte podporu.';
+    }
+
+    setMessage({ type: 'error', text: errorText });
+
+    // Strip handled query parameters from the URL so the message does not reappear on refresh
+    const cleanedParams = new URLSearchParams(Array.from(searchParams.entries()));
+    cleanedParams.delete('error');
+    cleanedParams.delete('message');
+
+    const cleanedQuery = cleanedParams.toString();
+    router.replace(cleanedQuery ? `/login?${cleanedQuery}` : '/login');
+  }, [router, searchParams]);
+
   // Check if user is already logged in
   useEffect(() => {
+    let isActive = true;
+
     const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } = { session: null }, error } = await supabase.auth.getSession();
+
+      if (!isActive) {
+        return;
+      }
+
+      if (error) {
+        logError('login', 'Unable to verify session before rendering login form.', error);
+        setMessage((prev) =>
+          prev ?? {
+            type: 'error',
+            text: 'Nepodařilo se ověřit stav přihlášení. Obnovte stránku a zkuste to znovu.',
+          }
+        );
+        return;
+      }
+
       if (session) {
-        router.push(sanitizedRedirect);
+        router.replace(sanitizedRedirect);
       }
     };
     checkUser();
+    return () => {
+      isActive = false;
+    };
   }, [router, sanitizedRedirect]);
+
+  const handleEmailChange = (nextEmail: string) => {
+    setEmail(nextEmail);
+    setMessage((prev) => {
+      if (!prev || prev.type === 'success') {
+        return prev;
+      }
+      return null;
+    });
+  };
 
   const handleSendMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +104,13 @@ function LoginContent() {
 
     try {
       const cleanEmail = email.trim().toLowerCase();
-      
+
+      if (!cleanEmail) {
+        setMessage({ type: 'error', text: 'Zadejte prosím platný email.' });
+        setIsLoading(false);
+        return;
+      }
+
       const callbackUrl = new URL('/auth/callback', window.location.origin);
       callbackUrl.searchParams.set('redirectTo', sanitizedRedirect);
       const { error } = await supabase.auth.signInWithOtp({
@@ -87,12 +153,10 @@ function LoginContent() {
 
   const handleResend = () => {
     setEmailSent(false);
-    setMessage((prev) =>
-      prev ?? {
-        type: 'info',
-        text: 'Zadejte svůj email pro odeslání nového odkazu.',
-      }
-    );
+    setMessage({
+      type: 'info',
+      text: 'Zadejte svůj email pro odeslání nového odkazu.',
+    });
   };
 
   return (
@@ -142,7 +206,7 @@ function LoginContent() {
                   id="email"
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => handleEmailChange(e.target.value)}
                   className="psychocas-input"
                   placeholder="Zadejte váš email"
                   required
