@@ -75,6 +75,7 @@ function normalizeMemberRow(memberRow: MemberRow | null): MemberData | null {
     email: memberRow.email,
     approved: memberRow.approved ?? undefined,
     approved_at: memberRow.approved_at ?? null,
+    phone: memberRow.phone ?? undefined,
     branch: normalizedBranch,
     origin: 'members',
   };
@@ -105,6 +106,7 @@ function normalizeTrustedUser(
     email: userEmail,
     approved: true,
     approved_at: trustedRow.approved_at ?? null,
+    phone: undefined,
     branch: normalizedBranch,
     origin: 'trusted_users',
     trusted_access_expires_at: expiresAt,
@@ -168,6 +170,7 @@ function buildMemberSelect(includeFullBranch: boolean): string {
       email,
       approved,
       approved_at,
+      phone,
       branch:branch_id (
         id,
         name,
@@ -188,6 +191,7 @@ function buildMemberSelect(includeFullBranch: boolean): string {
     email,
     approved,
     approved_at,
+    phone,
     branch:branch_id (
       id,
       name
@@ -229,7 +233,8 @@ async function fetchMemberWithFallback(scope: string, userId: string): Promise<P
        branch_id,
        email,
        approved,
-       approved_at`
+       approved_at,
+       phone`
     )
     .eq('user_id', userId)
     .limit(1);

@@ -18,6 +18,7 @@ export interface MemberRow {
   email?: string | null;
   approved?: boolean | null;
   approved_at?: string | null;
+  phone?: string | null;
   branch?: BranchInfo | BranchInfo[] | null;
 }
 
@@ -41,6 +42,7 @@ export interface MemberData {
   email?: string | null;
   approved?: boolean | null;
   approved_at?: string | null;
+  phone?: string | null;
   branch?: BranchInfo | null;
   origin?: 'members' | 'trusted_users';
   trusted_access_expires_at?: string | null;

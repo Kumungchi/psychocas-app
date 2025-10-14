@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, Suspense, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Navigation from '@/components/Navigation';
+import ProfileDrawer from '@/components/ProfileDrawer';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -20,18 +21,15 @@ import {
   type PartnerOfferRecord,
 } from '@/lib/partners';
 import { loadHomeSnapshot, saveHomeSnapshot, clearHomeSnapshot } from '@/lib/offlineCache';
-import type { MemberData, MemberRole, TokenData } from '@/types/member';
+import type { MemberData, TokenData } from '@/types/member';
 import useNetworkStatus from '@/hooks/useNetworkStatus';
 import usePwaInstallPrompt from '@/hooks/usePwaInstallPrompt';
 import useMemberContext from '@/hooks/useMemberContext';
+import useLocale from '@/hooks/useLocale';
 import { logDebug, logError, logWarn } from '@/lib/logging';
-
-const ROLE_LABELS: Record<MemberRole, string> = {
-  member: 'Člen',
-  manager: 'Manažer',
-  council: 'Rada',
-  technician: 'Technik',
-};
+import Button from '@/ui/components/Button';
+import Card from '@/ui/components/Card';
+import Badge from '@/ui/components/Badge';
 
 const OFFLINE_REFRESH_MESSAGE = 'Pro obnovení dat se prosím připojte k internetu.';
 const OFFLINE_TOKEN_MESSAGE = 'Pro vygenerování nového kódu je nutné připojení k internetu.';
@@ -98,6 +96,7 @@ function HomeContent() {
   const [lastRefreshAttemptAt, setLastRefreshAttemptAt] = useState<string | null>(null);
   const [pendingTokenRequest, setPendingTokenRequest] = useState(false);
   const [installError, setInstallError] = useState<string | null>(null);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const isOnline = useNetworkStatus();
@@ -113,6 +112,7 @@ function HomeContent() {
     scope: 'home',
     onUnauthorized: () => router.push('/login'),
   });
+  const { t } = useLocale();
 
   useEffect(() => {
     const errorParam = searchParams.get('error');
@@ -491,6 +491,16 @@ function HomeContent() {
     }
   }, [promptInstall]);
 
+  const handleProfileUpdated = useCallback(
+    (next: MemberData | null) => {
+      if (!next) {
+        return;
+      }
+      setMemberData(next);
+    },
+    []
+  );
+
   const partnerGroups = useMemo(
     () => groupPartnersForMember(partners, memberData?.branch_id ?? null),
     [partners, memberData?.branch_id]
@@ -677,12 +687,12 @@ function HomeContent() {
     <main className="psychocas-section pb-24">
       <div className="psychocas-container space-y-6 fade-in-up pt-6 pb-24">
         {error && (
-          <div className="psychocas-card" style={{ backgroundColor: '#fef2f2', borderLeft: '4px solid #c62828' }}>
-            <div className="flex items-center gap-3">
-              <div className="text-2xl">⚠️</div>
-              <p style={{ color: '#c62828', fontWeight: 500 }}>{error}</p>
-            </div>
-          </div>
+          <Card
+            title={t('home.membership')}
+            subtitle={error}
+            headerSlot={<Badge tone="danger">{t('home.membershipInactive')}</Badge>}
+            padding="sm"
+          />
         )}
 
         {restoredFromSnapshot && offlineSnapshotLabel && (
@@ -720,20 +730,14 @@ function HomeContent() {
               </span>
             </div>
           )}
-          <button
+          <Button
             type="button"
+            variant="secondary"
             onClick={handleRefresh}
             disabled={isRefreshing || !isOnline}
-            className="rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
-            style={{
-              borderColor: '#1d4f7d',
-              color: isRefreshing || !isOnline ? '#9ca3af' : '#1d4f7d',
-              backgroundColor: isRefreshing ? '#e5e7eb' : '#ffffff',
-              cursor: isRefreshing || !isOnline ? 'not-allowed' : 'pointer',
-            }}
           >
-            {isRefreshing ? 'Aktualizuji…' : 'Obnovit data'}
-          </button>
+            {isRefreshing ? 'Aktualizuji…' : t('home.refresh')}
+          </Button>
         </div>
 
         <div className="text-center">
@@ -756,7 +760,7 @@ function HomeContent() {
               <circle cx="-40" cy="0" r="4" fill="white" />
             </svg>
           </div>
-          <h1 className="mb-2">Vítejte zpět!</h1>
+          <h1 className="mb-2">{t('home.welcome')}!</h1>
           <p style={{ color: '#666666' }}>{memberData.full_name || memberEmail}</p>
         </div>
 
@@ -821,7 +825,7 @@ function HomeContent() {
         <div className="psychocas-card">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
-              <h2 style={{ color: '#333333' }}>Členský profil</h2>
+              <h2 style={{ color: '#333333' }}>{t('home.membership')}</h2>
               <p className="text-sm" style={{ color: '#666666' }}>{memberEmail}</p>
               {lastSyncedLabel && (
                 <p className="text-xs" style={{ color: '#9ca3af' }}>
@@ -829,21 +833,19 @@ function HomeContent() {
                 </p>
               )}
             </div>
-            <span
-              className="px-3 py-1 text-sm font-medium"
-              style={{
-                backgroundColor: '#e3f2fd',
-                color: '#1d4f7d',
-                borderRadius: '9999px',
-              }}
-            >
-              {ROLE_LABELS[memberData.role]}
-            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+              <Badge tone={memberData.membership_active ? 'success' : 'warning'}>
+                {memberData.membership_active ? t('home.membershipActive') : t('home.membershipInactive')}
+              </Badge>
+              <Button variant="ghost" size="sm" onClick={() => setIsProfileOpen(true)}>
+                {t('home.manageProfile')}
+              </Button>
+            </div>
           </div>
 
           <div className="mt-6 space-y-4">
             <div className="flex items-center justify-between">
-              <span style={{ color: '#666666' }}>Stav členství</span>
+              <span style={{ color: '#666666' }}>{t('home.membershipStatus')}</span>
               <span
                 className={`flex items-center gap-2 px-3 py-1 rounded-full ${
                   memberData.membership_active ? 'status-active' : 'status-inactive'
@@ -1102,6 +1104,12 @@ function HomeContent() {
       </div>
 
       {memberData && <Navigation userRole={memberData.role} />}
+      <ProfileDrawer
+        member={memberData}
+        open={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        onUpdated={handleProfileUpdated}
+      />
     </main>
   );
 }
