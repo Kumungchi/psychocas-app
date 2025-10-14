@@ -81,6 +81,8 @@ function normalizeMemberRow(memberRow: MemberRow | null): MemberData | null {
   };
 }
 
+const MEMBER_ROLE_VALUES: MemberRole[] = ['member', 'manager', 'council', 'technician'];
+
 function normalizeTrustedUser(
   trustedRow: TrustedUserRow | null,
   userEmail: string | null
@@ -94,18 +96,39 @@ function normalizeTrustedUser(
     .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
     .map((part) => part.trim());
 
-  const expiresAt = trustedRow.access_expires_at ?? null;
-  const isActive = trustedRow.membership_active ?? (expiresAt ? new Date(expiresAt) > new Date() : true);
+  const expiresAtRaw = typeof trustedRow.access_expires_at === 'string' ? trustedRow.access_expires_at.trim() : null;
+  const expiresAt = expiresAtRaw && expiresAtRaw.length > 0 ? expiresAtRaw : null;
+  const isActive =
+    typeof trustedRow.membership_active === 'boolean'
+      ? trustedRow.membership_active
+      : expiresAt
+        ? new Date(expiresAt) > new Date()
+        : true;
+
+  const normalizedRole = (trustedRow.role ?? '').trim().toLowerCase();
+  const candidateRole = normalizedRole as MemberRole;
+  const role: MemberRole = MEMBER_ROLE_VALUES.includes(candidateRole) ? candidateRole : 'member';
+
+  const normalizedEmailFromUser = userEmail?.trim().toLowerCase() ?? null;
+  const normalizedEmailFromRow =
+    typeof trustedRow.email === 'string' && trustedRow.email.trim().length > 0
+      ? trustedRow.email.trim().toLowerCase()
+      : null;
+  const normalizedEmail = normalizedEmailFromUser ?? normalizedEmailFromRow;
+  const branchIdRaw = typeof trustedRow.branch_id === 'string' ? trustedRow.branch_id.trim() : null;
+  const branchId = branchIdRaw && branchIdRaw.length > 0 ? branchIdRaw : null;
+  const approvedAtRaw = typeof trustedRow.approved_at === 'string' ? trustedRow.approved_at.trim() : null;
+  const approvedAt = approvedAtRaw && approvedAtRaw.length > 0 ? approvedAtRaw : null;
 
   return {
     membership_active: isActive,
     membership_expires: expiresAt,
     full_name: nameParts.length > 0 ? nameParts.join(' ') : null,
-    role: (trustedRow.role ?? 'member') as MemberRole,
-    branch_id: trustedRow.branch_id ?? null,
-    email: userEmail,
-    approved: true,
-    approved_at: trustedRow.approved_at ?? null,
+    role,
+    branch_id: branchId,
+    email: normalizedEmail,
+    approved: approvedAt ? true : undefined,
+    approved_at: approvedAt,
     phone: undefined,
     branch: normalizedBranch,
     origin: 'trusted_users',
@@ -137,7 +160,7 @@ async function fetchTrustedUserFallback(
   let trustedQuery = supabase
     .from<TrustedUserRow>('trusted_users')
     .select(
-      `first_name, last_name, role, branch_id, approved_at, access_expires_at, membership_active,
+      `email, first_name, last_name, role, branch_id, approved_at, access_expires_at, membership_active,
        branch:branch_id (id, name, location, city, discount_percentage, active)`
     )
     .limit(1);

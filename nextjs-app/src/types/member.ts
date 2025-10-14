@@ -23,10 +23,11 @@ export interface MemberRow {
 }
 
 export interface TrustedUserRow {
-  first_name: string | null;
-  last_name: string | null;
-  role: string | null;
-  branch_id: string | null;
+  email?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  role?: string | null;
+  branch_id?: string | null;
   branch?: BranchInfo | BranchInfo[] | null;
   approved_at?: string | null;
   access_expires_at?: string | null;

@@ -30,6 +30,7 @@ export default function ProfileDrawer({ member, open, onClose, onUpdated }: Prof
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const canEditProfile = Boolean(member && member.origin !== 'trusted_users' && member.email);
 
   useEffect(() => {
     setForm({
@@ -42,7 +43,7 @@ export default function ProfileDrawer({ member, open, onClose, onUpdated }: Prof
   }, [member, open]);
 
   const handleSave = async () => {
-    if (!member?.email) {
+    if (!canEditProfile || !member?.email) {
       return;
     }
 
@@ -123,6 +124,12 @@ export default function ProfileDrawer({ member, open, onClose, onUpdated }: Prof
           </p>
         </div>
 
+        {!canEditProfile && (
+          <p style={{ color: colors.textSecondary, fontFamily: typography.body }}>
+            {t('home.profileReadOnlyNotice')}
+          </p>
+        )}
+
         <label style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
           <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{t('home.manageProfile')}</span>
           <input
@@ -136,6 +143,7 @@ export default function ProfileDrawer({ member, open, onClose, onUpdated }: Prof
               fontFamily: typography.body,
             }}
             placeholder={t('home.manageProfile')}
+            disabled={!canEditProfile}
           />
         </label>
 
@@ -152,6 +160,7 @@ export default function ProfileDrawer({ member, open, onClose, onUpdated }: Prof
               fontFamily: typography.body,
             }}
             placeholder="+420..."
+            disabled={!canEditProfile}
           />
         </label>
 
@@ -168,6 +177,7 @@ export default function ProfileDrawer({ member, open, onClose, onUpdated }: Prof
               fontFamily: typography.body,
             }}
             placeholder={member?.branch?.name ?? ''}
+            disabled={!canEditProfile}
           />
         </label>
 
@@ -186,7 +196,7 @@ export default function ProfileDrawer({ member, open, onClose, onUpdated }: Prof
           <Button type="button" variant="ghost" onClick={onClose} disabled={saving} style={{ flex: 1 }}>
             {t('home.close')}
           </Button>
-          <Button type="button" onClick={handleSave} disabled={saving} style={{ flex: 1 }}>
+          <Button type="button" onClick={handleSave} disabled={saving || !canEditProfile} style={{ flex: 1 }}>
             {saving ? t('home.saving') : t('home.saveProfile')}
           </Button>
         </div>

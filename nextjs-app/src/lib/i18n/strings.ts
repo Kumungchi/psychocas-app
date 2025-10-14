@@ -34,6 +34,8 @@ export const dictionaries: LocaleDictionaries = {
       phone: 'Telefon',
       branchPreference: 'Preferovaná pobočka',
       successProfile: 'Profil byl úspěšně aktualizován.',
+      profileReadOnlyNotice:
+        'Údaje půjde upravit až po plném zaregistrování členství. V případě potřeby kontaktujte podporu.',
     },
     validate: {
       heading: 'Ověření kódu',
@@ -87,6 +89,8 @@ export const dictionaries: LocaleDictionaries = {
       phone: 'Phone',
       branchPreference: 'Preferred branch',
       successProfile: 'Profile updated successfully.',
+      profileReadOnlyNotice:
+        'Profile editing will be available once your membership is fully activated. Contact support if you need help.',
     },
     validate: {
       heading: 'Validate code',
