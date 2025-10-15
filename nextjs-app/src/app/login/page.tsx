@@ -2,7 +2,10 @@
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { logError } from '@/lib/logging';
 import { useRouter, useSearchParams } from 'next/navigation';
+
+type MessageState = { type: 'success' | 'error' | 'info'; text: string };
 
 function LoginContent() {
   const router = useRouter();
@@ -10,7 +13,7 @@ function LoginContent() {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
-  const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  const [message, setMessage] = useState<MessageState | null>(null);
 
   const requestedRedirect = searchParams.get('redirectTo');
   const sanitizedRedirect = useMemo(() => {
@@ -25,25 +28,89 @@ function LoginContent() {
     return requestedRedirect;
   }, [requestedRedirect]);
 
+  // Surface any error returned by the callback handler so users understand why they landed here
+  useEffect(() => {
+    const errorParam = searchParams.get('error');
+    const messageParam = searchParams.get('message');
+
+    if (!errorParam && !messageParam) {
+      return;
+    }
+
+    let errorText = messageParam ?? 'Nastala chyba při přihlášení. Zkuste to prosím znovu.';
+
+    if (errorParam === 'unauthorized') {
+      errorText =
+        'Nemáte oprávnění pro zobrazení požadované stránky. Přihlaste se prosím jiným účtem nebo kontaktujte podporu.';
+    }
+
+    setMessage({ type: 'error', text: errorText });
+
+    // Strip handled query parameters from the URL so the message does not reappear on refresh
+    const cleanedParams = new URLSearchParams(Array.from(searchParams.entries()));
+    cleanedParams.delete('error');
+    cleanedParams.delete('message');
+
+    const cleanedQuery = cleanedParams.toString();
+    router.replace(cleanedQuery ? `/login?${cleanedQuery}` : '/login');
+  }, [router, searchParams]);
+
   // Check if user is already logged in
   useEffect(() => {
+    let isActive = true;
+
     const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } = { session: null }, error } = await supabase.auth.getSession();
+
+      if (!isActive) {
+        return;
+      }
+
+      if (error) {
+        logError('login', 'Unable to verify session before rendering login form.', error);
+        setMessage((prev) =>
+          prev ?? {
+            type: 'error',
+            text: 'Nepodařilo se ověřit stav přihlášení. Obnovte stránku a zkuste to znovu.',
+          }
+        );
+        return;
+      }
+
       if (session) {
-        router.push(sanitizedRedirect);
+        router.replace(sanitizedRedirect);
       }
     };
     checkUser();
+    return () => {
+      isActive = false;
+    };
   }, [router, sanitizedRedirect]);
+
+  const handleEmailChange = (nextEmail: string) => {
+    setEmail(nextEmail);
+    setMessage((prev) => {
+      if (!prev || prev.type === 'success') {
+        return prev;
+      }
+      return null;
+    });
+  };
 
   const handleSendMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setMessage(null);
+    setMessage({ type: 'info', text: 'Odesíláme přihlašovací odkaz…' });
 
     try {
       const cleanEmail = email.trim().toLowerCase();
-      
+
+      if (!cleanEmail) {
+        setMessage({ type: 'error', text: 'Zadejte prosím platný email.' });
+        setIsLoading(false);
+        return;
+      }
+
       const callbackUrl = new URL('/auth/callback', window.location.origin);
       callbackUrl.searchParams.set('redirectTo', sanitizedRedirect);
       const { error } = await supabase.auth.signInWithOtp({
@@ -55,9 +122,16 @@ function LoginContent() {
       });
 
       if (error) {
+        let errorText = typeof error === 'object' && error && 'message' in error && typeof (error as { message?: unknown }).message === 'string'
+          ? (error as { message: string }).message
+          : 'Nastala chyba při odesílání odkazu.';
+        const status = typeof error === 'object' && error && 'status' in error ? (error as { status?: number }).status : undefined;
+        if (status === 429) {
+          errorText = 'Překročili jste limit pro odesílání odkazů. Počkejte prosím minutu a zkuste to znovu.';
+        }
         setMessage({
           type: 'error',
-          text: error.message
+          text: errorText
         });
       } else {
         setEmailSent(true);
@@ -67,6 +141,7 @@ function LoginContent() {
         });
       }
     } catch (error) {
+      logError('login', 'Unexpected error sending magic link.', error);
       setMessage({
         type: 'error',
         text: 'Nastala neočekávaná chyba'
@@ -78,7 +153,10 @@ function LoginContent() {
 
   const handleResend = () => {
     setEmailSent(false);
-    setMessage(null);
+    setMessage({
+      type: 'info',
+      text: 'Zadejte svůj email pro odeslání nového odkazu.',
+    });
   };
 
   return (
@@ -128,7 +206,7 @@ function LoginContent() {
                   id="email"
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => handleEmailChange(e.target.value)}
                   className="psychocas-input"
                   placeholder="Zadejte váš email"
                   required
@@ -224,11 +302,24 @@ function LoginContent() {
 
           {/* Message Display */}
           {message && (
-            <div className={`mt-6 p-4 rounded-xl text-sm ${
-              message.type === 'success' 
-                ? 'status-active' 
-                : 'status-inactive'
-            }`}>
+            <div
+              className={`mt-6 p-4 rounded-xl text-sm ${
+                message.type === 'success'
+                  ? 'status-active'
+                  : message.type === 'error'
+                    ? 'status-inactive'
+                    : ''
+              }`}
+              style={
+                message.type === 'info'
+                  ? {
+                      backgroundColor: '#e8f1ff',
+                      border: '1px solid #bcd0ff',
+                      color: '#1d4f7d',
+                    }
+                  : undefined
+              }
+            >
               {message.text}
             </div>
           )}

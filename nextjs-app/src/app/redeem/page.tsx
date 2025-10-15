@@ -227,13 +227,13 @@ export default function Redeem() {
               <div className="text-center space-y-6 pt-6 border-t" style={{ borderColor: '#e0e0e0' }}>
                 <div className="inline-block p-4 bg-white rounded-2xl">
                   <QRCode
-                    value={token.code}
+                    value={`Člen Psychočas – kód: ${token.code}`}
                     size={200}
                     style={{ height: "auto", maxWidth: "100%", width: "100%" }}
                   />
                 </div>
                 <p style={{ color: '#666666' }}>
-                  QR kód pro rychlé uplatnění
+                  QR kód pro rychlé uplatnění – po naskenování se zobrazí zpráva „Člen Psychočas – kód: {token.code}“.
                 </p>
               </div>
 

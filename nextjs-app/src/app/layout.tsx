@@ -1,6 +1,8 @@
-import "./globals.css";
-import type { Metadata, Viewport } from "next";
-import OfflineToast from "@/components/OfflineToast";
+import './globals.css';
+import type { Metadata, Viewport } from 'next';
+import OfflineToast from '@/components/OfflineToast';
+import { LocaleProvider } from '@/hooks/useLocale';
+import LocaleToggle from '@/components/LocaleToggle';
 
 export const metadata: Metadata = {
   title: "Psychočas - Členská aplikace",
@@ -25,8 +27,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   themeColor: "#1d4f7d"
 };
 
@@ -46,8 +46,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="msapplication-tap-highlight" content="no" />
       </head>
       <body>
-        {children}
-        <OfflineToast />
+        <LocaleProvider>
+          <LocaleToggle />
+          {children}
+          <OfflineToast />
+        </LocaleProvider>
       </body>
     </html>
   );
