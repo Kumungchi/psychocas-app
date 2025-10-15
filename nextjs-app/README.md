@@ -1,96 +1,65 @@
-# Next.js + Tailwind CSS + Supabase Starter
+# Psychočas Member App
 
-Moderní full-stack aplikace postavená na Next.js 15 s Tailwind CSS pro styling a Supabase pro backend služby.
+This package contains the public-facing Psychočas PWA. It is built with Next.js 15, Supabase, and Tailwind CSS and is designed to run on Vercel.
 
-## 🚀 Funkce
+## Features
+- Magic-link authentication backed by Supabase Auth
+- Shared member context that honours `members` and `trusted_users` records
+- Role-aware navigation and feature gating for members, managers, council, and technicians
+- QR-based membership confirmation and token validation workflows
+- Technician console for managing member activation and trusted-user access
+- Localised UI copy (Czech and English preview) with a runtime language toggle
 
-- ✅ **Next.js 15** s App Router
-- ✅ **Tailwind CSS** pro styling
-- ✅ **Supabase** pro autentifikaci a databázi
-- ✅ **TypeScript** pro type safety
-- ✅ **ESLint** pro kvalitu kódu
-- ✅ **Middleware** pro chráněné routy
+## Prerequisites
+- Node.js 20+
+- Supabase project with the schema from `sql/complete_schema.sql`
+- Environment variables configured for Supabase (see below)
 
-## 📦 Instalace
-
-1. **Nastavte Supabase projekt**
-   - Jděte na [supabase.com](https://supabase.com)
-   - Vytvořte nový projekt
-   - Zkopírujte Project URL a anon key z Settings > API
-
-2. **Nastavte environment proměnné**
-   Aktualizujte `.env.local`:
-   ```env
-   NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+## Getting Started
+1. Install dependencies
+   ```bash
+   npm install
    ```
-
-3. **Spusťte vývojový server**
+2. Provide required environment variables in `.env.local`
+   ```env
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_key
+   ```
+3. Start the development server
    ```bash
    npm run dev
    ```
+4. Open http://localhost:3000 and sign in with a Supabase account that is present in `members` or `trusted_users`.
 
-4. **Otevřete aplikaci**
-   Navigujte na [http://localhost:3000](http://localhost:3000)
+## Database Notes
+- `members` rows power the full experience, including profile editing and partner visibility
+- `trusted_users` fallback grants access when only an email address is available; optional role, branch, and expiry fields add extra context
+- Technicians can toggle `membership_active` directly from the technician console once the service role key is available to the client
 
-## 🗄️ Databázový setup
+See the root-level `DATABASE_SETUP.md` for the full schema walkthrough and policies.
 
-V Supabase SQL editoru spusťte:
-
-```sql
--- Příklad tabulky pro uživatelské profily
-create table profiles (
-  id uuid references auth.users on delete cascade not null primary key,
-  updated_at timestamp with time zone,
-  username text unique,
-  full_name text,
-  avatar_url text,
-  website text,
-  constraint username_length check (char_length(username) >= 3)
-);
-
--- Nastavit Row Level Security (RLS)
-alter table profiles enable row level security;
-
-create policy "Profily jsou veřejně viditelné." on profiles
-  for select using (true);
-
-create policy "Uživatelé si mohou aktualizovat vlastní profil." on profiles
-  for update using (auth.uid() = id);
+## Available Scripts
+```bash
+npm run dev       # Start the Next.js development server
+npm run build     # Create a production build
+npm run start     # Run the production build locally
+npm run lint      # Lint the codebase
+npm run test      # Execute Vitest unit tests
 ```
 
-## 🎯 Použití
-
-### Autentifikace
-
-```tsx
-import { supabase } from '@/lib/supabase'
-
-// Registrace
-const { data, error } = await supabase.auth.signUp({
-  email: 'user@example.com',
-  password: 'password'
-})
-
-// Přihlášení
-const { data, error } = await supabase.auth.signInWithPassword({
-  email: 'user@example.com',
-  password: 'password'
-})
-```
-
-## 📁 Struktura projektu
-
+## Project Structure
 ```
 src/
-├── app/                 # Next.js App Router
-├── components/         # React komponenty
-├── lib/               # Utility funkce
-└── middleware.ts      # Next.js middleware
+├── app/               # Route segments (login, home, validate, stats, technician, etc.)
+├── components/        # Reusable UI building blocks (navigation, locale toggle, profile drawer)
+├── hooks/             # React hooks including useMemberContext and locale handling
+├── lib/               # Utilities (Supabase client, logging, offline cache, i18n config)
+├── types/             # Shared TypeScript types
+├── ui/                # Design system primitives (Button, Card, Badge)
+└── tests/             # Vitest suites for helpers
 ```
 
-## 🚀 Deployment
+## Deployment
+The project is optimised for Vercel. Use the helper scripts in the repository root (`deploy.sh` / `deploy.bat`) to install dependencies, run a production build, and verify Supabase connectivity before pushing to production.
 
-Nejjednodušší způsob deployment je pomocí [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme).
-
-Více informací v [Next.js deployment dokumentaci](https://nextjs.org/docs/app/building-your-application/deploying).

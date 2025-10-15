@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, Suspense, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Navigation from '@/components/Navigation';
-import type { User } from '@supabase/supabase-js';
+import ProfileDrawer from '@/components/ProfileDrawer';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -21,27 +21,63 @@ import {
   type PartnerOfferRecord,
 } from '@/lib/partners';
 import { loadHomeSnapshot, saveHomeSnapshot, clearHomeSnapshot } from '@/lib/offlineCache';
-import type { BranchInfo, MemberData, MemberRole, TokenData } from '@/types/member';
+import type { MemberData, TokenData } from '@/types/member';
 import useNetworkStatus from '@/hooks/useNetworkStatus';
 import usePwaInstallPrompt from '@/hooks/usePwaInstallPrompt';
-
-const ROLE_LABELS: Record<MemberRole, string> = {
-  member: 'Člen',
-  manager: 'Manažer',
-  council: 'Rada',
-  technician: 'Technik',
-};
+import useMemberContext from '@/hooks/useMemberContext';
+import useLocale from '@/hooks/useLocale';
+import { logDebug, logError, logWarn } from '@/lib/logging';
+import Button from '@/ui/components/Button';
+import Card from '@/ui/components/Card';
+import Badge from '@/ui/components/Badge';
 
 const OFFLINE_REFRESH_MESSAGE = 'Pro obnovení dat se prosím připojte k internetu.';
 const OFFLINE_TOKEN_MESSAGE = 'Pro vygenerování nového kódu je nutné připojení k internetu.';
 const OFFLINE_CARD_HINT = 'Pro generování nebo obnovu členského kódu je vyžadováno připojení k internetu.';
 const TOKEN_QUEUE_MESSAGE = 'Žádost o nový kód bude odeslána, jakmile se znovu připojíte k internetu.';
 const REFRESH_GENERIC_ERROR = 'Nepodařilo se obnovit data. Zkuste to prosím znovu.';
+const copyTextToClipboard = async (text: string): Promise<boolean> => {
+  if (
+    typeof navigator !== 'undefined' &&
+    navigator.clipboard &&
+    typeof navigator.clipboard.writeText === 'function'
+  ) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (error) {
+      logWarn('clipboard', 'Primary clipboard API failed, attempting fallback copy.', error);
+    }
+  }
+
+  if (typeof document === 'undefined' || !document.body) {
+    return false;
+  }
+
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    textarea.style.pointerEvents = 'none';
+
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+
+    const successful = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return successful;
+  } catch (fallbackError) {
+    logWarn('clipboard', 'Fallback clipboard copy failed.', fallbackError);
+    return false;
+  }
+};
 
 function HomeContent() {
   const [memberData, setMemberData] = useState<MemberData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [partners, setPartners] = useState<PartnerOfferRecord[]>([]);
   const [partnersLoading, setPartnersLoading] = useState(true);
@@ -60,10 +96,23 @@ function HomeContent() {
   const [lastRefreshAttemptAt, setLastRefreshAttemptAt] = useState<string | null>(null);
   const [pendingTokenRequest, setPendingTokenRequest] = useState(false);
   const [installError, setInstallError] = useState<string | null>(null);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const isOnline = useNetworkStatus();
   const { canInstall, installed, promptInstall } = usePwaInstallPrompt();
+  const {
+    member: resolvedMember,
+    user,
+    error: memberContextError,
+    refresh: resolveMemberContext,
+    lastSyncedAt: memberLastSyncedAt,
+  } = useMemberContext({
+    autoResolve: false,
+    scope: 'home',
+    onUnauthorized: () => router.push('/login'),
+  });
+  const { t } = useLocale();
 
   useEffect(() => {
     const errorParam = searchParams.get('error');
@@ -86,7 +135,7 @@ function HomeContent() {
         day: 'numeric',
       }).format(new Date(dateStr));
     } catch (dateError) {
-      console.error('Error formatting expiry date:', dateError);
+      logError('home', 'Error formatting expiry date.', dateError);
       return 'Neuvedeno';
     }
   }, []);
@@ -113,6 +162,7 @@ function HomeContent() {
       setSnapshotSavedAt(snapshot.savedAt);
       setLastSyncedAt(snapshot.savedAt);
       setTokenError(null);
+      setPartnersError(null);
     }
     setSnapshotChecked(true);
   }, []);
@@ -125,6 +175,24 @@ function HomeContent() {
     setError((prev) => (prev === OFFLINE_REFRESH_MESSAGE ? null : prev));
     setTokenError((prev) => (prev === OFFLINE_TOKEN_MESSAGE ? null : prev));
   }, [isOnline]);
+
+  useEffect(() => {
+    if (memberContextError && isOnline) {
+      setError((prev) => prev ?? memberContextError);
+    }
+  }, [isOnline, memberContextError]);
+
+  useEffect(() => {
+    if (resolvedMember) {
+      setMemberData(resolvedMember);
+    }
+  }, [resolvedMember]);
+
+  useEffect(() => {
+    if (memberLastSyncedAt) {
+      setLastSyncedAt(memberLastSyncedAt);
+    }
+  }, [memberLastSyncedAt]);
 
   useEffect(() => {
     if (installed) {
@@ -145,7 +213,7 @@ function HomeContent() {
         .limit(1);
 
       if (error) {
-        console.error('Error loading active token:', error);
+        logError('home', 'Error loading active token.', error);
         return null;
       }
 
@@ -161,7 +229,7 @@ function HomeContent() {
         setTimeLeft(0);
       }
     } catch (loadError) {
-      console.error('Unexpected error loading active token:', loadError);
+      logError('home', 'Unexpected error loading active token.', loadError);
     }
     return activeToken;
   }, []);
@@ -182,118 +250,33 @@ function HomeContent() {
         setError((prev) => prev ?? OFFLINE_REFRESH_MESSAGE);
         return false;
       }
+
       try {
-        const {
-          data: { user: currentUser },
-        } = await supabase.auth.getUser();
+        const memberResult = await resolveMemberContext();
 
-        console.log('🔍 DEBUG: currentUser from getUser():', currentUser);
-
-        if (!currentUser) {
-          console.log('❌ No currentUser found, redirecting to login');
+        if (memberResult.status === 'unauthenticated') {
           setLoading(false);
           setPartnersLoading(false);
-          router.push('/login');
           return false;
         }
 
-        console.log('✅ CurrentUser found:', { id: currentUser.id, email: currentUser.email });
-        setUser(currentUser);
-
-        // Robust member query with graceful fallbacks when optional columns are missing
-        type MemberRow = {
-          membership_active: boolean;
-          membership_expires: string | null;
-          full_name: string | null;
-          role: string | null;
-          branch_id: string | null;
-          email?: string | null;
-          approved?: boolean | null;
-          approved_at?: string | null;
-          branch?: BranchInfo | BranchInfo[] | null;
-        };
-
-        const selectFull = `
-          membership_active,
-          membership_expires,
-          full_name,
-          role,
-          branch_id,
-          email,
-          approved,
-          approved_at,
-          branch:branch_id (
-            id,
-            name,
-            location,
-            city,
-            discount_percentage,
-            active
-          )
-        `;
-
-        const selectReducedBranch = `
-          membership_active,
-          membership_expires,
-          full_name,
-          role,
-          branch_id,
-          email,
-          approved,
-          approved_at,
-          branch:branch_id (
-            id,
-            name
-          )
-        `;
-
-        const selectNoBranch = `
-          membership_active,
-          membership_expires,
-          full_name,
-          role,
-          branch_id,
-          email,
-          approved,
-          approved_at
-        `;
-
-        async function fetchMemberWithFallback(): Promise<{
-          data: MemberRow[] | null;
-          error: any | null;
-        }> {
-          // 1) Try full selection (may fail on minimal DB)
-          let res = await supabase
-            .from('members')
-            .select(selectFull)
-            .eq('user_id', currentUser.id)
-            .limit(1);
-          if (!res.error) return res as any;
-
-          // If undefined column (42703), retry with reduced branch
-          if (res.error?.code === '42703') {
-            console.warn('Member query: falling back to reduced branch selection (missing columns).', res.error);
-            res = await supabase
-              .from('members')
-              .select(selectReducedBranch)
-              .eq('user_id', currentUser.id)
-              .limit(1);
-            if (!res.error) return res as any;
-          }
-
-          // Final fallback – no branch join
-          console.warn('Member query: falling back to no-branch selection.', res.error);
-          res = await supabase
-            .from('members')
-            .select(selectNoBranch)
-            .eq('user_id', currentUser.id)
-            .limit(1);
-          return res as any;
+        if (memberResult.status === 'error' || !memberResult.user || !memberResult.member) {
+          const message = memberResult.error ?? 'Nepodařilo se načíst informace o členství.';
+          setError((prev) => prev ?? message);
+          return false;
         }
 
-        const memberPromise = fetchMemberWithFallback();
+        const currentUser = memberResult.user;
+        const hydratedMember = memberResult.member;
+        logDebug('home', 'Member context resolved.', {
+          userId: currentUser.id,
+          origin: hydratedMember.origin,
+        });
 
-        const partnersPromise = supabase
+        setMemberData(hydratedMember);
+        setError(null);
+
+        const partnersResponse = await supabase
           .from('partner_offers')
           .select(
             `id, title, description, discount_code, discount_percentage, scope, branch_id, city, active,
@@ -301,105 +284,58 @@ function HomeContent() {
           )
           .order('title');
 
-  const [memberResponse, partnersResponse] = await Promise.all([memberPromise, partnersPromise]);
-  console.log('🔍 DEBUG: memberResponse', memberResponse);
-
-        let normalizedMember: MemberData | null = null;
-        let normalizedPartners: PartnerOfferRecord[] = [];
-
-        if (memberResponse.error) {
-          console.error('Error fetching member data:', memberResponse.error);
-          setMemberData(null);
-          setError((prev) => prev ?? 'Nepodařilo se načíst informace o členství.');
-        } else {
-          type MemberRow = {
-            membership_active: boolean;
-            membership_expires: string | null;
-            full_name: string | null;
-            role: string | null;
-            branch_id: string | null;
-            email?: string | null;
-            approved?: boolean | null;
-            approved_at?: string | null;
-            branch: BranchInfo | BranchInfo[] | null;
-          };
-
-          const memberRows = (memberResponse.data ?? []) as MemberRow[];
-          const memberRow = memberRows[0] ?? null;
-
-          if (memberRow) {
-            const normalizedBranch = Array.isArray(memberRow.branch)
-              ? memberRow.branch[0] ?? null
-              : memberRow.branch ?? null;
-
-            normalizedMember = {
-              membership_active: memberRow.membership_active,
-              membership_expires: memberRow.membership_expires,
-              full_name: memberRow.full_name,
-              role: (memberRow.role ?? 'member') as MemberRole,
-              branch_id: memberRow.branch_id,
-              email: memberRow.email ?? null,
-              approved: memberRow.approved ?? null,
-              approved_at: memberRow.approved_at ?? null,
-              branch: normalizedBranch,
-            };
-
-            setMemberData(normalizedMember);
-          } else {
-            console.warn('⚠️ No member row found for current user.');
-            setMemberData(null);
-          }
-        }
-
         if (partnersResponse.error) {
-          console.error('Error fetching partner data:', partnersResponse.error);
+          logError('home', 'Error fetching partner data', partnersResponse.error);
           setPartners([]);
           setPartnersError('Nepodařilo se načíst partnerské podniky.');
-        } else {
-          type PartnerRow = PartnerOfferRecord & {
-            branch: PartnerOfferRecord['branch'] | PartnerOfferRecord['branch'][] | null;
-          };
-
-          const partnerRows = (partnersResponse.data ?? []) as PartnerRow[];
-          normalizedPartners = partnerRows.map((partner) => ({
-            ...partner,
-            branch: Array.isArray(partner.branch)
-              ? partner.branch[0] ?? null
-              : partner.branch ?? null,
-          }));
-
-          setPartners(normalizedPartners);
-          setPartnersError(null);
+          return false;
         }
+
+        type PartnerRow = PartnerOfferRecord & {
+          branch: PartnerOfferRecord['branch'] | PartnerOfferRecord['branch'][] | null;
+        };
+
+        const partnerRows = (partnersResponse.data ?? []) as PartnerRow[];
+        const normalizedPartners = partnerRows.map((partner) => ({
+          ...partner,
+          branch: Array.isArray(partner.branch) ? partner.branch[0] ?? null : partner.branch ?? null,
+        }));
+
+        setPartners(normalizedPartners);
+        setPartnersError(null);
 
         const activeToken = await loadActiveToken(currentUser.id);
+        const diagnostics = diagnosePartnerVisibility(
+          hydratedMember.branch_id,
+          groupPartnersForMember(normalizedPartners, hydratedMember.branch_id)
+        );
 
-        const hasMemberError = Boolean(memberResponse.error);
-        const hasPartnerError = Boolean(partnersResponse.error);
-        const requestSuccessful = !hasMemberError && !hasPartnerError;
+        const saved = saveHomeSnapshot({
+          member: hydratedMember,
+          partners: normalizedPartners,
+          token: activeToken,
+          partnerDiagnostics: diagnostics,
+        });
 
-        if (requestSuccessful) {
-          const saved = saveHomeSnapshot({
-            member: normalizedMember,
-            partners: normalizedPartners,
-            token: activeToken,
-          });
-          setRestoredFromSnapshot(false);
-          setSnapshotSavedAt(null);
-          setLastSyncedAt(saved.savedAt);
-          return true;
-        }
+        setRestoredFromSnapshot(false);
+        setSnapshotSavedAt(null);
+        setLastSyncedAt(memberResult.lastSyncedAt ?? saved.savedAt);
+        return true;
       } catch (fetchError) {
-        console.error('Unexpected error loading home screen:', fetchError);
+        logError('home', 'Unexpected error loading home screen.', fetchError);
         setError((prev) => prev ?? 'Došlo k neočekávané chybě při načítání údajů.');
         return false;
       } finally {
         setLoading(false);
         setPartnersLoading(false);
       }
-      return false;
     },
-    [isOnline, loadActiveToken, restoredFromSnapshot, router]
+    [
+      isOnline,
+      loadActiveToken,
+      resolveMemberContext,
+      restoredFromSnapshot,
+    ]
   );
 
   useEffect(() => {
@@ -516,7 +452,7 @@ function HomeContent() {
       setTokenError(null);
       setPendingTokenRequest(false);
     } catch (generationError) {
-      console.error('Error generating token:', generationError);
+      logError('home', 'Error generating token.', generationError);
       setTokenError(
         generationError instanceof Error
           ? generationError.message
@@ -528,14 +464,14 @@ function HomeContent() {
   }, [isOnline, memberData, router]);
 
   const handleCopyCode = useCallback(async () => {
-    if (!token) return;
+    if (!token?.code) return;
 
-    try {
-      await navigator.clipboard.writeText(token.code);
+    const success = await copyTextToClipboard(token.code);
+    if (success) {
+      setTokenError(null);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (copyError) {
-      console.error('Failed to copy code:', copyError);
+      window.setTimeout(() => setCopied(false), 2000);
+    } else {
       setTokenError('Nepodařilo se zkopírovat kód do schránky.');
     }
   }, [token]);
@@ -550,10 +486,20 @@ function HomeContent() {
         setInstallError('Instalace byla zrušena. Zkuste to prosím znovu později.');
       }
     } catch (installErrorInstance) {
-      console.error('Error triggering PWA install:', installErrorInstance);
+      logError('home', 'Error triggering PWA install.', installErrorInstance);
       setInstallError('Instalaci se nepodařilo spustit. Zkuste to prosím znovu.');
     }
   }, [promptInstall]);
+
+  const handleProfileUpdated = useCallback(
+    (next: MemberData | null) => {
+      if (!next) {
+        return;
+      }
+      setMemberData(next);
+    },
+    []
+  );
 
   const partnerGroups = useMemo(
     () => groupPartnersForMember(partners, memberData?.branch_id ?? null),
@@ -573,7 +519,7 @@ function HomeContent() {
         timeStyle: 'short',
       }).format(new Date(snapshotSavedAt));
     } catch (formatError) {
-      console.error('Error formatting snapshot timestamp:', formatError);
+      logError('home', 'Error formatting snapshot timestamp.', formatError);
       return snapshotSavedAt;
     }
   }, [snapshotSavedAt]);
@@ -586,7 +532,7 @@ function HomeContent() {
         timeStyle: 'short',
       }).format(new Date(lastSyncedAt));
     } catch (formatError) {
-      console.error('Error formatting last synced timestamp:', formatError);
+      logError('home', 'Error formatting last synced timestamp.', formatError);
       return lastSyncedAt;
     }
   }, [lastSyncedAt]);
@@ -599,7 +545,7 @@ function HomeContent() {
         timeStyle: 'short',
       }).format(new Date(lastRefreshAttemptAt));
     } catch (formatError) {
-      console.error('Error formatting refresh attempt timestamp:', formatError);
+      logError('home', 'Error formatting refresh attempt timestamp.', formatError);
       return lastRefreshAttemptAt;
     }
   }, [lastRefreshAttemptAt]);
@@ -741,12 +687,12 @@ function HomeContent() {
     <main className="psychocas-section pb-24">
       <div className="psychocas-container space-y-6 fade-in-up pt-6 pb-24">
         {error && (
-          <div className="psychocas-card" style={{ backgroundColor: '#fef2f2', borderLeft: '4px solid #c62828' }}>
-            <div className="flex items-center gap-3">
-              <div className="text-2xl">⚠️</div>
-              <p style={{ color: '#c62828', fontWeight: 500 }}>{error}</p>
-            </div>
-          </div>
+          <Card
+            title={t('home.membership')}
+            subtitle={error}
+            headerSlot={<Badge tone="danger">{t('home.membershipInactive')}</Badge>}
+            padding="sm"
+          />
         )}
 
         {restoredFromSnapshot && offlineSnapshotLabel && (
@@ -784,20 +730,14 @@ function HomeContent() {
               </span>
             </div>
           )}
-          <button
+          <Button
             type="button"
+            variant="secondary"
             onClick={handleRefresh}
             disabled={isRefreshing || !isOnline}
-            className="rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
-            style={{
-              borderColor: '#1d4f7d',
-              color: isRefreshing || !isOnline ? '#9ca3af' : '#1d4f7d',
-              backgroundColor: isRefreshing ? '#e5e7eb' : '#ffffff',
-              cursor: isRefreshing || !isOnline ? 'not-allowed' : 'pointer',
-            }}
           >
-            {isRefreshing ? 'Aktualizuji…' : 'Obnovit data'}
-          </button>
+            {isRefreshing ? 'Aktualizuji…' : t('home.refresh')}
+          </Button>
         </div>
 
         <div className="text-center">
@@ -820,7 +760,7 @@ function HomeContent() {
               <circle cx="-40" cy="0" r="4" fill="white" />
             </svg>
           </div>
-          <h1 className="mb-2">Vítejte zpět!</h1>
+          <h1 className="mb-2">{t('home.welcome')}!</h1>
           <p style={{ color: '#666666' }}>{memberData.full_name || memberEmail}</p>
         </div>
 
@@ -885,7 +825,7 @@ function HomeContent() {
         <div className="psychocas-card">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
-              <h2 style={{ color: '#333333' }}>Členský profil</h2>
+              <h2 style={{ color: '#333333' }}>{t('home.membership')}</h2>
               <p className="text-sm" style={{ color: '#666666' }}>{memberEmail}</p>
               {lastSyncedLabel && (
                 <p className="text-xs" style={{ color: '#9ca3af' }}>
@@ -893,21 +833,19 @@ function HomeContent() {
                 </p>
               )}
             </div>
-            <span
-              className="px-3 py-1 text-sm font-medium"
-              style={{
-                backgroundColor: '#e3f2fd',
-                color: '#1d4f7d',
-                borderRadius: '9999px',
-              }}
-            >
-              {ROLE_LABELS[memberData.role]}
-            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+              <Badge tone={memberData.membership_active ? 'success' : 'warning'}>
+                {memberData.membership_active ? t('home.membershipActive') : t('home.membershipInactive')}
+              </Badge>
+              <Button variant="ghost" size="sm" onClick={() => setIsProfileOpen(true)}>
+                {t('home.manageProfile')}
+              </Button>
+            </div>
           </div>
 
           <div className="mt-6 space-y-4">
             <div className="flex items-center justify-between">
-              <span style={{ color: '#666666' }}>Stav členství</span>
+              <span style={{ color: '#666666' }}>{t('home.membershipStatus')}</span>
               <span
                 className={`flex items-center gap-2 px-3 py-1 rounded-full ${
                   memberData.membership_active ? 'status-active' : 'status-inactive'
@@ -1165,7 +1103,13 @@ function HomeContent() {
         )}
       </div>
 
-      <Navigation userRole={memberData.role} />
+      {memberData && <Navigation userRole={memberData.role} />}
+      <ProfileDrawer
+        member={memberData}
+        open={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        onUpdated={handleProfileUpdated}
+      />
     </main>
   );
 }

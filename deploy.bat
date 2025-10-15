@@ -82,9 +82,8 @@ echo 3. 🔧 Configure environment variables in Vercel
 echo 4. ✅ Test production deployment
 echo.
 echo 📚 Documentation:
-echo    - Complete Setup: COMPLETE_SETUP.md
-echo    - Database Setup: DATABASE_SETUP.md
-echo    - Edge Functions: EDGE_FUNCTIONS_SETUP.md
+echo    - Project overview: README.md
+echo    - Database setup: DATABASE_SETUP.md
 echo.
 echo 🚀 Your Psychočas app is ready for production!
 

@@ -5,12 +5,8 @@ import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import { Camera, CheckCircle, XCircle } from 'lucide-react';
 import Navigation from '@/components/Navigation';
-
-interface ValidationResult {
-  valid: boolean;
-  message?: string;
-  memberName?: string;
-}
+import useMemberContext from '@/hooks/useMemberContext';
+import { logError } from '@/lib/logging';
 
 export default function Validate() {
   const [inputCode, setInputCode] = useState('');
@@ -18,37 +14,36 @@ export default function Validate() {
   const [isValidating, setIsValidating] = useState(false);
   const [lastValidatedCode, setLastValidatedCode] = useState('');
   const [resultMessage, setResultMessage] = useState('');
-  const [userRole, setUserRole] = useState<'member' | 'manager' | 'council' | 'technician'>('manager');
   const router = useRouter();
 
-  // Fetch user role on mount
-  useEffect(() => {
-    const fetchUserRole = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: member } = await supabase
-          .from('members')
-          .select('role')
-          .eq('user_id', user.id)
-          .single();
-        
-        if (member) {
-          setUserRole(member.role as 'member' | 'manager' | 'council' | 'technician');
-        }
-      }
-    };
+  const { member, status: memberStatus } = useMemberContext({
+    scope: 'validate',
+    onUnauthorized: () => router.replace('/login'),
+  });
 
-    fetchUserRole();
-  }, []);
+  const isMemberLoading = memberStatus === 'idle' || memberStatus === 'loading';
+  const hasAccess = member?.role === 'manager' || member?.role === 'council';
+
+  useEffect(() => {
+    if (memberStatus === 'ready' && !hasAccess) {
+      router.replace('/home?error=unauthorized');
+    }
+  }, [hasAccess, memberStatus, router]);
 
   const validateCode = async (code: string) => {
     setIsValidating(true);
     setLastValidatedCode(code);
     setValidationResult(null);
-    
+
     try {
+      if (!hasAccess) {
+        setValidationResult('error');
+        setResultMessage('Nemáte oprávnění validovat členské kódy.');
+        return;
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         router.push('/login');
         return;
@@ -78,7 +73,7 @@ export default function Validate() {
       }
 
     } catch (error) {
-      console.error('Error validating code:', error);
+      logError('validate', 'Error validating code.', error);
       setValidationResult('error');
       setResultMessage('Nastala neočekávaná chyba při validaci');
     } finally {
@@ -88,17 +83,64 @@ export default function Validate() {
 
   const handleManualValidation = (e: React.FormEvent) => {
     e.preventDefault();
-    if (inputCode.trim()) {
-      validateCode(inputCode);
+    if (!hasAccess || !inputCode.trim()) {
+      return;
     }
+    void validateCode(inputCode);
   };
 
   const simulateQrScan = () => {
+    if (!hasAccess) {
+      return;
+    }
     // In production, this would trigger camera/QR scanner
     const mockCode = 'PSYCHO24-DEMO';
     setInputCode(mockCode);
-    validateCode(mockCode);
+    void validateCode(mockCode);
   };
+
+  if (isMemberLoading) {
+    return (
+      <main className="psychocas-section pb-20">
+        <div className="psychocas-container space-y-6 fade-in-up">
+          <div className="psychocas-card text-center mt-10">
+            <h1 className="text-2xl font-semibold mb-3">Načítám oprávnění…</h1>
+            <p className="text-sm text-gray-600">Prosím vyčkejte, ověřujeme vaše členská oprávnění.</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (!isMemberLoading && memberStatus === 'error' && !member) {
+    return (
+      <main className="psychocas-section pb-20">
+        <div className="psychocas-container space-y-6 fade-in-up">
+          <div className="psychocas-card text-center mt-10">
+            <h1 className="text-2xl font-semibold mb-3">Nepodařilo se načíst oprávnění</h1>
+            <p className="text-sm text-gray-600">
+              Zkuste stránku prosím obnovit. Pokud potíže přetrvávají, kontaktujte správce.
+            </p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (!isMemberLoading && !hasAccess) {
+    return (
+      <main className="psychocas-section pb-20">
+        <div className="psychocas-container space-y-6 fade-in-up">
+          <div className="psychocas-card text-center mt-10">
+            <h1 className="text-2xl font-semibold mb-3">Přístup omezen</h1>
+            <p className="text-sm text-gray-600">
+              Nemáte oprávnění k ověřování kódů. Pokud si myslíte, že jde o chybu, kontaktujte prosím správce.
+            </p>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="psychocas-section pb-20">
@@ -162,13 +204,13 @@ export default function Validate() {
 
             <button
               type="submit"
-              className="psychocas-button-primary"
-              disabled={isValidating || !inputCode.trim()}
-            >
-              {isValidating ? 'Ověřuji...' : 'Ověřit kód'}
-            </button>
-          </form>
-        </div>
+            className="psychocas-button-primary"
+            disabled={isValidating || !inputCode.trim() || !hasAccess}
+          >
+            {isValidating ? 'Ověřuji...' : 'Ověřit kód'}
+          </button>
+        </form>
+      </div>
 
         {/* Validation Result */}
         {validationResult && (
@@ -215,7 +257,7 @@ export default function Validate() {
       </div>
 
       {/* Navigation Bar */}
-      <Navigation userRole={userRole} />
+      <Navigation userRole={member?.role ?? 'member'} />
     </main>
   );
 }
