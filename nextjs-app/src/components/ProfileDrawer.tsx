@@ -20,6 +20,37 @@ interface ProfileFormState {
   branch_id?: string | null;
 }
 
+type SupabaseBranchRecord = {
+  id: string;
+  name: string | null;
+  city?: string | null;
+  location?: string | null;
+  discount_percentage?: number | null;
+  active?: boolean | null;
+};
+
+const normalizeBranch = (
+  branch: SupabaseBranchRecord | SupabaseBranchRecord[] | null | undefined
+): MemberData['branch'] => {
+  if (!branch) {
+    return null;
+  }
+
+  const record = Array.isArray(branch) ? branch[0] ?? null : branch;
+  if (!record) {
+    return null;
+  }
+
+  return {
+    id: record.id,
+    name: record.name ?? null,
+    city: record.city ?? null,
+    location: record.location ?? null,
+    discount_percentage: record.discount_percentage ?? null,
+    active: record.active ?? null,
+  };
+};
+
 export default function ProfileDrawer({ member, open, onClose, onUpdated }: ProfileDrawerProps) {
   const { t } = useLocale();
   const [form, setForm] = useState<ProfileFormState>({
@@ -76,7 +107,7 @@ export default function ProfileDrawer({ member, open, onClose, onUpdated }: Prof
       ...member,
       full_name: data?.full_name ?? member.full_name,
       branch_id: data?.branch_id ?? member.branch_id,
-      branch: data?.branch ?? member.branch,
+      branch: normalizeBranch(data?.branch) ?? member.branch,
       phone: data?.phone ?? member.phone,
     });
   };

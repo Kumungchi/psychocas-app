@@ -1,6 +1,10 @@
 import type { Locale } from './config';
 
-type TranslationDictionary = Record<string, string | TranslationDictionary>;
+type TranslationValue = string | TranslationDictionary;
+
+interface TranslationDictionary {
+  [key: string]: TranslationValue;
+}
 
 type LocaleDictionaries = Record<Locale, TranslationDictionary>;
 

@@ -2,7 +2,7 @@ export type MemberRole = 'member' | 'manager' | 'council' | 'technician';
 
 export interface BranchInfo {
   id: string;
-  name: string;
+  name: string | null;
   location?: string | null;
   city?: string | null;
   discount_percentage?: number | null;
