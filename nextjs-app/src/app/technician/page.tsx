@@ -4,8 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { Users, CheckCircle, XCircle, Search, ShieldCheck, ShieldOff, RefreshCcw, UserPlus, UserCog } from 'lucide-react';
 import Navigation from '@/components/Navigation';
-import { useMemberContext } from '@/hooks/useMemberContext';
+import useMemberContext from '@/hooks/useMemberContext';
 import type { MemberRole } from '@/types/member';
+
+interface BranchRecord {
+  id: string;
+  name: string | null;
+}
 
 interface MemberRow {
   id: string;
@@ -15,7 +20,7 @@ interface MemberRow {
   role: string | null;
   membership_active: boolean;
   membership_expires: string | null;
-  branch?: { id: string; name: string | null } | null;
+  branch?: BranchRecord | BranchRecord[] | null;
 }
 
 interface TrustedUserRow {
@@ -26,7 +31,7 @@ interface TrustedUserRow {
   role: string | null;
   membership_active: boolean | null;
   access_expires_at: string | null;
-  branch?: { id: string; name: string | null } | null;
+  branch?: BranchRecord | BranchRecord[] | null;
 }
 
 type RecordOrigin = 'members' | 'trusted_users';
@@ -46,6 +51,15 @@ interface ManagedPerson {
 
 type SourceFilter = 'all' | 'members' | 'trusted';
 type StatusFilter = 'all' | 'active' | 'inactive';
+
+const toBranchName = (branch: BranchRecord | BranchRecord[] | null | undefined) => {
+  if (!branch) {
+    return null;
+  }
+
+  const record = Array.isArray(branch) ? branch[0] ?? null : branch;
+  return record?.name ?? null;
+};
 
 const roleLabel: Record<MemberRole, string> = {
   member: 'Člen',
@@ -121,7 +135,7 @@ export default function Technician() {
       role: (row.role ?? 'member') as MemberRole,
       membershipActive: row.membership_active,
       membershipExpires: row.membership_expires,
-      branchName: row.branch?.name ?? null,
+      branchName: toBranchName(row.branch),
       origin: 'members',
     }));
 
@@ -139,7 +153,7 @@ export default function Technician() {
         membershipActive: row.membership_active ?? true,
         membershipExpires: row.access_expires_at,
         accessExpiresAt: row.access_expires_at,
-        branchName: row.branch?.name ?? null,
+        branchName: toBranchName(row.branch),
         origin: 'trusted_users',
       };
     });

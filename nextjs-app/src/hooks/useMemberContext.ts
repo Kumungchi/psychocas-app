@@ -158,7 +158,7 @@ async function fetchTrustedUserFallback(
   }
 
   let trustedQuery = supabase
-    .from<TrustedUserRow>('trusted_users')
+    .from('trusted_users')
     .select(
       `email, first_name, last_name, role, branch_id, approved_at, access_expires_at, membership_active,
        branch:branch_id (id, name, location, city, discount_percentage, active)`
@@ -223,11 +223,11 @@ function buildMemberSelect(includeFullBranch: boolean): string {
 }
 
 async function fetchMemberWithFallback(scope: string, userId: string): Promise<PostgrestResponse<MemberRow>> {
-  let response = await supabase
-    .from<MemberRow>('members')
+  let response = (await supabase
+    .from('members')
     .select(buildMemberSelect(true))
     .eq('user_id', userId)
-    .limit(1);
+    .limit(1)) as PostgrestResponse<MemberRow>;
 
   if (!response.error) {
     return response;
@@ -235,19 +235,19 @@ async function fetchMemberWithFallback(scope: string, userId: string): Promise<P
 
   if (response.error.code === '42703') {
     logWarn(scope, 'Member query missing optional columns, retrying with reduced branch view.', response.error);
-    response = await supabase
-      .from<MemberRow>('members')
+    response = (await supabase
+      .from('members')
       .select(buildMemberSelect(false))
       .eq('user_id', userId)
-      .limit(1);
+      .limit(1)) as PostgrestResponse<MemberRow>;
     if (!response.error) {
       return response;
     }
   }
 
   logWarn(scope, 'Member query failed with branch join, retrying without branch.', response.error);
-  response = await supabase
-    .from<MemberRow>('members')
+  response = (await supabase
+    .from('members')
     .select(
       `membership_active,
        membership_expires,
@@ -260,7 +260,7 @@ async function fetchMemberWithFallback(scope: string, userId: string): Promise<P
        phone`
     )
     .eq('user_id', userId)
-    .limit(1);
+    .limit(1)) as PostgrestResponse<MemberRow>;
 
   return response;
 }

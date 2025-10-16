@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { TrendingUp, Users, Percent, Clock, AlertCircle, Filter, RefreshCcw } from 'lucide-react';
 import Navigation from '@/components/Navigation';
-import { useMemberContext } from '@/hooks/useMemberContext';
+import useMemberContext from '@/hooks/useMemberContext';
 import type { MemberRole } from '@/types/member';
 
 type Period = 'day' | 'week' | 'month';

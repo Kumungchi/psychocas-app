@@ -2,25 +2,15 @@ import { createServerClient } from '@supabase/ssr'
 import type { VerifyOtpParams } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
+import {
+  ROLE_DEFAULT_REDIRECT,
+  type MemberSummary,
+  normaliseRole,
+  isAllowedRedirect,
+} from '@/lib/auth/roleRouting'
 
 function createRedirectResponse(url: URL) {
   return NextResponse.redirect(url)
-}
-
-type MemberRole = 'member' | 'manager' | 'council' | 'technician'
-
-const ROLE_DEFAULT_REDIRECT: Record<MemberRole, string> = {
-  member: '/home',
-  manager: '/stats',
-  council: '/admin',
-  technician: '/technician',
-}
-
-const ROLE_ALLOWED_PATHS: Record<MemberRole, readonly string[]> = {
-  member: ['/home', '/redeem'],
-  manager: ['/home', '/redeem', '/validate', '/stats'],
-  council: ['/home', '/redeem', '/validate', '/stats', '/admin', '/technician'],
-  technician: ['/home', '/redeem', '/technician'],
 }
 
 const isSafeRelativePath = (path: string | null): path is string => {
@@ -29,43 +19,6 @@ const isSafeRelativePath = (path: string | null): path is string => {
   }
 
   return path.startsWith('/') && !path.startsWith('//') && !path.includes('://')
-}
-
-const getPathWithoutQueryOrHash = (path: string) => {
-  const [cleanPath] = path.split('#', 1)
-  return cleanPath.split('?')[0]
-}
-
-const hasPsychocasEmail = (email: string | null | undefined) =>
-  typeof email === 'string' && email.toLowerCase().endsWith('@psychocas.cz')
-
-type MemberSummary = { role: MemberRole; email: string | null }
-
-const normaliseRole = (member: MemberSummary | null): MemberRole => {
-  if (!member) {
-    return 'member'
-  }
-
-  if (member.role === 'council') {
-    return 'council'
-  }
-
-  if (member.role === 'technician') {
-    return hasPsychocasEmail(member.email) ? 'technician' : 'member'
-  }
-
-  if (member.role === 'manager' && hasPsychocasEmail(member.email)) {
-    return 'manager'
-  }
-
-  return 'member'
-}
-
-const isAllowedRedirect = (path: string, role: MemberRole) => {
-  const basePath = getPathWithoutQueryOrHash(path)
-  return ROLE_ALLOWED_PATHS[role].some((allowed) =>
-    basePath === allowed || basePath.startsWith(`${allowed}/`)
-  )
 }
 
 export async function GET(request: Request) {
