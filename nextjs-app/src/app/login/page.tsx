@@ -166,12 +166,18 @@ function LoginContent() {
   };
 
   return (
-    <main className="psychocas-section flex items-center justify-center">
-      <div className="psychocas-container fade-in-up">
-        <div className="psychocas-card text-center">
+    <main className="psychocas-section flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
+      <div className="psychocas-container fade-in-up w-full max-w-2xl">
+        <div className="psychocas-card auth-card text-center">
           {/* Logo */}
-          <div className="mb-8 flex justify-center">
-            <svg width="100" height="100" viewBox="-60 -60 120 120" xmlns="http://www.w3.org/2000/svg">
+          <div className="mb-6 flex justify-center sm:mb-8">
+            <svg
+              width="100"
+              height="100"
+              viewBox="-60 -60 120 120"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden
+            >
               <defs>
                 <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" style={{ stopColor: '#1d4f7d', stopOpacity: 1 }} />
@@ -190,9 +196,11 @@ function LoginContent() {
             </svg>
           </div>
           {/* Welcome Section */}
-          <div className="mb-12">
-            <h1 className="mb-3">{t('login.title')}</h1>
-            <p className="text-lg" style={{ color: '#666666' }}>
+          <div className="mb-10 space-y-3 sm:mb-12">
+            <h1 className="mb-1 text-3xl font-semibold sm:text-[2rem]" style={{ color: '#1d4f7d' }}>
+              {t('login.title')}
+            </h1>
+            <p className="auth-card__subtitle">
               {emailSent ? t('login.subtitleSent') : t('login.subtitlePrompt')}
             </p>
           </div>
@@ -229,9 +237,9 @@ function LoginContent() {
 
           {/* Success State - Show after email sent */}
           {emailSent && (
-            <div className="space-y-6">
+            <div className="space-y-6 text-left sm:text-center">
               {/* Email Icon/Illustration */}
-              <div className="flex justify-center mb-6">
+              <div className="mb-6 flex justify-center">
                 <div style={{
                   width: '80px',
                   height: '80px',
@@ -247,11 +255,11 @@ function LoginContent() {
               </div>
 
               {/* Success Message */}
-              <div className="space-y-4">
-                <h2 className="text-2xl font-bold" style={{ color: '#333333' }}>
+              <div className="space-y-3">
+                <h2 className="text-2xl font-bold sm:text-[1.7rem]" style={{ color: '#333333' }}>
                   {t('login.successTitle')}
                 </h2>
-                <p style={{ color: '#666666', lineHeight: '1.6' }}>
+                <p className="auth-card__message">
                   {t('login.successDescription')}
                   <br />
                   <strong style={{ color: '#333333' }}>{email}</strong>
@@ -259,14 +267,17 @@ function LoginContent() {
               </div>
 
               {/* Instructions */}
-              <div className="p-6 rounded-xl text-left" style={{
-                backgroundColor: '#f0f9ff',
-                borderLeft: '4px solid #049edb'
-              }}>
-                <p className="text-sm mb-3" style={{ color: '#333333', fontWeight: '600' }}>
+              <div
+                className="rounded-2xl p-5 sm:p-6"
+                style={{
+                  backgroundColor: '#f0f9ff',
+                  borderLeft: '4px solid #049edb'
+                }}
+              >
+                <p className="mb-3 text-sm font-semibold" style={{ color: '#333333' }}>
                   {t('login.instructionsTitle')}
                 </p>
-                <ol className="text-sm space-y-2" style={{ color: '#666666', paddingLeft: '20px' }}>
+                <ol className="space-y-2 text-sm" style={{ color: '#666666', paddingLeft: '20px' }}>
                   <li>{t('login.instructionsSteps.first')}</li>
                   <li>{t('login.instructionsSteps.second')}</li>
                   <li>{t('login.instructionsSteps.third')}</li>
@@ -275,7 +286,7 @@ function LoginContent() {
               </div>
 
               {/* Expiration Warning */}
-              <div className="p-4 rounded-xl" style={{
+              <div className="rounded-xl p-4" style={{
                 backgroundColor: '#fff3cd',
                 borderLeft: '4px solid #f57c00'
               }}>
@@ -295,7 +306,7 @@ function LoginContent() {
               </div>
 
               {/* Help Text */}
-              <p className="text-sm pt-4" style={{ color: '#999999' }}>{t('login.helpText')}</p>
+              <p className="pt-4 text-sm" style={{ color: '#999999' }}>{t('login.helpText')}</p>
             </div>
           )}
 
@@ -335,9 +346,9 @@ function LoginContent() {
 function LoginFallback() {
   const { t } = useLocale();
   return (
-    <main className="psychocas-section flex items-center justify-center">
-      <div className="psychocas-container fade-in-up">
-        <div className="psychocas-card text-center">
+    <main className="psychocas-section flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
+      <div className="psychocas-container fade-in-up w-full max-w-2xl">
+        <div className="psychocas-card auth-card text-center">
           <p>{t('login.fallbackLoading')}</p>
         </div>
       </div>
