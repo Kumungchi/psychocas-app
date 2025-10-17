@@ -141,44 +141,55 @@ h3 {
   top: calc(env(safe-area-inset-top, 0px) + clamp(0.75rem, 2.5vw, 1.25rem));
   right: clamp(0.75rem, 3vw, 1.75rem);
   z-index: 50;
-  background-color: rgba(255, 255, 255, 0.96);
-  color: var(--psychocas-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f3eaff 0%, #e5d4ff 100%);
+  color: #2b0a5c;
   border-radius: 9999px;
-  border: 1px solid rgba(29, 79, 125, 0.1);
-  padding: 0.55rem 1.1rem;
-  font-weight: 600;
-  font-size: 0.85rem;
-  letter-spacing: 0.08em;
+  border: none;
+  padding: clamp(0.55rem, 2.3vw, 0.7rem) clamp(1rem, 4vw, 1.4rem);
+  min-width: clamp(3.75rem, 14vw, 5.5rem);
+  font-weight: 700;
+  font-size: clamp(0.9rem, 2.4vw, 1.05rem);
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
-  backdrop-filter: blur(12px);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  box-shadow: 0 10px 28px rgba(43, 10, 92, 0.25);
+  backdrop-filter: blur(8px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  cursor: pointer;
 }
 
 .locale-toggle:hover {
   transform: translateY(-1px);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
-  border-color: rgba(4, 158, 219, 0.35);
+  box-shadow: 0 14px 32px rgba(43, 10, 92, 0.3);
+  filter: brightness(1.05);
 }
 
 .locale-toggle:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 4px rgba(4, 158, 219, 0.25);
+  box-shadow: 0 0 0 4px rgba(117, 80, 180, 0.35), 0 14px 32px rgba(43, 10, 92, 0.3);
 }
 
 .locale-toggle__label {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  letter-spacing: 0.1em;
+  gap: clamp(0.3rem, 1.5vw, 0.45rem);
+  letter-spacing: inherit;
 }
 
-.locale-toggle__dot {
-  width: 0.35rem;
-  height: 0.35rem;
-  border-radius: 9999px;
-  background-color: currentColor;
-  opacity: 0.5;
+.locale-toggle__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(1rem, 2.8vw, 1.25rem);
+  line-height: 1;
+}
+
+.locale-toggle__text {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
 }
 
 .psychocas-card:hover {
