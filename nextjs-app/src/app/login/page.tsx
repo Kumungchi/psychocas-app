@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { logError } from '@/lib/logging';
 import { useRouter, useSearchParams } from 'next/navigation';
 import useLocale from '@/hooks/useLocale';
+import { sanitizeRedirect } from '@/lib/navigation/redirect';
 
 type MessageState = {
   type: 'success' | 'error' | 'info';
@@ -23,17 +24,10 @@ function LoginContent() {
   const [message, setMessage] = useState<MessageState | null>(null);
 
   const requestedRedirect = searchParams.get('redirectTo');
-  const sanitizedRedirect = useMemo(() => {
-    if (!requestedRedirect) {
-      return '/home';
-    }
-
-    if (!requestedRedirect.startsWith('/') || requestedRedirect.startsWith('//') || requestedRedirect.includes('://')) {
-      return '/home';
-    }
-
-    return requestedRedirect;
-  }, [requestedRedirect]);
+  const sanitizedRedirect = useMemo(
+    () => sanitizeRedirect(requestedRedirect),
+    [requestedRedirect]
+  );
 
   // Surface any error returned by the callback handler so users understand why they landed here
   useEffect(() => {

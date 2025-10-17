@@ -25,6 +25,13 @@ export const dictionaries: LocaleDictionaries = {
     root: {
       redirecting: 'Přesměrovávání...'
     },
+    callback: {
+      fallback: {
+        title: 'Přihlašování...',
+        heading: 'Přihlašuji vás do aplikace...',
+        wait: 'Prosím čekejte',
+      },
+    },
     offlineToast: {
       offline: 'Jste offline. Zobrazuje se poslední dostupná verze.',
       online: 'Připojení obnoveno. Údaje jsou opět aktuální.',
@@ -252,6 +259,13 @@ export const dictionaries: LocaleDictionaries = {
     },
     root: {
       redirecting: 'Redirecting...'
+    },
+    callback: {
+      fallback: {
+        title: 'Signing you in…',
+        heading: 'Signing you in…',
+        wait: 'Please wait',
+      },
     },
     offlineToast: {
       offline: 'You are offline. Showing the last available data.',
