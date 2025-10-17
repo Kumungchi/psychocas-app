@@ -45,7 +45,7 @@ export interface MemberData {
   approved_at?: string | null;
   phone?: string | null;
   branch?: BranchInfo | null;
-  origin?: 'members' | 'trusted_users';
+  origin?: 'members' | 'trusted_users' | 'demo';
   trusted_access_expires_at?: string | null;
 }
 
