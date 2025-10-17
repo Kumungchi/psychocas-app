@@ -1,13 +1,15 @@
 'use client';
 
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { defaultLocale, supportedLocales, type Locale } from '@/lib/i18n/config';
 import { getDictionary } from '@/lib/i18n/strings';
+import { formatTemplate, type TranslateFn } from '@/lib/i18n/utils';
 
 interface LocaleContextValue {
   locale: Locale;
   setLocale: (locale: Locale) => void;
-  t: (path: string) => string;
+  t: TranslateFn;
+  formatMessage: (path: string, vars: Record<string, string | number>) => string;
 }
 
 const LocaleContext = createContext<LocaleContextValue | undefined>(undefined);
@@ -28,11 +30,22 @@ interface LocaleProviderProps {
   children: ReactNode;
 }
 
+const STORAGE_KEY = 'psychocas.locale';
+
 export function LocaleProvider({ children }: LocaleProviderProps) {
-  const [locale, setLocale] = useState<Locale>(defaultLocale);
+  const [locale, setLocale] = useState<Locale>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = window.localStorage?.getItem(STORAGE_KEY);
+      if (stored && supportedLocales.includes(stored as Locale)) {
+        return stored as Locale;
+      }
+    }
+    return defaultLocale;
+  });
 
   const value = useMemo<LocaleContextValue>(() => {
     const dictionary = getDictionary(locale);
+    const translate: TranslateFn = (path: string) => resolveTranslation(dictionary, path);
     return {
       locale,
       setLocale: (next) => {
@@ -40,9 +53,19 @@ export function LocaleProvider({ children }: LocaleProviderProps) {
           return;
         }
         setLocale(next);
+        if (typeof window !== 'undefined') {
+          window.localStorage?.setItem(STORAGE_KEY, next);
+        }
       },
-      t: (path: string) => resolveTranslation(dictionary, path),
+      t: translate,
+      formatMessage: (path, vars) => formatTemplate(translate(path), vars),
     };
+  }, [locale]);
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = locale;
+    }
   }, [locale]);
 
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;

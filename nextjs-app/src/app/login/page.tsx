@@ -4,12 +4,19 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { logError } from '@/lib/logging';
 import { useRouter, useSearchParams } from 'next/navigation';
+import useLocale from '@/hooks/useLocale';
 
-type MessageState = { type: 'success' | 'error' | 'info'; text: string };
+type MessageState = {
+  type: 'success' | 'error' | 'info';
+  translationKey?: string;
+  text?: string;
+  params?: Record<string, string | number>;
+};
 
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t, formatMessage } = useLocale();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
@@ -37,14 +44,13 @@ function LoginContent() {
       return;
     }
 
-    let errorText = messageParam ?? 'Nastala chyba při přihlášení. Zkuste to prosím znovu.';
-
     if (errorParam === 'unauthorized') {
-      errorText =
-        'Nemáte oprávnění pro zobrazení požadované stránky. Přihlaste se prosím jiným účtem nebo kontaktujte podporu.';
+      setMessage({ type: 'error', translationKey: 'login.messages.errorUnauthorized' });
+    } else if (messageParam) {
+      setMessage({ type: 'error', text: messageParam });
+    } else {
+      setMessage({ type: 'error', translationKey: 'login.messages.errorGeneral' });
     }
-
-    setMessage({ type: 'error', text: errorText });
 
     // Strip handled query parameters from the URL so the message does not reappear on refresh
     const cleanedParams = new URLSearchParams(Array.from(searchParams.entries()));
@@ -71,7 +77,7 @@ function LoginContent() {
         setMessage((prev) =>
           prev ?? {
             type: 'error',
-            text: 'Nepodařilo se ověřit stav přihlášení. Obnovte stránku a zkuste to znovu.',
+            translationKey: 'login.messages.errorSession',
           }
         );
         return;
@@ -100,13 +106,13 @@ function LoginContent() {
   const handleSendMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setMessage({ type: 'info', text: 'Odesíláme přihlašovací odkaz…' });
+    setMessage({ type: 'info', translationKey: 'login.messages.sending' });
 
     try {
       const cleanEmail = email.trim().toLowerCase();
 
       if (!cleanEmail) {
-        setMessage({ type: 'error', text: 'Zadejte prosím platný email.' });
+        setMessage({ type: 'error', translationKey: 'login.messages.errorInvalidEmail' });
         setIsLoading(false);
         return;
       }
@@ -122,29 +128,29 @@ function LoginContent() {
       });
 
       if (error) {
-        let errorText = typeof error === 'object' && error && 'message' in error && typeof (error as { message?: unknown }).message === 'string'
-          ? (error as { message: string }).message
-          : 'Nastala chyba při odesílání odkazu.';
+        const hasMessage =
+          typeof error === 'object' && error && 'message' in error && typeof (error as { message?: unknown }).message === 'string';
         const status = typeof error === 'object' && error && 'status' in error ? (error as { status?: number }).status : undefined;
+
         if (status === 429) {
-          errorText = 'Překročili jste limit pro odesílání odkazů. Počkejte prosím minutu a zkuste to znovu.';
+          setMessage({ type: 'error', translationKey: 'login.messages.errorRateLimit' });
+        } else if (hasMessage) {
+          setMessage({ type: 'error', text: (error as { message: string }).message });
+        } else {
+          setMessage({ type: 'error', translationKey: 'login.messages.errorSendLink' });
         }
-        setMessage({
-          type: 'error',
-          text: errorText
-        });
       } else {
         setEmailSent(true);
         setMessage({
           type: 'success',
-          text: 'Přihlašovací odkaz byl odeslán na váš email.'
+          translationKey: 'login.messages.successLinkSent',
         });
       }
     } catch (error) {
       logError('login', 'Unexpected error sending magic link.', error);
       setMessage({
         type: 'error',
-        text: 'Nastala neočekávaná chyba'
+        translationKey: 'login.messages.errorUnexpected',
       });
     } finally {
       setIsLoading(false);
@@ -155,7 +161,7 @@ function LoginContent() {
     setEmailSent(false);
     setMessage({
       type: 'info',
-      text: 'Zadejte svůj email pro odeslání nového odkazu.',
+      translationKey: 'login.messages.infoResend',
     });
   };
 
@@ -185,13 +191,9 @@ function LoginContent() {
           </div>
           {/* Welcome Section */}
           <div className="mb-12">
-            <h1 className="mb-3">
-              Vítejte v Psychočas aplikaci
-            </h1>
+            <h1 className="mb-3">{t('login.title')}</h1>
             <p className="text-lg" style={{ color: '#666666' }}>
-              {emailSent 
-                ? 'Zkontrolujte svůj email' 
-                : 'Přihlaste se do vaší členské aplikace'}
+              {emailSent ? t('login.subtitleSent') : t('login.subtitlePrompt')}
             </p>
           </div>
 
@@ -200,7 +202,7 @@ function LoginContent() {
             <form onSubmit={handleSendMagicLink} className="space-y-8">
               <div className="space-y-3 text-left">
                 <label htmlFor="email" style={{ color: '#333333' }}>
-                  Email
+                  {t('login.emailLabel')}
                 </label>
                 <input
                   id="email"
@@ -208,7 +210,7 @@ function LoginContent() {
                   value={email}
                   onChange={(e) => handleEmailChange(e.target.value)}
                   className="psychocas-input"
-                  placeholder="Zadejte váš email"
+                  placeholder={t('login.emailPlaceholder')}
                   required
                   disabled={isLoading}
                   autoFocus
@@ -220,7 +222,7 @@ function LoginContent() {
                 className="psychocas-button-primary"
                 disabled={isLoading || !email}
               >
-                {isLoading ? 'Odesílám...' : 'Odeslat přihlašovací odkaz'}
+                {isLoading ? t('login.sendLinkLoading') : t('login.sendLink')}
               </button>
             </form>
           )}
@@ -247,38 +249,37 @@ function LoginContent() {
               {/* Success Message */}
               <div className="space-y-4">
                 <h2 className="text-2xl font-bold" style={{ color: '#333333' }}>
-                  Email byl odeslán!
+                  {t('login.successTitle')}
                 </h2>
                 <p style={{ color: '#666666', lineHeight: '1.6' }}>
-                  Přihlašovací odkaz jsme odeslali na adresu:<br/>
+                  {t('login.successDescription')}
+                  <br />
                   <strong style={{ color: '#333333' }}>{email}</strong>
                 </p>
               </div>
 
               {/* Instructions */}
-              <div className="p-6 rounded-xl text-left" style={{ 
+              <div className="p-6 rounded-xl text-left" style={{
                 backgroundColor: '#f0f9ff',
                 borderLeft: '4px solid #049edb'
               }}>
                 <p className="text-sm mb-3" style={{ color: '#333333', fontWeight: '600' }}>
-                  📋 Jak se přihlásit:
+                  {t('login.instructionsTitle')}
                 </p>
                 <ol className="text-sm space-y-2" style={{ color: '#666666', paddingLeft: '20px' }}>
-                  <li>Otevřete svou emailovou schránku</li>
-                  <li>Najděte email od Psychočas</li>
-                  <li>Klikněte na přihlašovací odkaz v emailu</li>
-                  <li>Budete automaticky přesměrováni do aplikace</li>
+                  <li>{t('login.instructionsSteps.first')}</li>
+                  <li>{t('login.instructionsSteps.second')}</li>
+                  <li>{t('login.instructionsSteps.third')}</li>
+                  <li>{t('login.instructionsSteps.fourth')}</li>
                 </ol>
               </div>
 
               {/* Expiration Warning */}
-              <div className="p-4 rounded-xl" style={{ 
+              <div className="p-4 rounded-xl" style={{
                 backgroundColor: '#fff3cd',
                 borderLeft: '4px solid #f57c00'
               }}>
-                <p className="text-sm" style={{ color: '#856404' }}>
-                  ⏰ Odkaz vyprší za 60 minut
-                </p>
+                <p className="text-sm" style={{ color: '#856404' }}>{t('login.expirationNotice')}</p>
               </div>
 
               {/* Resend Button */}
@@ -289,14 +290,12 @@ function LoginContent() {
                   disabled={isLoading}
                   className="psychocas-button-secondary"
                 >
-                  ← Zpět na přihlášení
+                  {t('login.resendButton')}
                 </button>
               </div>
 
               {/* Help Text */}
-              <p className="text-sm pt-4" style={{ color: '#999999' }}>
-                Nevidíte email? Zkontrolujte složku spam nebo nevyžádané pošty.
-              </p>
+              <p className="text-sm pt-4" style={{ color: '#999999' }}>{t('login.helpText')}</p>
             </div>
           )}
 
@@ -320,9 +319,26 @@ function LoginContent() {
                   : undefined
               }
             >
-              {message.text}
+              {message.translationKey
+                ? message.params
+                  ? formatMessage(message.translationKey, message.params)
+                  : t(message.translationKey)
+                : message.text}
             </div>
           )}
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function LoginFallback() {
+  const { t } = useLocale();
+  return (
+    <main className="psychocas-section flex items-center justify-center">
+      <div className="psychocas-container fade-in-up">
+        <div className="psychocas-card text-center">
+          <p>{t('login.fallbackLoading')}</p>
         </div>
       </div>
     </main>
@@ -332,15 +348,7 @@ function LoginContent() {
 export default function Login() {
   return (
     <Suspense
-      fallback={(
-        <main className="psychocas-section flex items-center justify-center">
-          <div className="psychocas-container fade-in-up">
-            <div className="psychocas-card text-center">
-              <p>Načítání přihlášení...</p>
-            </div>
-          </div>
-        </main>
-      )}
+      fallback={<LoginFallback />}
     >
       <LoginContent />
     </Suspense>

@@ -1,10 +1,12 @@
-'use client'
+'use client';
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import useLocale from '@/hooks/useLocale';
 
 export default function RootPage() {
   const router = useRouter();
+  const { t } = useLocale();
 
   useEffect(() => {
     router.push('/login');
@@ -33,7 +35,7 @@ export default function RootPage() {
           </svg>
         </div>
         <h1 className="mb-4">Psychočas</h1>
-        <p style={{ color: '#666666' }}>Přesměrovávání...</p>
+        <p style={{ color: '#666666' }}>{t('root.redirecting')}</p>
       </div>
     </main>
   );
