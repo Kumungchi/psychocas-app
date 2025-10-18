@@ -76,5 +76,7 @@ describe('PWA build artifacts', () => {
 
     const offlineHtml = readTextFile(path.join(publicDir, 'offline.html'));
     expect(offlineHtml).toContain('Offline režim');
+    expect(offlineHtml).toContain('Offline mode');
+    expect(offlineHtml).toContain('Magic-link sign-in requires an active connection');
   });
 });

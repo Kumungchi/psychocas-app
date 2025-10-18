@@ -203,10 +203,18 @@ export default function AdminPage() {
       .order('added_at', { ascending: false });
 
     if (data) {
-      setTrustedUsers((data as TrustedUserRow[]).map((row) => ({
+      const rawRows = data as unknown as Array<
+        Omit<TrustedUserRow, 'branch'> & {
+          branch: TrustedUserRow['branch'] | TrustedUserRow['branch'][] | null;
+        }
+      >;
+
+      const normalized: TrustedUserRow[] = rawRows.map((row) => ({
         ...row,
         branch: Array.isArray(row.branch) ? row.branch?.[0] ?? null : row.branch ?? null,
-      })));
+      }));
+
+      setTrustedUsers(normalized);
     }
   }, [isDemo]);
 

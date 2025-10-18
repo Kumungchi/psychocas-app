@@ -57,6 +57,13 @@ export const dictionaries: LocaleDictionaries = {
       resendButton: '← Zpět na přihlášení',
       helpText: 'Nevidíte email? Zkontrolujte složku spam nebo nevyžádané pošty.',
       fallbackLoading: 'Načítání přihlášení...',
+      pwaBanner: {
+        title: 'Psychočas je nainstalován na tomto zařízení',
+        description:
+          'Aplikace běží v režimu instalované PWA. Pro odeslání přihlašovacího odkazu je nutné aktivní připojení k internetu.',
+        retryHint:
+          'Pokud email nepřichází, zkontrolujte připojení nebo aplikaci obnovte a zkuste odeslání znovu.',
+      },
       messages: {
         sending: 'Odesíláme přihlašovací odkaz…',
         errorGeneral: 'Nastala chyba při přihlášení. Zkuste to prosím znovu.',
@@ -542,6 +549,13 @@ export const dictionaries: LocaleDictionaries = {
       resendButton: '← Back to sign-in',
       helpText: 'Can’t see the email? Check your spam or junk folder.',
       fallbackLoading: 'Loading sign-in…',
+      pwaBanner: {
+        title: 'Psychočas is installed on this device',
+        description:
+          'The app is running as an installed PWA. An active internet connection is required to send the magic-link email.',
+        retryHint:
+          'If the email does not arrive, verify your connection or refresh the app before requesting a new link.',
+      },
       messages: {
         sending: 'Sending the sign-in link…',
         errorGeneral: 'We could not complete the sign-in. Please try again.',

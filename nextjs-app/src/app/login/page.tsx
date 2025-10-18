@@ -6,6 +6,7 @@ import { logError } from '@/lib/logging';
 import { useRouter, useSearchParams } from 'next/navigation';
 import useLocale from '@/hooks/useLocale';
 import { sanitizeRedirect } from '@/lib/navigation/redirect';
+import { computeStandaloneMode } from '@/lib/pwa/displayMode';
 
 type MessageState = {
   type: 'success' | 'error' | 'info';
@@ -13,6 +14,8 @@ type MessageState = {
   text?: string;
   params?: Record<string, string | number>;
 };
+
+type StandaloneCapableNavigator = Navigator & { standalone?: boolean };
 
 function LoginContent() {
   const router = useRouter();
@@ -22,12 +25,49 @@ function LoginContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [message, setMessage] = useState<MessageState | null>(null);
+  const [isStandalone, setIsStandalone] = useState(false);
 
   const requestedRedirect = searchParams.get('redirectTo');
   const sanitizedRedirect = useMemo(
     () => sanitizeRedirect(requestedRedirect),
     [requestedRedirect]
   );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const resolveDisplayMode = () => {
+      const navigatorStandalone =
+        typeof window.navigator === 'object'
+          ? (window.navigator as StandaloneCapableNavigator).standalone
+          : undefined;
+
+      const displayModes = ['standalone', 'window-controls-overlay', 'minimal-ui', 'fullscreen'] as const;
+      const activeDisplayMode = displayModes.find((mode) => window.matchMedia(`(display-mode: ${mode})`).matches) ?? null;
+
+      setIsStandalone(
+        computeStandaloneMode({
+          displayMode: activeDisplayMode,
+          matchMediaStandalone: activeDisplayMode != null,
+          navigatorStandalone,
+        })
+      );
+    };
+
+    resolveDisplayMode();
+    const handleVisibility = () => resolveDisplayMode();
+    const handleAppInstalled = () => resolveDisplayMode();
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
 
   // Surface any error returned by the callback handler so users understand why they landed here
   useEffect(() => {
@@ -159,8 +199,15 @@ function LoginContent() {
     });
   };
 
+  const instructionsId = emailSent ? 'login-instructions' : undefined;
+  const messageId = message ? 'login-status-message' : undefined;
+  const describedBy = [instructionsId, messageId].filter(Boolean).join(' ') || undefined;
+
   return (
-    <main className="psychocas-section flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
+    <main
+      className="psychocas-section flex min-h-screen items-center justify-center px-4 py-8 sm:px-6"
+      aria-busy={isLoading}
+    >
       <div className="psychocas-container fade-in-up w-full max-w-2xl">
         <div className="psychocas-card auth-card text-center">
           {/* Logo */}
@@ -199,9 +246,36 @@ function LoginContent() {
             </p>
           </div>
 
+          {isStandalone && (
+            <aside
+              className="mb-8 text-left"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              style={{
+                backgroundColor: '#eef4ff',
+                borderRadius: '1rem',
+                border: '1px dashed #8ea6ff',
+                color: '#1d4f7d',
+                padding: '1.25rem',
+              }}
+            >
+              <p className="text-sm font-semibold">{t('login.pwaBanner.title')}</p>
+              <p className="mt-2 text-sm">{t('login.pwaBanner.description')}</p>
+              <p className="mt-3 text-xs" style={{ color: '#405089' }}>
+                {t('login.pwaBanner.retryHint')}
+              </p>
+            </aside>
+          )}
+
           {/* Email Form - Show when email not sent yet */}
           {!emailSent && (
-            <form onSubmit={handleSendMagicLink} className="space-y-8">
+            <form
+              onSubmit={handleSendMagicLink}
+              className="space-y-8"
+              aria-describedby={instructionsId}
+              aria-busy={isLoading}
+            >
               <div className="space-y-3 text-left">
                 <label htmlFor="email" style={{ color: '#333333' }}>
                   {t('login.emailLabel')}
@@ -216,6 +290,13 @@ function LoginContent() {
                   required
                   disabled={isLoading}
                   autoFocus
+                  inputMode="email"
+                  autoComplete="email"
+                  autoCapitalize="none"
+                  enterKeyHint="send"
+                  spellCheck={false}
+                  aria-describedby={describedBy}
+                  aria-invalid={message?.type === 'error' ? true : undefined}
                 />
               </div>
 
@@ -262,6 +343,7 @@ function LoginContent() {
 
               {/* Instructions */}
               <div
+                id={instructionsId}
                 className="rounded-2xl p-5 sm:p-6"
                 style={{
                   backgroundColor: '#f0f9ff',
@@ -307,13 +389,17 @@ function LoginContent() {
           {/* Message Display */}
           {message && (
             <div
-              className={`mt-6 p-4 rounded-xl text-sm ${
+              id={messageId}
+              className={`mt-6 rounded-xl p-4 text-sm ${
                 message.type === 'success'
                   ? 'status-active'
                   : message.type === 'error'
                     ? 'status-inactive'
                     : ''
               }`}
+              role={message.type === 'error' ? 'alert' : 'status'}
+              aria-live={message.type === 'error' ? 'assertive' : 'polite'}
+              aria-atomic="true"
               style={
                 message.type === 'info'
                   ? {
