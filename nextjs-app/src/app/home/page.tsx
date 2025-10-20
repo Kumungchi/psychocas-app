@@ -30,12 +30,15 @@ import { logDebug, logError, logWarn } from '@/lib/logging';
 import Button from '@/ui/components/Button';
 import Card from '@/ui/components/Card';
 import Badge from '@/ui/components/Badge';
+import {
+  asTranslationKey,
+  resolveTranslatable,
+  getDateLocale,
+} from '@/lib/i18n/utils';
 
-const OFFLINE_REFRESH_MESSAGE = 'Pro obnovení dat se prosím připojte k internetu.';
-const OFFLINE_TOKEN_MESSAGE = 'Pro vygenerování nového kódu je nutné připojení k internetu.';
-const OFFLINE_CARD_HINT = 'Pro generování nebo obnovu členského kódu je vyžadováno připojení k internetu.';
-const TOKEN_QUEUE_MESSAGE = 'Žádost o nový kód bude odeslána, jakmile se znovu připojíte k internetu.';
-const REFRESH_GENERIC_ERROR = 'Nepodařilo se obnovit data. Zkuste to prosím znovu.';
+const OFFLINE_REFRESH_MESSAGE = asTranslationKey('home.errors.offlineRefresh');
+const OFFLINE_TOKEN_MESSAGE = asTranslationKey('home.errors.offlineToken');
+const REFRESH_GENERIC_ERROR = asTranslationKey('home.errors.genericRefresh');
 const copyTextToClipboard = async (text: string): Promise<boolean> => {
   if (
     typeof navigator !== 'undefined' &&
@@ -112,12 +115,17 @@ function HomeContent() {
     scope: 'home',
     onUnauthorized: () => router.push('/login'),
   });
-  const { t } = useLocale();
+  const { t, locale, formatMessage } = useLocale();
+  const dateLocale = getDateLocale(locale);
+  const translate = useCallback(
+    (value: string | null | undefined) => resolveTranslatable(value ?? null, t),
+    [t]
+  );
 
   useEffect(() => {
     const errorParam = searchParams.get('error');
     if (errorParam === 'unauthorized') {
-      setError('Nemáte oprávnění k přístupu na tuto stránku.');
+      setError(asTranslationKey('home.unauthorized'));
       const timeout = setTimeout(() => {
         router.replace('/home');
       }, 5000);
@@ -126,29 +134,35 @@ function HomeContent() {
     return undefined;
   }, [router, searchParams]);
 
-  const formatExpiryDate = useCallback((dateStr: string | null) => {
-    if (!dateStr) return 'Neuvedeno';
-    try {
-      return new Intl.DateTimeFormat('cs-CZ', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      }).format(new Date(dateStr));
-    } catch (dateError) {
-      logError('home', 'Error formatting expiry date.', dateError);
-      return 'Neuvedeno';
-    }
-  }, []);
+  const formatExpiryDate = useCallback(
+    (dateStr: string | null) => {
+      if (!dateStr) return t('home.expiryUnknown');
+      try {
+        return new Intl.DateTimeFormat(dateLocale, {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        }).format(new Date(dateStr));
+      } catch (dateError) {
+        logError('home', 'Error formatting expiry date.', dateError);
+        return t('home.expiryUnknown');
+      }
+    },
+    [dateLocale, t]
+  );
 
-  const formatRemainingTime = useCallback((ms: number) => {
-    if (ms <= 0) {
-      return 'Vypršel';
-    }
+  const formatRemainingTime = useCallback(
+    (ms: number) => {
+      if (ms <= 0) {
+        return t('home.tokenExpired');
+      }
 
-    const minutes = Math.floor(ms / 60000);
-    const seconds = Math.floor((ms % 60000) / 1000);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  }, []);
+      const minutes = Math.floor(ms / 60000);
+      const seconds = Math.floor((ms % 60000) / 1000);
+      return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    },
+    [t]
+  );
 
   useEffect(() => {
     const snapshot = loadHomeSnapshot();
@@ -261,7 +275,7 @@ function HomeContent() {
         }
 
         if (memberResult.status === 'error' || !memberResult.user || !memberResult.member) {
-          const message = memberResult.error ?? 'Nepodařilo se načíst informace o členství.';
+          const message = memberResult.error ?? asTranslationKey('home.errors.loadMember');
           setError((prev) => prev ?? message);
           return false;
         }
@@ -287,7 +301,7 @@ function HomeContent() {
         if (partnersResponse.error) {
           logError('home', 'Error fetching partner data', partnersResponse.error);
           setPartners([]);
-          setPartnersError('Nepodařilo se načíst partnerské podniky.');
+          setPartnersError(asTranslationKey('home.errors.loadPartners'));
           return false;
         }
 
@@ -323,7 +337,7 @@ function HomeContent() {
         return true;
       } catch (fetchError) {
         logError('home', 'Unexpected error loading home screen.', fetchError);
-        setError((prev) => prev ?? 'Došlo k neočekávané chybě při načítání údajů.');
+        setError((prev) => prev ?? asTranslationKey('home.errors.loadUnexpected'));
         return false;
       } finally {
         setLoading(false);
@@ -437,14 +451,14 @@ function HomeContent() {
 
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => ({}));
-        throw new Error(errorPayload.error || 'Nepodařilo se vygenerovat kód.');
+        throw new Error(errorPayload.error || asTranslationKey('home.errors.generateFailed'));
       }
 
       const payload = await response.json();
       const expiresAt = payload?.expiresAt ?? payload?.expires_at;
 
       if (!payload?.code || !expiresAt) {
-        throw new Error('Odpověď neobsahuje platný kód.');
+        throw new Error(asTranslationKey('home.errors.generateInvalid'));
       }
 
       setToken({ code: payload.code, expiresAt });
@@ -456,7 +470,7 @@ function HomeContent() {
       setTokenError(
         generationError instanceof Error
           ? generationError.message
-          : 'Nastala neočekávaná chyba při generování kódu.'
+          : asTranslationKey('home.errors.generateUnknown')
       );
     } finally {
       setTokenLoading(false);
@@ -472,7 +486,7 @@ function HomeContent() {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } else {
-      setTokenError('Nepodařilo se zkopírovat kód do schránky.');
+      setTokenError(asTranslationKey('home.errors.clipboard'));
     }
   }, [token]);
 
@@ -481,13 +495,13 @@ function HomeContent() {
     try {
       const result = await promptInstall();
       if (result.outcome === 'unavailable') {
-        setInstallError('Instalaci je potřeba spustit přímo z nabídky prohlížeče „Přidat na plochu“.');
+        setInstallError(asTranslationKey('home.install.unavailable'));
       } else if (result.outcome === 'dismissed') {
-        setInstallError('Instalace byla zrušena. Zkuste to prosím znovu později.');
+        setInstallError(asTranslationKey('home.install.dismissed'));
       }
     } catch (installErrorInstance) {
       logError('home', 'Error triggering PWA install.', installErrorInstance);
-      setInstallError('Instalaci se nepodařilo spustit. Zkuste to prosím znovu.');
+      setInstallError(asTranslationKey('home.install.failed'));
     }
   }, [promptInstall]);
 
@@ -514,7 +528,7 @@ function HomeContent() {
   const offlineSnapshotLabel = useMemo(() => {
     if (!snapshotSavedAt) return null;
     try {
-      return new Intl.DateTimeFormat('cs-CZ', {
+      return new Intl.DateTimeFormat(dateLocale, {
         dateStyle: 'short',
         timeStyle: 'short',
       }).format(new Date(snapshotSavedAt));
@@ -522,12 +536,12 @@ function HomeContent() {
       logError('home', 'Error formatting snapshot timestamp.', formatError);
       return snapshotSavedAt;
     }
-  }, [snapshotSavedAt]);
+  }, [dateLocale, snapshotSavedAt]);
 
   const lastSyncedLabel = useMemo(() => {
     if (!lastSyncedAt) return null;
     try {
-      return new Intl.DateTimeFormat('cs-CZ', {
+      return new Intl.DateTimeFormat(dateLocale, {
         dateStyle: 'short',
         timeStyle: 'short',
       }).format(new Date(lastSyncedAt));
@@ -535,12 +549,12 @@ function HomeContent() {
       logError('home', 'Error formatting last synced timestamp.', formatError);
       return lastSyncedAt;
     }
-  }, [lastSyncedAt]);
+  }, [dateLocale, lastSyncedAt]);
 
   const lastRefreshAttemptLabel = useMemo(() => {
     if (!lastRefreshAttemptAt) return null;
     try {
-      return new Intl.DateTimeFormat('cs-CZ', {
+      return new Intl.DateTimeFormat(dateLocale, {
         dateStyle: 'short',
         timeStyle: 'short',
       }).format(new Date(lastRefreshAttemptAt));
@@ -548,7 +562,7 @@ function HomeContent() {
       logError('home', 'Error formatting refresh attempt timestamp.', formatError);
       return lastRefreshAttemptAt;
     }
-  }, [lastRefreshAttemptAt]);
+  }, [dateLocale, lastRefreshAttemptAt]);
 
   const handleRefresh = useCallback(async () => {
     const attemptTimestamp = new Date().toISOString();
@@ -575,69 +589,77 @@ function HomeContent() {
     }
   }, [fetchMemberContext, isOnline]);
 
-  const renderPartnerCard = useCallback((partner: PartnerOfferRecord) => {
-    const locationLabel = partner.city || partner.branch?.city || partner.branch?.name || null;
-    const hasDiscount = typeof partner.discount_percentage === 'number' && !Number.isNaN(partner.discount_percentage);
-    const branchLabel = partner.scope === 'local' ? partner.branch?.name ?? null : null;
+  const renderPartnerCard = useCallback(
+    (partner: PartnerOfferRecord) => {
+      const locationSource = partner.city || partner.branch?.city || partner.branch?.name || null;
+      const locationLabel = translate(locationSource) ?? locationSource;
+      const hasDiscount =
+        typeof partner.discount_percentage === 'number' && !Number.isNaN(partner.discount_percentage);
+      const branchLabelSource = partner.scope === 'local' ? partner.branch?.name ?? null : null;
+      const branchLabel = translate(branchLabelSource) ?? branchLabelSource;
+      const title = translate(partner.title) ?? partner.title;
+      const description = translate(partner.description) ?? partner.description;
 
-    return (
-      <div
-        key={partner.id}
-        className="flex items-center justify-between gap-4 rounded-xl border px-4 py-3"
-        style={{ borderColor: '#e0e0e0', backgroundColor: '#f9fafb' }}
-      >
-        <div>
-          <p className="font-medium" style={{ color: '#333333' }}>{partner.title}</p>
-          {locationLabel && (
-            <p className="mt-1 flex items-center gap-2 text-sm" style={{ color: '#666666' }}>
-              <MapPin className="h-4 w-4" />
-              {locationLabel}
-            </p>
-          )}
-          {branchLabel && (
-            <p className="mt-1 text-xs font-medium uppercase tracking-wide" style={{ color: '#1d4f7d' }}>
-              Pobočka: {branchLabel}
-            </p>
-          )}
-          {partner.description && (
-            <p className="mt-2 text-sm" style={{ color: '#4b5563' }}>{partner.description}</p>
-          )}
+      return (
+        <div
+          key={partner.id}
+          className="flex items-center justify-between gap-4 rounded-xl border px-4 py-3"
+          style={{ borderColor: '#e0e0e0', backgroundColor: '#f9fafb' }}
+        >
+          <div>
+            <p className="font-medium" style={{ color: '#333333' }}>{title}</p>
+            {locationLabel && (
+              <p className="mt-1 flex items-center gap-2 text-sm" style={{ color: '#666666' }}>
+                <MapPin className="h-4 w-4" />
+                {locationLabel}
+              </p>
+            )}
+            {branchLabel && (
+              <p className="mt-1 text-xs font-medium uppercase tracking-wide" style={{ color: '#1d4f7d' }}>
+                {`${t('home.partners.branchLabel')}: ${branchLabel}`}
+              </p>
+            )}
+            {description && (
+              <p className="mt-2 text-sm" style={{ color: '#4b5563' }}>{description}</p>
+            )}
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            {partner.discount_code && (
+              <span
+                className="px-3 py-1 text-xs font-semibold uppercase"
+                style={{
+                  backgroundColor: '#ede9fe',
+                  color: '#5b21b6',
+                  borderRadius: '9999px',
+                  letterSpacing: '0.08em',
+                }}
+              >
+                {partner.discount_code}
+              </span>
+            )}
+            {hasDiscount && (
+              <span
+                className="px-3 py-1 text-sm font-semibold"
+                style={{
+                  backgroundColor: '#e1f5fe',
+                  color: '#0277bd',
+                  borderRadius: '9999px',
+                }}
+              >
+                -{partner.discount_percentage}%
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          {partner.discount_code && (
-            <span
-              className="px-3 py-1 text-xs font-semibold uppercase"
-              style={{
-                backgroundColor: '#ede9fe',
-                color: '#5b21b6',
-                borderRadius: '9999px',
-                letterSpacing: '0.08em',
-              }}
-            >
-              {partner.discount_code}
-            </span>
-          )}
-          {hasDiscount && (
-          <span
-            className="px-3 py-1 text-sm font-semibold"
-            style={{
-              backgroundColor: '#e1f5fe',
-              color: '#0277bd',
-              borderRadius: '9999px',
-            }}
-          >
-            -{partner.discount_percentage}%
-          </span>
-          )}
-        </div>
-      </div>
-    );
-  }, []);
+      );
+    },
+    [t, translate]
+  );
 
   const isApproved = memberData?.approved ?? true;
   const canGenerateToken = Boolean(memberData?.membership_active) && isApproved;
-  const branchName = memberData?.branch?.name ?? null;
-  const branchLocation = memberData?.branch?.location || memberData?.branch?.city || null;
+  const branchName = translate(memberData?.branch?.name);
+  const branchLocation = translate(memberData?.branch?.location || memberData?.branch?.city);
   const memberEmail = memberData?.email || user?.email || '';
   const partnerSectionHasContent = partnerGroups.national.length > 0 || partnerGroups.local.length > 0;
   const showManagementShortcuts = memberData ? ['manager', 'council', 'technician'].includes(memberData.role) : false;
@@ -654,7 +676,7 @@ function HomeContent() {
       <main className="psychocas-section flex items-center justify-center">
         <div className="text-center fade-in-up">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto mb-4" style={{ borderColor: '#1d4f7d' }}></div>
-          <p style={{ color: '#666666' }}>Načítám...</p>
+          <p style={{ color: '#666666' }}>{t('home.loading')}</p>
         </div>
       </main>
     );
@@ -666,16 +688,16 @@ function HomeContent() {
         <div className="psychocas-container fade-in-up">
           <div className="psychocas-card text-center">
             <div className="text-4xl mb-4" style={{ color: '#c62828' }}>⚠️</div>
-            <h2 className="mb-2">Člen nenalezen</h2>
+            <h2 className="mb-2">{t('home.memberMissing.title')}</h2>
             <p className="mb-6" style={{ color: '#666666' }}>
-              Tvůj účet není registrován jako člen spolku
+              {t('home.memberMissing.description')}
             </p>
             <button
               onClick={handleSignOut}
               className="psychocas-button-primary"
               style={{ backgroundColor: '#c62828' }}
             >
-              Odhlásit se
+              {t('home.memberMissing.signOut')}
             </button>
           </div>
         </div>
@@ -689,7 +711,7 @@ function HomeContent() {
         {error && (
           <Card
             title={t('home.membership')}
-            subtitle={error}
+            subtitle={resolveTranslatable(error, t) ?? undefined}
             headerSlot={<Badge tone="danger">{t('home.membershipInactive')}</Badge>}
             padding="sm"
           />
@@ -704,11 +726,10 @@ function HomeContent() {
               <Clock className="h-5 w-5 flex-shrink-0" style={{ color: '#1d4f7d' }} />
               <div className="space-y-1">
                 <h3 className="text-base font-semibold" style={{ color: '#1d4f7d' }}>
-                  Offline režim
+                  {t('home.offline.title')}
                 </h3>
                 <p className="text-sm" style={{ color: '#1d4f7d' }}>
-                  Zobrazujeme uložená data ze {offlineSnapshotLabel}. Po připojení k internetu se údaje
-                  automaticky aktualizují.
+                  {formatMessage('home.offline.description', { label: offlineSnapshotLabel })}
                 </p>
               </div>
             </div>
@@ -725,18 +746,18 @@ function HomeContent() {
               )}
               <span>
                 {lastRefreshStatus === 'success'
-                  ? `Obnoveno ${lastRefreshAttemptLabel}`
-                  : `Obnovení selhalo ${lastRefreshAttemptLabel}`}
+                  ? formatMessage('home.refreshStatus.success', { timestamp: lastRefreshAttemptLabel })
+                  : formatMessage('home.refreshStatus.error', { timestamp: lastRefreshAttemptLabel })}
               </span>
-            </div>
-          )}
+          </div>
+        )}
           <Button
             type="button"
             variant="secondary"
             onClick={handleRefresh}
             disabled={isRefreshing || !isOnline}
           >
-            {isRefreshing ? 'Aktualizuji…' : t('home.refresh')}
+            {isRefreshing ? t('home.refreshing') : t('home.refresh')}
           </Button>
         </div>
 
@@ -767,18 +788,18 @@ function HomeContent() {
         <div className="psychocas-card">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-2">
-              <h2 style={{ color: '#333333' }}>Stáhněte si Psychočas do zařízení</h2>
+              <h2 style={{ color: '#333333' }}>{t('home.install.heading')}</h2>
               <p className="text-sm" style={{ color: '#666666' }}>
-                Instalací aplikace na plochu můžete využívat členský průkaz i bez připojení k internetu.
+                {t('home.install.description')}
               </p>
               {!canInstall && !installed && (
                 <p className="text-xs" style={{ color: '#1d4f7d' }}>
-                  Pokud tlačítko není aktivní, otevřete nabídku prohlížeče a zvolte možnost „Přidat na plochu“.
+                  {t('home.install.instructions')}
                 </p>
               )}
               {installed && (
                 <p className="text-xs" style={{ color: '#047857' }}>
-                  Aplikace je již nainstalována na tomto zařízení.
+                  {t('home.install.installed')}
                 </p>
               )}
             </div>
@@ -795,16 +816,16 @@ function HomeContent() {
               }}
             >
               <Download className="h-4 w-4" />
-              Stáhnout aplikaci
+              {t('home.install.button')}
             </button>
           </div>
           {canInstall && !installed && (
             <p className="mt-3 text-xs" style={{ color: '#666666' }}>
-              Po stisknutí tlačítka potvrďte instalaci v dialogu vašeho prohlížeče.
+              {t('home.install.confirm')}
             </p>
           )}
           {installError && (
-            <p className="mt-3 text-sm" style={{ color: '#b91c1c' }}>{installError}</p>
+            <p className="mt-3 text-sm" style={{ color: '#b91c1c' }}>{resolveTranslatable(installError, t)}</p>
           )}
         </div>
 
@@ -813,9 +834,9 @@ function HomeContent() {
             <div className="flex items-start gap-3">
               <ShieldAlert className="h-5 w-5 flex-shrink-0" style={{ color: '#c2410c' }} />
               <div className="space-y-1">
-                <h3 className="text-base font-semibold" style={{ color: '#c2410c' }}>Čeká na schválení</h3>
+                <h3 className="text-base font-semibold" style={{ color: '#c2410c' }}>{t('home.pendingApproval.title')}</h3>
                 <p className="text-sm" style={{ color: '#9a3412' }}>
-                  Vaše přihláška je v procesu ověření. Jakmile vás tým Psychočas schválí, zpřístupní se všechny členské výhody.
+                  {t('home.pendingApproval.description')}
                 </p>
               </div>
             </div>
@@ -829,7 +850,7 @@ function HomeContent() {
               <p className="text-sm" style={{ color: '#666666' }}>{memberEmail}</p>
               {lastSyncedLabel && (
                 <p className="text-xs" style={{ color: '#9ca3af' }}>
-                  Naposledy aktualizováno: {lastSyncedLabel}
+                  {formatMessage('home.lastSyncedPrefix', { timestamp: lastSyncedLabel })}
                 </p>
               )}
             </div>
@@ -851,16 +872,20 @@ function HomeContent() {
                   memberData.membership_active ? 'status-active' : 'status-inactive'
                 }`}
               >
-                {memberData.membership_active ? '✓ Aktivní' : '✗ Neaktivní'}
+                {memberData.membership_active
+                  ? t('home.membershipStatusBadgeActive')
+                  : t('home.membershipStatusBadgeInactive')}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span style={{ color: '#666666' }}>Platnost do</span>
+              <span style={{ color: '#666666' }}>{t('home.membershipValidity')}</span>
               <span style={{ color: '#333333', fontWeight: 500 }}>{formatExpiryDate(memberData.membership_expires)}</span>
             </div>
             {branchName && (
               <div className="rounded-xl px-4 py-3" style={{ backgroundColor: '#f8fafc' }}>
-                <p className="text-xs uppercase tracking-wide" style={{ color: '#1d4f7d', fontWeight: 600 }}>Lokální pobočka</p>
+                <p className="text-xs uppercase tracking-wide" style={{ color: '#1d4f7d', fontWeight: 600 }}>
+                  {t('home.membershipLocalBranch')}
+                </p>
                 <p className="mt-1 text-sm" style={{ color: '#333333' }}>
                   {branchName}
                   {branchLocation ? ` • ${branchLocation}` : ''}
@@ -873,15 +898,15 @@ function HomeContent() {
         <div className="psychocas-card">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
-              <h2 style={{ color: '#333333' }}>Digitální členská karta</h2>
+              <h2 style={{ color: '#333333' }}>{t('home.membershipCard.heading')}</h2>
               <p className="text-sm" style={{ color: '#666666' }}>
-                Prokažte se kódem u partnerských podniků Psychočas. Kód je platný 3 minuty.
+                {t('home.membershipCard.description')}
               </p>
             </div>
             {token && timeLeft > 0 && (
               <span className="flex items-center gap-1 text-sm font-medium" style={{ color: '#2e7d32' }}>
                 <CheckCircle2 className="h-5 w-5" />
-                Platný
+                {t('home.membershipCard.statusValid')}
               </span>
             )}
           </div>
@@ -892,19 +917,19 @@ function HomeContent() {
                 className="rounded-lg border px-3 py-2 text-sm"
                 style={{ borderColor: '#f97316', backgroundColor: '#fff7ed', color: '#9a3412' }}
               >
-                {OFFLINE_CARD_HINT}
+                {t('home.offline.cardHint')}
               </div>
             )}
             {pendingTokenRequest && !isOnline && (
-              <p className="text-sm" style={{ color: '#1d4f7d' }}>
-                {TOKEN_QUEUE_MESSAGE}
-              </p>
+              <p className="text-sm" style={{ color: '#1d4f7d' }}>{t('home.offline.queueMessage')}</p>
             )}
             {token ? (
               <div className="rounded-2xl border px-4 py-5" style={{ borderColor: '#bbdefb', backgroundColor: '#e3f2fd' }}>
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-xs uppercase tracking-wide" style={{ color: '#1d4f7d', fontWeight: 600 }}>Hash kód</p>
+                    <p className="text-xs uppercase tracking-wide" style={{ color: '#1d4f7d', fontWeight: 600 }}>
+                      {t('home.membershipCard.hashLabel')}
+                    </p>
                     <p className="mt-2 font-mono text-2xl" style={{ color: '#1d4f7d', letterSpacing: '0.2rem' }}>{token.code}</p>
                   </div>
                   <CheckCircle2 className="h-10 w-10" style={{ color: '#2e7d32' }} />
@@ -926,7 +951,7 @@ function HomeContent() {
                     }}
                   >
                     <Copy className="h-4 w-4" />
-                    Kopírovat
+                    {t('home.membershipCard.copy')}
                   </button>
                 </div>
               </div>
@@ -935,15 +960,15 @@ function HomeContent() {
                 className="rounded-2xl border border-dashed px-4 py-5 text-sm"
                 style={{ borderColor: '#cbd5f5', backgroundColor: '#f8fafc', color: '#666666' }}
               >
-                Zatím nemáte aktivní kód. Klikněte na tlačítko níže a vytvořte si nový.
+                {t('home.membershipCard.noToken')}
               </div>
             )}
 
             {tokenError && (
-              <p className="text-sm" style={{ color: '#c62828' }}>{tokenError}</p>
+              <p className="text-sm" style={{ color: '#c62828' }}>{resolveTranslatable(tokenError, t)}</p>
             )}
             {copied && (
-              <p className="text-xs" style={{ color: '#2e7d32' }}>Kód byl zkopírován do schránky.</p>
+              <p className="text-xs" style={{ color: '#2e7d32' }}>{t('home.membershipCard.copied')}</p>
             )}
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -952,22 +977,26 @@ function HomeContent() {
                 disabled={!canGenerateToken || tokenLoading}
                 className="psychocas-button-primary"
               >
-                {tokenLoading ? 'Generuji…' : token ? 'Obnovit kód' : 'Vygenerovat kód'}
+                {tokenLoading
+                  ? t('home.membershipCard.generateLoading')
+                  : token
+                    ? t('home.membershipCard.generateRefresh')
+                    : t('home.membershipCard.generateCreate')}
               </button>
               <button
                 onClick={() => router.push('/redeem')}
                 className="psychocas-button-secondary"
               >
                 <QrCode className="h-5 w-5" />
-                Zobrazit QR
+                {t('home.membershipCard.showQr')}
               </button>
             </div>
 
             {!canGenerateToken && (
               <p className="text-sm" style={{ color: '#c62828' }}>
                 {memberData.approved === false
-                  ? 'Kód bude dostupný ihned po schválení členství.'
-                  : 'Pro generování kódu je potřeba mít aktivní členství.'}
+                  ? t('home.membershipCard.pendingApproval')
+                  : t('home.membershipCard.requireActive')}
               </p>
             )}
           </div>
@@ -976,9 +1005,9 @@ function HomeContent() {
         <div className="psychocas-card">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
-              <h2 style={{ color: '#333333' }}>Partnerské podniky</h2>
+              <h2 style={{ color: '#333333' }}>{t('home.partners.heading')}</h2>
               <p className="text-sm" style={{ color: '#666666' }}>
-                Vyberte si z celostátních i lokálních partnerů a čerpejte členské slevy.
+                {t('home.partners.description')}
               </p>
             </div>
             <MapPin className="h-6 w-6" style={{ color: '#1d4f7d' }} />
@@ -989,32 +1018,30 @@ function HomeContent() {
               <div className="animate-spin rounded-full h-6 w-6 border-b-2" style={{ borderColor: '#1d4f7d' }}></div>
             </div>
           ) : !isApproved ? (
-            <p className="text-sm" style={{ color: '#c2410c' }}>
-              Jakmile bude vaše členství schváleno, zobrazí se zde celostátní i lokální nabídky vašeho regionu.
-            </p>
+            <p className="text-sm" style={{ color: '#c2410c' }}>{t('home.partners.approvalsPending')}</p>
           ) : (
             <div className="space-y-5">
               {partnerGroups.national.length > 0 && (
                 <div className="space-y-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#1d4f7d' }}>Celorepublikové výhody</h3>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#1d4f7d' }}>
+                    {t('home.partners.national')}
+                  </h3>
                   {partnerGroups.national.map(renderPartnerCard)}
                 </div>
               )}
               {partnerGroups.local.length > 0 && (
                 <div className="space-y-3">
                   <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#1d4f7d' }}>
-                    Lokální partneři{branchLocation ? ` – ${branchLocation}` : ''}
+                    {formatMessage('home.partners.local', { location: branchLocation ? ` – ${branchLocation}` : '' })}
                   </h3>
                   {partnerGroups.local.map(renderPartnerCard)}
                 </div>
               )}
               {!partnerSectionHasContent && !partnersError && (
-                <p className="text-sm" style={{ color: '#666666' }}>
-                  Zatím zde nejsou zveřejněni žádní partneři. Jakmile budou k dispozici, objeví se na tomto místě.
-                </p>
+                <p className="text-sm" style={{ color: '#666666' }}>{t('home.partners.empty')}</p>
               )}
               {partnersError && (
-                <p className="text-sm" style={{ color: '#c62828' }}>{partnersError}</p>
+                <p className="text-sm" style={{ color: '#c62828' }}>{resolveTranslatable(partnersError, t)}</p>
               )}
               {showPartnerDiagnostics && (
                 <div
@@ -1026,36 +1053,43 @@ function HomeContent() {
                     className="text-sm font-semibold"
                     style={{ color: partnerDiagnostics.hasIssues ? '#b91c1c' : '#047857' }}
                   >
-                    Kontrola viditelnosti partnerů:
-                    {' '}
-                    {partnerDiagnostics.hasIssues ? 'vyžaduje pozornost' : 'vše v pořádku'}
+                    {t('home.partners.diagnosticsTitle')}{' '}
+                    {partnerDiagnostics.hasIssues
+                      ? t('home.partners.diagnosticsNeedsAttention')
+                      : t('home.partners.diagnosticsOk')}
                   </p>
                   {partnerDiagnostics.hasIssues ? (
                     <ul className="mt-2 list-disc space-y-1 pl-4 text-xs" style={{ color: '#991b1b' }}>
                       {partnerDiagnostics.hiddenEligible.length > 0 && (
                         <li>
-                          {partnerDiagnostics.hiddenEligible.length} lokálních nabídek odpovídá vaší pobočce, ale zůstává skryto.
+                          {formatMessage('home.partners.diagnosticsHiddenEligible', {
+                            count: partnerDiagnostics.hiddenEligible.length,
+                          })}
                         </li>
                       )}
                       {partnerDiagnostics.extraneousLocal.length > 0 && (
                         <li>
-                          {partnerDiagnostics.extraneousLocal.length} zobrazených lokálních nabídek neodpovídá přiřazené pobočce.
+                          {formatMessage('home.partners.diagnosticsExtraneousLocal', {
+                            count: partnerDiagnostics.extraneousLocal.length,
+                          })}
                         </li>
                       )}
                       {partnerDiagnostics.extraneousNational.length > 0 && (
                         <li>
-                          {partnerDiagnostics.extraneousNational.length} nabídek je označeno jako celostátní, ale nesplňuje tuto podmínku.
+                          {formatMessage('home.partners.diagnosticsExtraneousNational', {
+                            count: partnerDiagnostics.extraneousNational.length,
+                          })}
                         </li>
                       )}
                     </ul>
                   ) : (
-                    <p className="mt-2 text-xs" style={{ color: '#047857' }}>
-                      Všechny zobrazené nabídky odpovídají aktuálnímu přiřazení člena.
-                    </p>
+                    <p className="mt-2 text-xs" style={{ color: '#047857' }}>{t('home.partners.diagnosticsAllMatched')}</p>
                   )}
                   {partnerGroups.excluded.length > 0 && !partnerDiagnostics.hasIssues && (
                     <p className="mt-2 text-xs" style={{ color: '#4b5563' }}>
-                      Skrytých nabídek mimo vaši pobočku: {partnerGroups.excluded.length}.
+                      {formatMessage('home.partners.diagnosticsExcluded', {
+                        count: partnerGroups.excluded.length,
+                      })}
                     </p>
                   )}
                 </div>
@@ -1066,7 +1100,7 @@ function HomeContent() {
 
         {showManagementShortcuts && (
           <div className="psychocas-card">
-            <h2 className="mb-4" style={{ color: '#333333' }}>Správa a statistiky</h2>
+            <h2 className="mb-4" style={{ color: '#333333' }}>{t('home.management.heading')}</h2>
             <div className="space-y-3">
               {(memberData.role === 'manager' || memberData.role === 'council') && (
                 <>
@@ -1075,7 +1109,7 @@ function HomeContent() {
                     className="w-full flex items-center justify-between gap-4 rounded-xl border px-4 py-3 transition-colors duration-300 hover:bg-gray-50"
                     style={{ borderColor: '#e0e0e0', color: '#333333' }}
                   >
-                    <span>Validovat kód</span>
+                    <span>{t('home.management.validate')}</span>
                     <span style={{ color: '#1d4f7d' }}>→</span>
                   </button>
                   <button
@@ -1083,7 +1117,7 @@ function HomeContent() {
                     className="w-full flex items-center justify-between gap-4 rounded-xl border px-4 py-3 transition-colors duration-300 hover:bg-gray-50"
                     style={{ borderColor: '#e0e0e0', color: '#333333' }}
                   >
-                    <span>Statistiky</span>
+                    <span>{t('home.management.stats')}</span>
                     <span style={{ color: '#1d4f7d' }}>→</span>
                   </button>
                 </>
@@ -1094,7 +1128,7 @@ function HomeContent() {
                   className="w-full flex items-center justify-between gap-4 rounded-xl border px-4 py-3 transition-colors duration-300 hover:bg-gray-50"
                   style={{ borderColor: '#e0e0e0', color: '#333333' }}
                 >
-                  <span>Technická správa</span>
+                  <span>{t('home.management.technician')}</span>
                   <span style={{ color: '#1d4f7d' }}>→</span>
                 </button>
               )}
@@ -1114,16 +1148,25 @@ function HomeContent() {
   );
 }
 
+function HomeLoadingFallback() {
+  const { t } = useLocale();
+
+  return (
+    <main className="psychocas-section flex items-center justify-center">
+      <div className="text-center fade-in-up">
+        <div
+          className="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto mb-4"
+          style={{ borderColor: '#1d4f7d' }}
+        ></div>
+        <p style={{ color: '#666666' }}>{t('home.loading')}</p>
+      </div>
+    </main>
+  );
+}
+
 export default function Home() {
   return (
-    <Suspense fallback={
-      <main className="psychocas-section flex items-center justify-center">
-        <div className="text-center fade-in-up">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto mb-4" style={{ borderColor: '#1d4f7d' }}></div>
-          <p style={{ color: '#666666' }}>Načítám...</p>
-        </div>
-      </main>
-    }>
+    <Suspense fallback={<HomeLoadingFallback />}>
       <HomeContent />
     </Suspense>
   );

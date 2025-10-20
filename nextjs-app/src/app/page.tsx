@@ -1,20 +1,28 @@
-'use client'
+'use client';
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import useLocale from '@/hooks/useLocale';
 
 export default function RootPage() {
   const router = useRouter();
+  const { t } = useLocale();
 
   useEffect(() => {
     router.push('/login');
   }, [router]);
 
   return (
-    <main className="psychocas-section flex items-center justify-center">
-      <div className="text-center fade-in-up">
-        <div className="mb-8 flex justify-center">
-          <svg width="100" height="100" viewBox="-60 -60 120 120" xmlns="http://www.w3.org/2000/svg">
+    <main className="psychocas-section flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
+      <div className="fade-in-up text-center">
+        <div className="mb-6 flex justify-center sm:mb-8">
+          <svg
+            width="100"
+            height="100"
+            viewBox="-60 -60 120 120"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden
+          >
             <defs>
               <linearGradient id="rootLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" style={{ stopColor: '#1d4f7d', stopOpacity: 1 }} />
@@ -32,8 +40,10 @@ export default function RootPage() {
             <circle cx="-40" cy="0" r="4" fill="white"/>
           </svg>
         </div>
-        <h1 className="mb-4">Psychočas</h1>
-        <p style={{ color: '#666666' }}>Přesměrovávání...</p>
+        <h1 className="mb-2 text-3xl font-semibold sm:text-[2rem]" style={{ color: '#1d4f7d' }}>
+          Psychočas
+        </h1>
+        <p className="auth-card__subtitle">{t('root.redirecting')}</p>
       </div>
     </main>
   );

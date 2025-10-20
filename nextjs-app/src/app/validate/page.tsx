@@ -7,14 +7,23 @@ import { Camera, CheckCircle, XCircle } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import useMemberContext from '@/hooks/useMemberContext';
 import { logError } from '@/lib/logging';
+import useLocale from '@/hooks/useLocale';
 
 export default function Validate() {
   const [inputCode, setInputCode] = useState('');
   const [validationResult, setValidationResult] = useState<'success' | 'error' | null>(null);
   const [isValidating, setIsValidating] = useState(false);
   const [lastValidatedCode, setLastValidatedCode] = useState('');
-  const [resultMessage, setResultMessage] = useState('');
+  const [resultMessage, setResultMessage] = useState<
+    | {
+        translationKey?: string;
+        text?: string;
+        params?: Record<string, string | number>;
+      }
+    | null
+  >(null);
   const router = useRouter();
+  const { t, formatMessage } = useLocale();
 
   const { member, status: memberStatus } = useMemberContext({
     scope: 'validate',
@@ -34,11 +43,12 @@ export default function Validate() {
     setIsValidating(true);
     setLastValidatedCode(code);
     setValidationResult(null);
+    setResultMessage(null);
 
     try {
       if (!hasAccess) {
         setValidationResult('error');
-        setResultMessage('Nemáte oprávnění validovat členské kódy.');
+        setResultMessage({ translationKey: 'validate.resultMessage.forbidden' });
         return;
       }
 
@@ -62,20 +72,28 @@ export default function Validate() {
       );
 
       const data = await response.json();
-      
+
       if (response.ok && data.success) {
         setValidationResult('success');
-        setResultMessage(`Kód validován! ${data.memberName ? `Člen: ${data.memberName}` : ''}`);
+        if (data.memberName) {
+          setResultMessage({ translationKey: 'validate.resultMessage.successWithMember', params: { member: data.memberName } });
+        } else {
+          setResultMessage({ translationKey: 'validate.resultMessage.success' });
+        }
         setInputCode(''); // Clear input on success
       } else {
         setValidationResult('error');
-        setResultMessage(data.error || 'Kód je neplatný nebo již byl použit');
+        if (data.error) {
+          setResultMessage({ text: data.error });
+        } else {
+          setResultMessage({ translationKey: 'validate.resultMessage.invalid' });
+        }
       }
 
     } catch (error) {
       logError('validate', 'Error validating code.', error);
       setValidationResult('error');
-      setResultMessage('Nastala neočekávaná chyba při validaci');
+      setResultMessage({ translationKey: 'validate.resultMessage.unexpected' });
     } finally {
       setIsValidating(false);
     }
@@ -104,8 +122,8 @@ export default function Validate() {
       <main className="psychocas-section pb-20">
         <div className="psychocas-container space-y-6 fade-in-up">
           <div className="psychocas-card text-center mt-10">
-            <h1 className="text-2xl font-semibold mb-3">Načítám oprávnění…</h1>
-            <p className="text-sm text-gray-600">Prosím vyčkejte, ověřujeme vaše členská oprávnění.</p>
+            <h1 className="text-2xl font-semibold mb-3">{t('validate.loadingTitle')}</h1>
+            <p className="text-sm text-gray-600">{t('validate.loadingDescription')}</p>
           </div>
         </div>
       </main>
@@ -117,10 +135,8 @@ export default function Validate() {
       <main className="psychocas-section pb-20">
         <div className="psychocas-container space-y-6 fade-in-up">
           <div className="psychocas-card text-center mt-10">
-            <h1 className="text-2xl font-semibold mb-3">Nepodařilo se načíst oprávnění</h1>
-            <p className="text-sm text-gray-600">
-              Zkuste stránku prosím obnovit. Pokud potíže přetrvávají, kontaktujte správce.
-            </p>
+            <h1 className="text-2xl font-semibold mb-3">{t('validate.loadErrorTitle')}</h1>
+            <p className="text-sm text-gray-600">{t('validate.loadErrorDescription')}</p>
           </div>
         </div>
       </main>
@@ -132,10 +148,8 @@ export default function Validate() {
       <main className="psychocas-section pb-20">
         <div className="psychocas-container space-y-6 fade-in-up">
           <div className="psychocas-card text-center mt-10">
-            <h1 className="text-2xl font-semibold mb-3">Přístup omezen</h1>
-            <p className="text-sm text-gray-600">
-              Nemáte oprávnění k ověřování kódů. Pokud si myslíte, že jde o chybu, kontaktujte prosím správce.
-            </p>
+            <h1 className="text-2xl font-semibold mb-3">{t('validate.accessDeniedTitle')}</h1>
+            <p className="text-sm text-gray-600">{t('validate.accessDeniedDescription')}</p>
           </div>
         </div>
       </main>
@@ -147,32 +161,24 @@ export default function Validate() {
       <div className="psychocas-container space-y-6 fade-in-up">
         {/* Header */}
         <div className="text-center pt-6">
-          <h1 className="mb-3">
-            Ověření kódu
-          </h1>
-          <p style={{ color: '#666666' }}>
-            Naskenujte nebo zadejte QR kód od zákazníka
-          </p>
+          <h1 className="mb-3">{t('validate.heading')}</h1>
+          <p style={{ color: '#666666' }}>{t('validate.headerDescription')}</p>
         </div>
 
         {/* QR Scanner Section */}
         <div className="psychocas-card">
           <div className="text-center mb-6">
-            <h3 style={{ color: '#333333' }}>
-              Naskenujte QR kód
-            </h3>
+            <h3 style={{ color: '#333333' }}>{t('validate.scanHeading')}</h3>
           </div>
-          
-          <div 
+
+          <div
             className="aspect-square max-w-64 mx-auto border-2 border-dashed rounded-2xl flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-all duration-300"
             style={{ borderColor: '#049edb' }}
             onClick={simulateQrScan}
           >
             <div className="text-center space-y-3">
               <Camera className="w-20 h-20 mx-auto" style={{ color: '#049edb' }} />
-              <p style={{ color: '#666666' }}>
-                Klikněte pro simulaci skenování
-              </p>
+              <p style={{ color: '#666666' }}>{t('validate.simulateHint')}</p>
             </div>
           </div>
         </div>
@@ -181,14 +187,12 @@ export default function Validate() {
         <div className="psychocas-card">
           <form onSubmit={handleManualValidation} className="space-y-6">
             <div className="text-center">
-              <h3 style={{ color: '#333333', marginBottom: '1rem' }}>
-                Nebo zadejte kód ručně
-              </h3>
+              <h3 style={{ color: '#333333', marginBottom: '1rem' }}>{t('validate.manualHeading')}</h3>
             </div>
-            
+
             <div className="space-y-3 text-left">
               <label htmlFor="code-input" style={{ color: '#333333' }}>
-                Kód
+                {t('validate.codeLabel')}
               </label>
               <input
                 id="code-input"
@@ -196,7 +200,7 @@ export default function Validate() {
                 value={inputCode}
                 onChange={(e) => setInputCode(e.target.value.toUpperCase())}
                 className="psychocas-input text-center text-lg tracking-wider font-mono"
-                placeholder="PSYCHO24-ABC123"
+                placeholder={t('validate.placeholder')}
                 disabled={isValidating}
                 style={{ fontFamily: 'SF Mono, Monaco, monospace' }}
               />
@@ -204,16 +208,16 @@ export default function Validate() {
 
             <button
               type="submit"
-            className="psychocas-button-primary"
-            disabled={isValidating || !inputCode.trim() || !hasAccess}
-          >
-            {isValidating ? 'Ověřuji...' : 'Ověřit kód'}
-          </button>
+              className="psychocas-button-primary"
+              disabled={isValidating || !inputCode.trim() || !hasAccess}
+            >
+              {isValidating ? t('validate.submitProcessing') : t('validate.submitDefault')}
+            </button>
         </form>
       </div>
 
         {/* Validation Result */}
-        {validationResult && (
+        {validationResult && resultMessage && (
           <div className={`psychocas-card ${
             validationResult === 'success' ? 'status-active' : 'status-inactive'
           }`}>
@@ -223,20 +227,26 @@ export default function Validate() {
               ) : (
                 <XCircle className="w-16 h-16 mx-auto" style={{ color: '#c62828' }} />
               )}
-              
+
               <div>
-                <h3 className="mb-2" style={{ 
-                  color: validationResult === 'success' ? '#2e7d32' : '#c62828' 
+                <h3 className="mb-2" style={{
+                  color: validationResult === 'success' ? '#2e7d32' : '#c62828'
                 }}>
-                  {validationResult === 'success' ? 'Kód platný!' : 'Kód neplatný'}
+                  {validationResult === 'success'
+                    ? t('validate.resultSuccessTitle')
+                    : t('validate.resultErrorTitle')}
                 </h3>
-                <p className="text-sm" style={{ 
-                  color: validationResult === 'success' ? '#2e7d32' : '#c62828' 
+                <p className="text-sm" style={{
+                  color: validationResult === 'success' ? '#2e7d32' : '#c62828'
                 }}>
-                  {resultMessage}
+                  {resultMessage.translationKey
+                    ? resultMessage.params
+                      ? formatMessage(resultMessage.translationKey, resultMessage.params)
+                      : t(resultMessage.translationKey)
+                    : resultMessage.text}
                 </p>
                 <p className="text-sm mt-3" style={{ color: '#666666' }}>
-                  Kód: <strong>{lastValidatedCode}</strong>
+                  {t('validate.resultCodeLabel')}: <strong>{lastValidatedCode}</strong>
                 </p>
               </div>
             </div>
@@ -245,13 +255,11 @@ export default function Validate() {
 
         {/* Instructions */}
         <div className="psychocas-card" style={{ backgroundColor: '#fff8e1', border: '1px solid #ffe082' }}>
-          <h4 className="mb-2" style={{ color: '#f57c00' }}>
-            ℹ️ Instrukce
-          </h4>
+          <h4 className="mb-2" style={{ color: '#f57c00' }}>{t('validate.instructionsCardTitle')}</h4>
           <ul className="space-y-2 text-sm" style={{ color: '#f57c00' }}>
-            <li>• Kód je platný 3 minuty od vygenerování</li>
-            <li>• Každý kód lze použít pouze jednou</li>
-            <li>• Po validaci bude kód automaticky označen jako použitý</li>
+            <li>{t('validate.instructionsPoints.validity')}</li>
+            <li>{t('validate.instructionsPoints.singleUse')}</li>
+            <li>{t('validate.instructionsPoints.afterUse')}</li>
           </ul>
         </div>
       </div>

@@ -46,6 +46,8 @@ npm run build     # Create a production build
 npm run start     # Run the production build locally
 npm run lint      # Lint the codebase
 npm run test      # Execute Vitest unit tests
+npm run test:vercel # Smoke-test a production build in a Vercel-like environment
+npm run verify    # Run linting, unit tests, and the Vercel build check
 ```
 
 ## Project Structure
@@ -62,4 +64,10 @@ src/
 
 ## Deployment
 The project is optimised for Vercel. Use the helper scripts in the repository root (`deploy.sh` / `deploy.bat`) to install dependencies, run a production build, and verify Supabase connectivity before pushing to production.
+
+For local smoke tests that mirror Vercel, run `npm run verify` — it lints the project, executes the Vitest suites, and performs the same PWA-aware production build verification that Vercel uses.
+
+### Role preview sandbox
+
+When you set `NEXT_PUBLIC_ENABLE_ROLE_PREVIEW=true` in your environment, the `/test` route unlocks a role preview tool. It lets you impersonate manager, council, and technician accounts without sending magic links so you can validate dashboard and redemption flows quickly on shared devices.
 

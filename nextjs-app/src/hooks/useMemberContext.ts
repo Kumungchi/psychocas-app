@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PostgrestResponse, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
+import {
+  isRolePreviewEnabled,
+  readRolePreview,
+  subscribeToRolePreview,
+  type RolePreviewState,
+} from '@/lib/demo/rolePreview';
 import type {
   BranchInfo,
   MemberData,
@@ -82,6 +88,28 @@ function normalizeMemberRow(memberRow: MemberRow | null): MemberData | null {
 }
 
 const MEMBER_ROLE_VALUES: MemberRole[] = ['member', 'manager', 'council', 'technician'];
+
+function buildPreviewMember(state: RolePreviewState): MemberData {
+  const fallbackRole: MemberRole = (state.role ?? 'member') as MemberRole;
+  const requiresBranch = fallbackRole === 'manager';
+  const branchId = state.branchId ?? (requiresBranch ? 'demo-branch' : null);
+  const branchName = state.branchName ?? (requiresBranch ? 'Demo Branch' : null);
+
+  return {
+    membership_active: true,
+    membership_expires: null,
+    full_name: state.fullName ?? 'Demo User',
+    role: fallbackRole,
+    branch_id: branchId,
+    email: state.email ?? 'demo@psychocas.cz',
+    approved: true,
+    approved_at: null,
+    phone: null,
+    branch: branchName ? { id: branchId ?? 'demo-branch', name: branchName } : null,
+    origin: 'demo',
+    trusted_access_expires_at: null,
+  };
+}
 
 function normalizeTrustedUser(
   trustedRow: TrustedUserRow | null,
@@ -274,11 +302,31 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
   const [error, setError] = useState<string | null>(null);
   const [usedTrustedFallback, setUsedTrustedFallback] = useState(false);
   const lastSyncedAtRef = useRef<string | null>(null);
+  const previewFeatureEnabled = isRolePreviewEnabled();
+  const [previewState, setPreviewState] = useState<RolePreviewState>(() =>
+    previewFeatureEnabled
+      ? readRolePreview()
+      : { role: null, branchId: null, branchName: null, fullName: null, email: null }
+  );
 
   const unauthorizedRef = useRef(onUnauthorized);
   useEffect(() => {
     unauthorizedRef.current = onUnauthorized;
   }, [onUnauthorized]);
+
+  useEffect(() => {
+    if (!previewFeatureEnabled) {
+      return;
+    }
+
+    setPreviewState(readRolePreview());
+    const unsubscribe = subscribeToRolePreview((state) => {
+      setPreviewState(state);
+      setStatus('idle');
+    });
+
+    return unsubscribe;
+  }, [previewFeatureEnabled]);
 
   const resolveMember = useCallback(async (): Promise<MemberResolutionResult> => {
     if (!enabled) {
@@ -296,12 +344,30 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
     setError(null);
     setUsedTrustedFallback(false);
 
+    const previewActive = previewFeatureEnabled && Boolean(previewState.role);
     const {
       data: { user: currentUser } = { user: null },
       error: authError,
     } = await supabase.auth.getUser();
 
     if (authError) {
+      if (previewActive) {
+        const previewMember = buildPreviewMember(previewState);
+        lastSyncedAtRef.current = new Date().toISOString();
+        setStatus('ready');
+        setError(null);
+        setMember(previewMember);
+        setUser(null);
+        setUsedTrustedFallback(false);
+        return {
+          status: 'ready',
+          user: null,
+          member: previewMember,
+          usedTrustedFallback: false,
+          lastSyncedAt: lastSyncedAtRef.current,
+        };
+      }
+
       logError(scope, 'supabase.auth.getUser failed', authError);
       const authFailure: MemberResolutionResult = {
         status: 'error',
@@ -319,6 +385,24 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
     }
 
     if (!currentUser) {
+      if (previewActive) {
+        const previewMember = buildPreviewMember(previewState);
+        lastSyncedAtRef.current = new Date().toISOString();
+        const previewResult: MemberResolutionResult = {
+          status: 'ready',
+          user: null,
+          member: previewMember,
+          usedTrustedFallback: false,
+          lastSyncedAt: lastSyncedAtRef.current,
+        };
+        setStatus('ready');
+        setUser(null);
+        setMember(previewMember);
+        setError(null);
+        setUsedTrustedFallback(false);
+        return previewResult;
+      }
+
       logInfo(scope, 'No authenticated user found.');
       const unauthenticated: MemberResolutionResult = {
         status: 'unauthenticated',
@@ -354,6 +438,23 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
     }
 
     if (memberResponse.error) {
+      if (previewActive) {
+        const previewMember = buildPreviewMember(previewState);
+        lastSyncedAtRef.current = new Date().toISOString();
+        setStatus('ready');
+        setMember(previewMember);
+        setUser(currentUser);
+        setError(null);
+        setUsedTrustedFallback(false);
+        return {
+          status: 'ready',
+          user: currentUser,
+          member: previewMember,
+          usedTrustedFallback: false,
+          lastSyncedAt: lastSyncedAtRef.current,
+        };
+      }
+
       logError(scope, 'Member fetch failed', memberResponse.error);
       const failure: MemberResolutionResult = {
         status: 'error',
@@ -405,6 +506,22 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
       };
     }
 
+    if (previewActive) {
+      const previewMember = buildPreviewMember(previewState);
+      lastSyncedAtRef.current = new Date().toISOString();
+      setMember(previewMember);
+      setStatus('ready');
+      setError(null);
+      setUsedTrustedFallback(false);
+      return {
+        status: 'ready',
+        user: currentUser,
+        member: previewMember,
+        usedTrustedFallback: false,
+        lastSyncedAt: lastSyncedAtRef.current,
+      };
+    }
+
     logWarn(scope, 'Member context not found for user.');
     const emptyState: MemberResolutionResult = {
       status: 'error',
@@ -418,7 +535,7 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
     setStatus('error');
     setError(emptyState.error ?? null);
     return emptyState;
-  }, [enabled, scope]);
+  }, [enabled, previewFeatureEnabled, previewState, scope]);
 
   const refresh = useCallback(async () => {
     const result = await resolveMember();

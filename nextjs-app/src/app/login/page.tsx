@@ -4,29 +4,70 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { logError } from '@/lib/logging';
 import { useRouter, useSearchParams } from 'next/navigation';
+import useLocale from '@/hooks/useLocale';
+import { sanitizeRedirect } from '@/lib/navigation/redirect';
+import { computeStandaloneMode } from '@/lib/pwa/displayMode';
 
-type MessageState = { type: 'success' | 'error' | 'info'; text: string };
+type MessageState = {
+  type: 'success' | 'error' | 'info';
+  translationKey?: string;
+  text?: string;
+  params?: Record<string, string | number>;
+};
+
+type StandaloneCapableNavigator = Navigator & { standalone?: boolean };
 
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t, formatMessage } = useLocale();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [message, setMessage] = useState<MessageState | null>(null);
+  const [isStandalone, setIsStandalone] = useState(false);
 
   const requestedRedirect = searchParams.get('redirectTo');
-  const sanitizedRedirect = useMemo(() => {
-    if (!requestedRedirect) {
-      return '/home';
+  const sanitizedRedirect = useMemo(
+    () => sanitizeRedirect(requestedRedirect),
+    [requestedRedirect]
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
     }
 
-    if (!requestedRedirect.startsWith('/') || requestedRedirect.startsWith('//') || requestedRedirect.includes('://')) {
-      return '/home';
-    }
+    const resolveDisplayMode = () => {
+      const navigatorStandalone =
+        typeof window.navigator === 'object'
+          ? (window.navigator as StandaloneCapableNavigator).standalone
+          : undefined;
 
-    return requestedRedirect;
-  }, [requestedRedirect]);
+      const displayModes = ['standalone', 'window-controls-overlay', 'minimal-ui', 'fullscreen'] as const;
+      const activeDisplayMode = displayModes.find((mode) => window.matchMedia(`(display-mode: ${mode})`).matches) ?? null;
+
+      setIsStandalone(
+        computeStandaloneMode({
+          displayMode: activeDisplayMode,
+          matchMediaStandalone: activeDisplayMode != null,
+          navigatorStandalone,
+        })
+      );
+    };
+
+    resolveDisplayMode();
+    const handleVisibility = () => resolveDisplayMode();
+    const handleAppInstalled = () => resolveDisplayMode();
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
 
   // Surface any error returned by the callback handler so users understand why they landed here
   useEffect(() => {
@@ -37,14 +78,13 @@ function LoginContent() {
       return;
     }
 
-    let errorText = messageParam ?? 'Nastala chyba při přihlášení. Zkuste to prosím znovu.';
-
     if (errorParam === 'unauthorized') {
-      errorText =
-        'Nemáte oprávnění pro zobrazení požadované stránky. Přihlaste se prosím jiným účtem nebo kontaktujte podporu.';
+      setMessage({ type: 'error', translationKey: 'login.messages.errorUnauthorized' });
+    } else if (messageParam) {
+      setMessage({ type: 'error', text: messageParam });
+    } else {
+      setMessage({ type: 'error', translationKey: 'login.messages.errorGeneral' });
     }
-
-    setMessage({ type: 'error', text: errorText });
 
     // Strip handled query parameters from the URL so the message does not reappear on refresh
     const cleanedParams = new URLSearchParams(Array.from(searchParams.entries()));
@@ -71,7 +111,7 @@ function LoginContent() {
         setMessage((prev) =>
           prev ?? {
             type: 'error',
-            text: 'Nepodařilo se ověřit stav přihlášení. Obnovte stránku a zkuste to znovu.',
+            translationKey: 'login.messages.errorSession',
           }
         );
         return;
@@ -100,13 +140,13 @@ function LoginContent() {
   const handleSendMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setMessage({ type: 'info', text: 'Odesíláme přihlašovací odkaz…' });
+    setMessage({ type: 'info', translationKey: 'login.messages.sending' });
 
     try {
       const cleanEmail = email.trim().toLowerCase();
 
       if (!cleanEmail) {
-        setMessage({ type: 'error', text: 'Zadejte prosím platný email.' });
+        setMessage({ type: 'error', translationKey: 'login.messages.errorInvalidEmail' });
         setIsLoading(false);
         return;
       }
@@ -122,29 +162,29 @@ function LoginContent() {
       });
 
       if (error) {
-        let errorText = typeof error === 'object' && error && 'message' in error && typeof (error as { message?: unknown }).message === 'string'
-          ? (error as { message: string }).message
-          : 'Nastala chyba při odesílání odkazu.';
+        const hasMessage =
+          typeof error === 'object' && error && 'message' in error && typeof (error as { message?: unknown }).message === 'string';
         const status = typeof error === 'object' && error && 'status' in error ? (error as { status?: number }).status : undefined;
+
         if (status === 429) {
-          errorText = 'Překročili jste limit pro odesílání odkazů. Počkejte prosím minutu a zkuste to znovu.';
+          setMessage({ type: 'error', translationKey: 'login.messages.errorRateLimit' });
+        } else if (hasMessage) {
+          setMessage({ type: 'error', text: (error as { message: string }).message });
+        } else {
+          setMessage({ type: 'error', translationKey: 'login.messages.errorSendLink' });
         }
-        setMessage({
-          type: 'error',
-          text: errorText
-        });
       } else {
         setEmailSent(true);
         setMessage({
           type: 'success',
-          text: 'Přihlašovací odkaz byl odeslán na váš email.'
+          translationKey: 'login.messages.successLinkSent',
         });
       }
     } catch (error) {
       logError('login', 'Unexpected error sending magic link.', error);
       setMessage({
         type: 'error',
-        text: 'Nastala neočekávaná chyba'
+        translationKey: 'login.messages.errorUnexpected',
       });
     } finally {
       setIsLoading(false);
@@ -155,17 +195,30 @@ function LoginContent() {
     setEmailSent(false);
     setMessage({
       type: 'info',
-      text: 'Zadejte svůj email pro odeslání nového odkazu.',
+      translationKey: 'login.messages.infoResend',
     });
   };
 
+  const instructionsId = emailSent ? 'login-instructions' : undefined;
+  const messageId = message ? 'login-status-message' : undefined;
+  const describedBy = [instructionsId, messageId].filter(Boolean).join(' ') || undefined;
+
   return (
-    <main className="psychocas-section flex items-center justify-center">
-      <div className="psychocas-container fade-in-up">
-        <div className="psychocas-card text-center">
+    <main
+      className="psychocas-section flex min-h-screen items-center justify-center px-4 py-8 sm:px-6"
+      aria-busy={isLoading}
+    >
+      <div className="psychocas-container fade-in-up w-full max-w-2xl">
+        <div className="psychocas-card auth-card text-center">
           {/* Logo */}
-          <div className="mb-8 flex justify-center">
-            <svg width="100" height="100" viewBox="-60 -60 120 120" xmlns="http://www.w3.org/2000/svg">
+          <div className="mb-6 flex justify-center sm:mb-8">
+            <svg
+              width="100"
+              height="100"
+              viewBox="-60 -60 120 120"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden
+            >
               <defs>
                 <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" style={{ stopColor: '#1d4f7d', stopOpacity: 1 }} />
@@ -184,23 +237,48 @@ function LoginContent() {
             </svg>
           </div>
           {/* Welcome Section */}
-          <div className="mb-12">
-            <h1 className="mb-3">
-              Vítejte v Psychočas aplikaci
+          <div className="mb-10 space-y-3 sm:mb-12">
+            <h1 className="mb-1 text-3xl font-semibold sm:text-[2rem]" style={{ color: '#1d4f7d' }}>
+              {t('login.title')}
             </h1>
-            <p className="text-lg" style={{ color: '#666666' }}>
-              {emailSent 
-                ? 'Zkontrolujte svůj email' 
-                : 'Přihlaste se do vaší členské aplikace'}
+            <p className="auth-card__subtitle">
+              {emailSent ? t('login.subtitleSent') : t('login.subtitlePrompt')}
             </p>
           </div>
 
+          {isStandalone && (
+            <aside
+              className="mb-8 text-left"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              style={{
+                backgroundColor: '#eef4ff',
+                borderRadius: '1rem',
+                border: '1px dashed #8ea6ff',
+                color: '#1d4f7d',
+                padding: '1.25rem',
+              }}
+            >
+              <p className="text-sm font-semibold">{t('login.pwaBanner.title')}</p>
+              <p className="mt-2 text-sm">{t('login.pwaBanner.description')}</p>
+              <p className="mt-3 text-xs" style={{ color: '#405089' }}>
+                {t('login.pwaBanner.retryHint')}
+              </p>
+            </aside>
+          )}
+
           {/* Email Form - Show when email not sent yet */}
           {!emailSent && (
-            <form onSubmit={handleSendMagicLink} className="space-y-8">
+            <form
+              onSubmit={handleSendMagicLink}
+              className="space-y-8"
+              aria-describedby={instructionsId}
+              aria-busy={isLoading}
+            >
               <div className="space-y-3 text-left">
                 <label htmlFor="email" style={{ color: '#333333' }}>
-                  Email
+                  {t('login.emailLabel')}
                 </label>
                 <input
                   id="email"
@@ -208,10 +286,17 @@ function LoginContent() {
                   value={email}
                   onChange={(e) => handleEmailChange(e.target.value)}
                   className="psychocas-input"
-                  placeholder="Zadejte váš email"
+                  placeholder={t('login.emailPlaceholder')}
                   required
                   disabled={isLoading}
                   autoFocus
+                  inputMode="email"
+                  autoComplete="email"
+                  autoCapitalize="none"
+                  enterKeyHint="send"
+                  spellCheck={false}
+                  aria-describedby={describedBy}
+                  aria-invalid={message?.type === 'error' ? true : undefined}
                 />
               </div>
 
@@ -220,16 +305,16 @@ function LoginContent() {
                 className="psychocas-button-primary"
                 disabled={isLoading || !email}
               >
-                {isLoading ? 'Odesílám...' : 'Odeslat přihlašovací odkaz'}
+                {isLoading ? t('login.sendLinkLoading') : t('login.sendLink')}
               </button>
             </form>
           )}
 
           {/* Success State - Show after email sent */}
           {emailSent && (
-            <div className="space-y-6">
+            <div className="space-y-6 text-left sm:text-center">
               {/* Email Icon/Illustration */}
-              <div className="flex justify-center mb-6">
+              <div className="mb-6 flex justify-center">
                 <div style={{
                   width: '80px',
                   height: '80px',
@@ -245,40 +330,43 @@ function LoginContent() {
               </div>
 
               {/* Success Message */}
-              <div className="space-y-4">
-                <h2 className="text-2xl font-bold" style={{ color: '#333333' }}>
-                  Email byl odeslán!
+              <div className="space-y-3">
+                <h2 className="text-2xl font-bold sm:text-[1.7rem]" style={{ color: '#333333' }}>
+                  {t('login.successTitle')}
                 </h2>
-                <p style={{ color: '#666666', lineHeight: '1.6' }}>
-                  Přihlašovací odkaz jsme odeslali na adresu:<br/>
+                <p className="auth-card__message">
+                  {t('login.successDescription')}
+                  <br />
                   <strong style={{ color: '#333333' }}>{email}</strong>
                 </p>
               </div>
 
               {/* Instructions */}
-              <div className="p-6 rounded-xl text-left" style={{ 
-                backgroundColor: '#f0f9ff',
-                borderLeft: '4px solid #049edb'
-              }}>
-                <p className="text-sm mb-3" style={{ color: '#333333', fontWeight: '600' }}>
-                  📋 Jak se přihlásit:
+              <div
+                id={instructionsId}
+                className="rounded-2xl p-5 sm:p-6"
+                style={{
+                  backgroundColor: '#f0f9ff',
+                  borderLeft: '4px solid #049edb'
+                }}
+              >
+                <p className="mb-3 text-sm font-semibold" style={{ color: '#333333' }}>
+                  {t('login.instructionsTitle')}
                 </p>
-                <ol className="text-sm space-y-2" style={{ color: '#666666', paddingLeft: '20px' }}>
-                  <li>Otevřete svou emailovou schránku</li>
-                  <li>Najděte email od Psychočas</li>
-                  <li>Klikněte na přihlašovací odkaz v emailu</li>
-                  <li>Budete automaticky přesměrováni do aplikace</li>
+                <ol className="space-y-2 text-sm" style={{ color: '#666666', paddingLeft: '20px' }}>
+                  <li>{t('login.instructionsSteps.first')}</li>
+                  <li>{t('login.instructionsSteps.second')}</li>
+                  <li>{t('login.instructionsSteps.third')}</li>
+                  <li>{t('login.instructionsSteps.fourth')}</li>
                 </ol>
               </div>
 
               {/* Expiration Warning */}
-              <div className="p-4 rounded-xl" style={{ 
+              <div className="rounded-xl p-4" style={{
                 backgroundColor: '#fff3cd',
                 borderLeft: '4px solid #f57c00'
               }}>
-                <p className="text-sm" style={{ color: '#856404' }}>
-                  ⏰ Odkaz vyprší za 60 minut
-                </p>
+                <p className="text-sm" style={{ color: '#856404' }}>{t('login.expirationNotice')}</p>
               </div>
 
               {/* Resend Button */}
@@ -289,27 +377,29 @@ function LoginContent() {
                   disabled={isLoading}
                   className="psychocas-button-secondary"
                 >
-                  ← Zpět na přihlášení
+                  {t('login.resendButton')}
                 </button>
               </div>
 
               {/* Help Text */}
-              <p className="text-sm pt-4" style={{ color: '#999999' }}>
-                Nevidíte email? Zkontrolujte složku spam nebo nevyžádané pošty.
-              </p>
+              <p className="pt-4 text-sm" style={{ color: '#999999' }}>{t('login.helpText')}</p>
             </div>
           )}
 
           {/* Message Display */}
           {message && (
             <div
-              className={`mt-6 p-4 rounded-xl text-sm ${
+              id={messageId}
+              className={`mt-6 rounded-xl p-4 text-sm ${
                 message.type === 'success'
                   ? 'status-active'
                   : message.type === 'error'
                     ? 'status-inactive'
                     : ''
               }`}
+              role={message.type === 'error' ? 'alert' : 'status'}
+              aria-live={message.type === 'error' ? 'assertive' : 'polite'}
+              aria-atomic="true"
               style={
                 message.type === 'info'
                   ? {
@@ -320,9 +410,26 @@ function LoginContent() {
                   : undefined
               }
             >
-              {message.text}
+              {message.translationKey
+                ? message.params
+                  ? formatMessage(message.translationKey, message.params)
+                  : t(message.translationKey)
+                : message.text}
             </div>
           )}
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function LoginFallback() {
+  const { t } = useLocale();
+  return (
+    <main className="psychocas-section flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
+      <div className="psychocas-container fade-in-up w-full max-w-2xl">
+        <div className="psychocas-card auth-card text-center">
+          <p>{t('login.fallbackLoading')}</p>
         </div>
       </div>
     </main>
@@ -332,15 +439,7 @@ function LoginContent() {
 export default function Login() {
   return (
     <Suspense
-      fallback={(
-        <main className="psychocas-section flex items-center justify-center">
-          <div className="psychocas-container fade-in-up">
-            <div className="psychocas-card text-center">
-              <p>Načítání přihlášení...</p>
-            </div>
-          </div>
-        </main>
-      )}
+      fallback={<LoginFallback />}
     >
       <LoginContent />
     </Suspense>

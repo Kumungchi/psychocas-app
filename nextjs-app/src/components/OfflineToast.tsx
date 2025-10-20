@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react';
 import { WifiOff, Wifi } from 'lucide-react';
 import useNetworkStatus from '@/hooks/useNetworkStatus';
+import useLocale from '@/hooks/useLocale';
 
 export default function OfflineToast() {
   const isOnline = useNetworkStatus();
   const [visible, setVisible] = useState<boolean>(false);
+  const { t } = useLocale();
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -32,9 +34,7 @@ export default function OfflineToast() {
   const isOffline = !isOnline;
   const backgroundColor = isOffline ? '#b91c1c' : '#047857';
   const Icon = isOffline ? WifiOff : Wifi;
-  const message = isOffline
-    ? 'Jste offline. Zobrazuje se poslední dostupná verze.'
-    : 'Připojení obnoveno. Údaje jsou opět aktuální.';
+  const message = isOffline ? t('offlineToast.offline') : t('offlineToast.online');
 
   return (
     <div

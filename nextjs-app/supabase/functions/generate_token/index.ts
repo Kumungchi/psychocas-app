@@ -1,11 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-function code(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const pick = (n: number) => 
-    Array.from({ length: n }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-  return `${pick(4)}-${pick(4)}`;
-}
+import { generateTokenCode } from "../_shared/token.ts";
 
 Deno.serve(async (req) => {
   const supabase = createClient(
@@ -34,7 +28,7 @@ Deno.serve(async (req) => {
   const { data, error } = await supabase
     .from("tokens")
     .insert({ 
-      code: code(), 
+      code: generateTokenCode(),
       user_id: user.id, 
       expires_at: expiresAt 
     })

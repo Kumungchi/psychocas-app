@@ -29,6 +29,10 @@
         font-size: 28px;
         margin-bottom: 12px;
       }
+      h2 {
+        font-size: 22px;
+        margin: 16px 0 12px;
+      }
       p {
         font-size: 16px;
         line-height: 1.5;
@@ -46,15 +50,55 @@
         border-radius: 9999px;
         margin-bottom: 24px;
       }
+      .badge span[lang='en'] {
+        font-weight: 600;
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid rgba(255, 255, 255, 0.25);
+        margin: 24px 0 20px;
+      }
+      .hint {
+        margin-top: 20px;
+        padding: 16px;
+        background: rgba(8, 48, 79, 0.35);
+        border-radius: 16px;
+        text-align: left;
+      }
+      .hint p {
+        font-size: 14px;
+        margin: 8px 0;
+        color: rgba(255, 255, 255, 0.92);
+      }
     </style>
   </head>
   <body>
-    <div class="card">
-      <div class="badge">Offline režim</div>
-      <h1>Psychočas je momentálně offline</h1>
-      <p>
-        Aplikace funguje v omezeném režimu bez připojení k internetu. Zkuste se prosím připojit k síti – po navázání spojení bude vše automaticky aktualizováno.
+    <div class="card" role="status" aria-live="polite">
+      <div class="badge">
+        <span lang="cs">Offline režim</span>
+        <span aria-hidden="true">•</span>
+        <span lang="en">Offline mode</span>
+      </div>
+      <h1 lang="cs">Psychočas je momentálně offline</h1>
+      <p lang="cs">
+        Aplikace funguje v omezeném režimu bez připojení k internetu. Připojte se prosím k síti – po navázání spojení se vše automaticky aktualizuje.
       </p>
+
+      <hr />
+
+      <h2 lang="en">Psychočas is currently offline</h2>
+      <p lang="en">
+        The app is running without an internet connection. Reconnect to continue and every screen will refresh automatically.
+      </p>
+
+      <div class="hint">
+        <p lang="cs">
+          📧 Přihlášení prostřednictvím emailu vyžaduje aktivní připojení. Jakmile budete online, otevřete email s odkazem a klepnutím se vraťte do aplikace.
+        </p>
+        <p lang="en">
+          📧 Magic-link sign-in requires an active connection. When you are back online, open the email and tap the link to return to the app.
+        </p>
+      </div>
     </div>
   </body>
 </html>
