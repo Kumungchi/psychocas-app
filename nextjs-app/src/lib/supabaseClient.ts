@@ -14,5 +14,10 @@ const missingEnvClient: SupabaseClient = new Proxy({}, {
 }) as SupabaseClient;
 
 export const supabase = supabaseUrl && supabaseAnonKey
-  ? createClient(supabaseUrl, supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    })
   : missingEnvClient;

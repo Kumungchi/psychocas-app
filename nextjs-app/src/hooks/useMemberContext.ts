@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PostgrestResponse, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
+import useAuth from '@/hooks/useAuth';
 import {
   isRolePreviewEnabled,
   readRolePreview,
@@ -194,7 +195,7 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lastSyncedAtRef = useRef<string | null>(null);
-  const ensuredMembershipForUserRef = useRef<string | null>(null);
+  const { ensureMembership } = useAuth();
   const previewFeatureEnabled = isRolePreviewEnabled();
   const [previewState, setPreviewState] = useState<RolePreviewState>(() =>
     previewFeatureEnabled
@@ -309,13 +310,9 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
     setUser(currentUser);
     logDebug(scope, 'Resolving membership.', { userId: currentUser.id, email: currentUser.email });
 
-    if (ensuredMembershipForUserRef.current !== currentUser.id) {
-      const { error: ensureError } = await supabase.rpc('ensure_membership_from_whitelist');
-      if (ensureError) {
-        logWarn(scope, 'ensure_membership_from_whitelist RPC failed', ensureError);
-      } else {
-        ensuredMembershipForUserRef.current = currentUser.id;
-      }
+    const ensured = await ensureMembership();
+    if (!ensured) {
+      logWarn(scope, 'ensure_membership_from_whitelist RPC failed via guard.');
     }
 
     let memberResponse = await fetchMemberWithFallback(scope, currentUser.id);
@@ -431,7 +428,7 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
     setStatus('error');
     setError(emptyState.error ?? null);
     return emptyState;
-  }, [enabled, previewFeatureEnabled, previewState, scope]);
+  }, [enabled, ensureMembership, previewFeatureEnabled, previewState, scope]);
 
 
   const refresh = useCallback(async () => {
@@ -454,7 +451,6 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
-        ensuredMembershipForUserRef.current = null;
         lastSyncedAtRef.current = null;
         setUser(null);
         setMember(null);
@@ -470,7 +466,7 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
       }
 
       if (autoResolve && ['INITIAL_SESSION', 'SIGNED_IN', 'TOKEN_REFRESHED'].includes(event)) {
-        ensuredMembershipForUserRef.current = null;
+        void ensureMembership();
         void refresh();
       }
     });
@@ -478,7 +474,7 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
     return () => {
       subscription.unsubscribe();
     };
-  }, [autoResolve, enabled, refresh]);
+  }, [autoResolve, enabled, ensureMembership, refresh]);
 
   const memoizedValue = useMemo<UseMemberContextValue>(
     () => ({
