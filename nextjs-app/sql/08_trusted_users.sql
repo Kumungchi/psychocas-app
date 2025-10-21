@@ -22,8 +22,8 @@ CREATE TRIGGER set_memberships_updated_at
 BEFORE UPDATE ON public.memberships
 FOR EACH ROW EXECUTE FUNCTION public.set_memberships_updated_at();
 
--- RPC: ensure_membership
-CREATE OR REPLACE FUNCTION public.ensure_membership()
+-- RPC: ensure_membership_from_whitelist
+CREATE OR REPLACE FUNCTION public.ensure_membership_from_whitelist()
 RETURNS void
 SECURITY DEFINER
 SET search_path = public
@@ -112,7 +112,20 @@ BEGIN
   WHERE id = whitelist_record.id;
 EXCEPTION
   WHEN others THEN
-    RAISE WARNING 'ensure_membership failed: %', SQLERRM;
+    RAISE WARNING 'ensure_membership_from_whitelist failed: %', SQLERRM;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.ensure_membership_from_whitelist() TO authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.ensure_membership()
+RETURNS void
+SECURITY DEFINER
+SET search_path = public, auth
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  PERFORM public.ensure_membership_from_whitelist();
 END;
 $$;
 

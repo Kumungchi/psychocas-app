@@ -310,9 +310,9 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
     logDebug(scope, 'Resolving membership.', { userId: currentUser.id, email: currentUser.email });
 
     if (ensuredMembershipForUserRef.current !== currentUser.id) {
-      const { error: ensureError } = await supabase.rpc('ensure_membership');
+      const { error: ensureError } = await supabase.rpc('ensure_membership_from_whitelist');
       if (ensureError) {
-        logWarn(scope, 'ensure_membership RPC failed', ensureError);
+        logWarn(scope, 'ensure_membership_from_whitelist RPC failed', ensureError);
       } else {
         ensuredMembershipForUserRef.current = currentUser.id;
       }
@@ -367,6 +367,32 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
     const normalizedMember = normalizeMemberRow(memberRow);
 
     if (normalizedMember) {
+      const expiresAt = normalizedMember.membership_expires
+        ? new Date(normalizedMember.membership_expires)
+        : null;
+      const isActive =
+        normalizedMember.membership_active &&
+        (!expiresAt || expiresAt.getTime() > Date.now());
+
+      if (!isActive) {
+        logWarn(scope, 'Membership record found but not active.', {
+          membership_active: normalizedMember.membership_active,
+          membership_expires: normalizedMember.membership_expires,
+        });
+        lastSyncedAtRef.current = new Date().toISOString();
+        const inactiveResult: MemberResolutionResult = {
+          status: 'error',
+          user: currentUser,
+          member: null,
+          error: 'Členství není aktivní.',
+          lastSyncedAt: lastSyncedAtRef.current,
+        };
+        setMember(null);
+        setStatus('error');
+        setError(inactiveResult.error ?? null);
+        return inactiveResult;
+      }
+
       logDebug(scope, 'Membership resolved.');
       setMember(normalizedMember);
       setStatus('ready');

@@ -273,7 +273,7 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 DROP FUNCTION IF EXISTS public.handle_new_user();
 DROP TABLE IF EXISTS public.trusted_users;
 
-CREATE OR REPLACE FUNCTION public.ensure_membership()
+CREATE OR REPLACE FUNCTION public.ensure_membership_from_whitelist()
 RETURNS void
 SECURITY DEFINER
 SET search_path = public, auth
@@ -362,7 +362,20 @@ BEGIN
   WHERE id = whitelist_record.id;
 EXCEPTION
   WHEN others THEN
-    RAISE WARNING 'ensure_membership failed: %', SQLERRM;
+    RAISE WARNING 'ensure_membership_from_whitelist failed: %', SQLERRM;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.ensure_membership_from_whitelist() TO authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.ensure_membership()
+RETURNS void
+SECURITY DEFINER
+SET search_path = public, auth
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  PERFORM public.ensure_membership_from_whitelist();
 END;
 $$;
 

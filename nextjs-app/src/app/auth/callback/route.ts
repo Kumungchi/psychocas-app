@@ -95,19 +95,44 @@ export async function GET(request: Request) {
 
     const user = session?.user ?? null
 
+    type MembershipLookup = MemberSummary & {
+      membership_active: boolean
+      membership_expires: string | null
+    }
+
     let member: MemberSummary | null = null
     if (user) {
-      const { error: ensureError } = await supabase.rpc('ensure_membership')
+      const { error: ensureError } = await supabase.rpc('ensure_membership_from_whitelist')
       if (ensureError) {
-        console.warn('ensure_membership RPC failed', ensureError)
+        console.warn('ensure_membership_from_whitelist RPC failed', ensureError)
       }
 
-      const { data } = await supabase
+      const { data, error: membershipError } = await supabase
         .from('memberships')
-        .select('role, email')
+        .select('role, email, membership_active, membership_expires')
         .eq('user_id', user.id)
-        .single<MemberSummary>()
-      member = data ?? null
+        .maybeSingle<MembershipLookup>()
+
+      if (membershipError) {
+        console.warn('Failed to load membership during auth callback', membershipError)
+      }
+
+      if (data) {
+        const expiresAt = data.membership_expires
+          ? new Date(data.membership_expires)
+          : null
+        const isActive =
+          data.membership_active && (!expiresAt || expiresAt.getTime() > Date.now())
+
+        if (!isActive) {
+          console.warn('Membership record is inactive; treating user as non-member', {
+            membership_active: data.membership_active,
+            membership_expires: data.membership_expires,
+          })
+        } else {
+          member = { role: data.role, email: data.email }
+        }
+      }
     }
 
     const effectiveRole = normaliseRole(member)

@@ -18,20 +18,30 @@ Deno.serve(async (req) => {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const { error: ensureError } = await supabase.rpc('ensure_membership');
+  const { error: ensureError } = await supabase.rpc('ensure_membership_from_whitelist');
   if (ensureError) {
-    console.warn('ensure_membership RPC failed', ensureError);
+    console.warn('ensure_membership_from_whitelist RPC failed', ensureError);
   }
 
-  const { data: me } = await supabase
+  const { data: me, error: membershipError } = await supabase
     .from("memberships")
-    .select("membership_active")
+    .select("membership_active, membership_expires")
     .eq("user_id", user.id)
-    .single();
-    
-  if (!me?.membership_active) {
+    .maybeSingle();
+
+  if (membershipError) {
+    console.warn('Unable to load membership in generate_token', membershipError);
+  }
+
+  const membershipExpires = me?.membership_expires
+    ? new Date(me.membership_expires)
+    : null;
+  const membershipActive =
+    Boolean(me?.membership_active) && (!membershipExpires || membershipExpires.getTime() > Date.now());
+
+  if (!membershipActive) {
     return new Response(
-      JSON.stringify({ error: "membership_inactive" }), 
+      JSON.stringify({ error: "membership_inactive" }),
       { status: 403 }
     );
   }

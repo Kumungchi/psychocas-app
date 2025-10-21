@@ -117,6 +117,6 @@ ON CONFLICT (user_id) DO UPDATE SET
   approved_at = EXCLUDED.approved_at;
 
 -- Reminder ------------------------------------------------------
--- `ensure_membership` RPC will hydrate `memberships` records for
+-- `ensure_membership_from_whitelist` RPC will hydrate `memberships` records for
 -- whitelisted emails the moment they authenticate. Seeding the
 -- whitelist ensures QA accounts are onboarded automatically.

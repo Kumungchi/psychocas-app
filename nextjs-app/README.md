@@ -34,8 +34,8 @@ This package contains the public-facing Psychočas PWA. It is built with Next.js
 
 ## Database Notes
 - `memberships` rows power the full experience, including profile editing and partner visibility
-- `ensure_membership` RPC hydrates member records automatically based on the whitelist
-- `membership_whitelist` entries act as the allow-list that `ensure_membership` consumes on sign-in
+- `ensure_membership_from_whitelist` RPC hydrates member records automatically based on the whitelist
+- `membership_whitelist` entries act as the allow-list that `ensure_membership_from_whitelist` consumes on sign-in
 - Technicians and admins can toggle `membership_active` directly from the technician console once the service role key is available to the client
 
 See the root-level `DATABASE_SETUP.md` for the full schema walkthrough and policies.

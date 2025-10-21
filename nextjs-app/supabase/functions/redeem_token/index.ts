@@ -38,9 +38,9 @@ Deno.serve(async (req) => {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const { error: ensureError } = await userClient.rpc("ensure_membership");
+  const { error: ensureError } = await userClient.rpc("ensure_membership_from_whitelist");
   if (ensureError) {
-    console.warn("ensure_membership RPC failed", ensureError);
+    console.warn("ensure_membership_from_whitelist RPC failed", ensureError);
   }
 
   const {
@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
     error: membershipError,
   } = await userClient
     .from("memberships")
-    .select("role, branch_id")
+    .select("role, branch_id, membership_active, membership_expires")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -57,6 +57,19 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ error: "membership_lookup_failed" }),
       { status: 500 }
+    );
+  }
+
+  const membershipExpires = membership?.membership_expires
+    ? new Date(membership.membership_expires)
+    : null;
+  const membershipActive =
+    Boolean(membership?.membership_active) && (!membershipExpires || membershipExpires.getTime() > Date.now());
+
+  if (!membershipActive) {
+    return new Response(
+      JSON.stringify({ error: "membership_inactive" }),
+      { status: 403 }
     );
   }
 
@@ -95,13 +108,27 @@ Deno.serve(async (req) => {
     );
   }
 
-  const { data: owner } = await svc
+  const { data: owner, error: ownerError } = await svc
     .from("memberships")
-    .select("membership_active")
+    .select("membership_active, membership_expires")
     .eq("user_id", tok.user_id)
-    .single();
+    .maybeSingle();
 
-  if (!owner?.membership_active) {
+  if (ownerError) {
+    console.error("Failed to load membership for token owner", ownerError);
+    return new Response(
+      JSON.stringify({ valid: false, reason: "owner_lookup_failed" }),
+      { status: 200 }
+    );
+  }
+
+  const ownerExpires = owner?.membership_expires
+    ? new Date(owner.membership_expires)
+    : null;
+  const ownerActive =
+    Boolean(owner?.membership_active) && (!ownerExpires || ownerExpires.getTime() > Date.now());
+
+  if (!ownerActive) {
     return new Response(
       JSON.stringify({ valid: false, reason: "inactive_membership" }),
       { status: 200 }

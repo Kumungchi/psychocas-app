@@ -1,5 +1,5 @@
 -- BACKFILL MEMBERSHIPS FROM WHITELIST
--- Run this after deploying the new ensure_membership RPC to migrate
+-- Run this after deploying the new ensure_membership_from_whitelist RPC to migrate
 -- existing auth users from legacy members/trusted_users tables.
 
 -- Ensure legacy trigger is removed
@@ -49,7 +49,7 @@ ON CONFLICT (user_id) DO UPDATE SET
   approved = EXCLUDED.approved,
   approved_at = EXCLUDED.approved_at;
 
--- Reset whitelist usage to allow ensure_membership to mark consumption
+-- Reset whitelist usage to allow ensure_membership_from_whitelist to mark consumption
 UPDATE public.membership_whitelist
 SET active = true, consumed_at = NULL, consumed_by = NULL
 WHERE consumed_by IS NOT NULL;

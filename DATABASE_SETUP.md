@@ -16,7 +16,7 @@ Detailní návod pro nastavení Supabase databáze pro Psychočas app po migraci
 
 - Všechny tabulky mají **Row Level Security**
 - Politiky využívají role `member | manager | council | technician | admin`
-- `ensure_membership()` je RPC volané po přihlášení a napojeno na whitelist
+- `ensure_membership_from_whitelist()` je RPC volané po přihlášení a napojeno na whitelist
 
 ---
 
@@ -26,10 +26,10 @@ Detailní návod pro nastavení Supabase databáze pro Psychočas app po migraci
 2. Zkontrolujte v Table Editoru:
    - ✅ Tabulky `branches`, `memberships`, `membership_whitelist`, `tokens`, `redemptions`
    - ✅ RLS je aktivní (ikonka 🔒)
-   - ✅ Funkce `ensure_membership` a view `membership_whitelist_status`
+   - ✅ Funkce `ensure_membership_from_whitelist` a view `membership_whitelist_status`
 3. Případně spusťte `sql/05_test_data.sql` pro seed testovacích dat.
 
-> 📋 **Další kroky:** Vložte testovací e-maily do `membership_whitelist` a následně se přihlaste přes Supabase Auth. Edge/Next.js klient zavolá `ensure_membership()` a záznam v `memberships` se vytvoří automaticky.
+> 📋 **Další kroky:** Vložte testovací e-maily do `membership_whitelist` a následně se přihlaste přes Supabase Auth. Edge/Next.js klient zavolá `ensure_membership_from_whitelist()` a záznam v `memberships` se vytvoří automaticky.
 
 ---
 
@@ -127,10 +127,10 @@ Ukázky politík jsou v `sql/02_rls_policies.sql`. Hlavní body:
 
 ## 🔧 Functions & Triggers
 
-### ensure_membership()
+### ensure_membership_from_whitelist()
 
 ```sql
-SELECT public.ensure_membership();
+SELECT public.ensure_membership_from_whitelist();
 ```
 
 - Volá se hned po přihlášení (Next.js guard + Edge funkce).
@@ -156,7 +156,7 @@ Zaručuje, že člen má pouze jeden aktivní token.
 
 ## ✅ Checklist po nasazení
 
-- [ ] `ensure_membership` funguje pro whitelistovaný e-mail (záznam v `memberships` + whitelist označen jako využitý)
+- [ ] `ensure_membership_from_whitelist` funguje pro whitelistovaný e-mail (záznam v `memberships` + whitelist označen jako využitý)
 - [ ] Ne-whitelistovaný e-mail skončí na obrazovce „Člen nenalezen“
 - [ ] Admin (role `admin`) vidí whitelist i membership přehledy
 - [ ] Reload přihlášeného uživatele vrací session (`supabase.auth.getSession()` + listener)
