@@ -9,7 +9,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Step 2: Create tables in correct order
 -- ========================================
 
--- Create branches table
+-- Branches table
 CREATE TABLE IF NOT EXISTS public.branches (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   name text NOT NULL,
@@ -17,29 +17,70 @@ CREATE TABLE IF NOT EXISTS public.branches (
   created_at timestamptz DEFAULT now()
 );
 
--- Create members table
-CREATE TABLE IF NOT EXISTS public.members (
+-- Memberships (replaces legacy members)
+CREATE TABLE IF NOT EXISTS public.memberships (
   user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email text UNIQUE NOT NULL,
+  first_name text,
+  last_name text,
   full_name text,
+  phone text,
   branch_id uuid REFERENCES public.branches(id),
-  role text NOT NULL CHECK (role IN ('member','manager','council','technician')) DEFAULT 'member',
+  role text NOT NULL CHECK (role IN ('member','manager','council','technician','admin')) DEFAULT 'member',
   membership_active boolean NOT NULL DEFAULT false,
   membership_expires date,
-  created_at timestamptz DEFAULT now()
+  approved boolean DEFAULT false,
+  approved_at timestamptz,
+  approved_by uuid REFERENCES public.memberships(user_id),
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
 );
 
--- Create tokens table
+-- Membership whitelist
+CREATE TABLE IF NOT EXISTS public.membership_whitelist (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  email text UNIQUE NOT NULL,
+  first_name text,
+  last_name text,
+  phone text,
+  role text NOT NULL CHECK (role IN ('member','manager','council','technician','admin')) DEFAULT 'member',
+  branch_id uuid REFERENCES public.branches(id),
+  note text,
+  invited_by uuid REFERENCES public.memberships(user_id),
+  invited_at timestamptz DEFAULT now(),
+  consumed_at timestamptz,
+  consumed_by uuid REFERENCES public.memberships(user_id),
+  active boolean DEFAULT true
+);
+
+-- Partner offers table
+CREATE TABLE IF NOT EXISTS public.partner_offers (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  title text NOT NULL,
+  description text,
+  discount_code text,
+  discount_percentage numeric(5,2),
+  scope text NOT NULL CHECK (scope IN ('national','local')),
+  branch_id uuid REFERENCES public.branches(id),
+  city text,
+  active boolean NOT NULL DEFAULT true,
+  created_by uuid REFERENCES public.memberships(user_id) ON DELETE SET NULL,
+  updated_by uuid REFERENCES public.memberships(user_id) ON DELETE SET NULL,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Tokens table
 CREATE TABLE IF NOT EXISTS public.tokens (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   code text UNIQUE NOT NULL,
-  user_id uuid NOT NULL REFERENCES public.members(user_id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES public.memberships(user_id) ON DELETE CASCADE,
   issued_at timestamptz NOT NULL DEFAULT now(),
   expires_at timestamptz NOT NULL,
   consumed_at timestamptz
 );
 
--- Create redemptions table
+-- Redemptions table
 CREATE TABLE IF NOT EXISTS public.redemptions (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   token_id uuid REFERENCES public.tokens(id) ON DELETE SET NULL,
@@ -49,46 +90,45 @@ CREATE TABLE IF NOT EXISTS public.redemptions (
 
 -- Step 3: Enable Row Level Security
 -- ========================================
-
-ALTER TABLE public.members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.memberships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.redemptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.branches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.partner_offers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.membership_whitelist ENABLE ROW LEVEL SECURITY;
 
--- Step 4: Create RLS Policies
+-- Step 4: RLS Policies
 -- ========================================
 
--- Members policies
-CREATE POLICY "members_read_self" ON public.members
+-- Membership policies
+CREATE POLICY "member_read_self" ON public.memberships
 FOR SELECT USING (auth.uid() = user_id);
 
-CREATE POLICY "members_insert_on_signup" ON public.members
-FOR INSERT 
-TO authenticated
-WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "member_insert_self" ON public.memberships
+FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "members_update_self" ON public.members
-FOR UPDATE
-USING (auth.uid() = user_id)
-WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "member_update_self" ON public.memberships
+FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "technician_read_all_members" ON public.members
+CREATE POLICY "technician_read_all_members" ON public.memberships
 FOR SELECT USING (EXISTS (
-  SELECT 1 FROM public.members me WHERE me.user_id = auth.uid() AND me.role = 'technician'
+  SELECT 1 FROM public.memberships me
+  WHERE me.user_id = auth.uid() AND me.role IN ('technician','admin')
 ));
 
-CREATE POLICY "manager_read_branch_members" ON public.members
+CREATE POLICY "manager_read_branch_members" ON public.memberships
 FOR SELECT USING (EXISTS (
-  SELECT 1 FROM public.members me
-  WHERE me.user_id = auth.uid() AND me.role = 'manager' AND me.branch_id = members.branch_id
+  SELECT 1 FROM public.memberships me
+  WHERE me.user_id = auth.uid() AND me.role = 'manager' AND me.branch_id = memberships.branch_id
 ));
 
-CREATE POLICY "council_read_all_members" ON public.members
+CREATE POLICY "council_read_all_members" ON public.memberships
 FOR SELECT USING (EXISTS (
-  SELECT 1 FROM public.members me WHERE me.user_id = auth.uid() AND me.role = 'council'
+  SELECT 1 FROM public.memberships me
+  WHERE me.user_id = auth.uid() AND me.role IN ('council','admin')
 ));
 
--- Tokens policies
+-- Token policies
 CREATE POLICY "member_read_own_tokens" ON public.tokens
 FOR SELECT USING (user_id = auth.uid());
 
@@ -97,136 +137,271 @@ FOR INSERT WITH CHECK (user_id = auth.uid());
 
 CREATE POLICY "manager_read_branch_tokens" ON public.tokens
 FOR SELECT USING (EXISTS (
-  SELECT 1 FROM public.members me
-  JOIN public.members owner ON owner.user_id = tokens.user_id
-  WHERE me.user_id = auth.uid() AND me.role = 'manager' AND me.branch_id = owner.branch_id
+  SELECT 1 FROM public.memberships me
+  JOIN public.memberships owner ON owner.user_id = tokens.user_id
+  WHERE me.user_id = auth.uid() AND (
+    (me.role = 'manager' AND me.branch_id = owner.branch_id) OR
+    me.role IN ('technician','council','admin')
+  )
 ));
 
--- Redemptions policies
+-- Redemption policies
 CREATE POLICY "manager_read_branch_redemptions" ON public.redemptions
 FOR SELECT USING (EXISTS (
-  SELECT 1 FROM public.members me
-  WHERE me.user_id = auth.uid() AND me.role = 'manager' AND me.branch_id = redemptions.branch_id
+  SELECT 1 FROM public.memberships me
+  WHERE me.user_id = auth.uid() AND (
+    (me.role = 'manager' AND me.branch_id = redemptions.branch_id) OR
+    me.role IN ('technician','council','admin')
+  )
 ));
 
 CREATE POLICY "council_read_all_redemptions" ON public.redemptions
 FOR SELECT USING (EXISTS (
-  SELECT 1 FROM public.members me WHERE me.user_id = auth.uid() AND me.role = 'council'
+  SELECT 1 FROM public.memberships me
+  WHERE me.user_id = auth.uid() AND me.role IN ('council','admin')
 ));
 
 CREATE POLICY "redemptions_insert_server_only" ON public.redemptions
 FOR INSERT WITH CHECK (false);
 
--- Branches policies
-CREATE POLICY "branches_read_all" ON public.branches
-FOR SELECT TO authenticated USING (true);
+-- Partner offer policies
+CREATE POLICY "members_read_partner_offers" ON public.partner_offers
+FOR SELECT USING (
+  partner_offers.active = true
+  AND (
+    partner_offers.scope = 'national'
+    OR EXISTS (
+      SELECT 1 FROM public.memberships me
+      WHERE me.user_id = auth.uid()
+        AND (
+          me.role IN ('manager','council','technician','admin')
+          OR me.branch_id = partner_offers.branch_id
+        )
+    )
+  )
+);
 
--- Step 5: Create trigger function for auto-creating member records
+CREATE POLICY "council_manage_partner_offers" ON public.partner_offers
+FOR ALL USING (EXISTS (
+  SELECT 1 FROM public.memberships me
+  WHERE me.user_id = auth.uid()
+    AND me.role IN ('council','technician','admin')
+))
+WITH CHECK (EXISTS (
+  SELECT 1 FROM public.memberships me
+  WHERE me.user_id = auth.uid()
+    AND me.role IN ('council','technician','admin')
+));
+
+CREATE POLICY "managers_manage_branch_partner_offers" ON public.partner_offers
+FOR ALL USING (EXISTS (
+  SELECT 1 FROM public.memberships me
+  WHERE me.user_id = auth.uid()
+    AND me.role = 'manager'
+    AND me.email LIKE '%@psychocas.cz'
+    AND partner_offers.scope = 'local'
+    AND partner_offers.branch_id = me.branch_id
+))
+WITH CHECK (EXISTS (
+  SELECT 1 FROM public.memberships me
+  WHERE me.user_id = auth.uid()
+    AND me.role = 'manager'
+    AND me.email LIKE '%@psychocas.cz'
+    AND partner_offers.scope = 'local'
+    AND partner_offers.branch_id = me.branch_id
+));
+
+-- Membership whitelist policies
+CREATE POLICY "staff_manage_membership_whitelist" ON public.membership_whitelist
+FOR ALL USING (EXISTS (
+  SELECT 1 FROM public.memberships me
+  WHERE me.user_id = auth.uid()
+    AND (
+      me.role IN ('technician','council','admin')
+      OR (me.role = 'manager' AND me.email LIKE '%@psychocas.cz')
+    )
+))
+WITH CHECK (EXISTS (
+  SELECT 1 FROM public.memberships me
+  WHERE me.user_id = auth.uid()
+    AND (
+      me.role IN ('technician','council','admin')
+      OR (me.role = 'manager' AND me.email LIKE '%@psychocas.cz')
+    )
+));
+
+-- Step 5: Utility triggers and functions
 -- ========================================
-
-CREATE OR REPLACE FUNCTION public.handle_new_user()
+CREATE OR REPLACE FUNCTION public.set_memberships_updated_at()
 RETURNS trigger AS $$
-DECLARE
-  new_role text := 'member';
-  new_full_name text := NULL;
 BEGIN
-  -- Set role and name based on email
-  IF NEW.email = 'viceprezident@psychočas.cz' THEN
-    new_role := 'council';
-    new_full_name := 'Viceprezident';
-  ELSIF NEW.email = 'bunnik.matias@seznam.cz' THEN
-    new_role := 'member';
-    new_full_name := 'Matias Bunnik';
-  ELSIF NEW.email LIKE '%@psychočas.cz' THEN
-    -- Any @psychočas.cz email gets manager role
-    new_role := 'manager';
-    new_full_name := NULL;
-  ELSE
-    new_role := 'member';
-    new_full_name := NULL;
+  NEW.updated_at := now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS set_memberships_updated_at ON public.memberships;
+CREATE TRIGGER set_memberships_updated_at
+BEFORE UPDATE ON public.memberships
+FOR EACH ROW EXECUTE FUNCTION public.set_memberships_updated_at();
+
+CREATE OR REPLACE FUNCTION public.prevent_token_spam()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM public.tokens
+    WHERE user_id = NEW.user_id AND consumed_at IS NULL AND expires_at > now()
+  ) THEN
+    RAISE EXCEPTION 'Active token already exists';
+  END IF;
+  RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS trg_token_spam ON public.tokens;
+CREATE TRIGGER trg_token_spam
+BEFORE INSERT ON public.tokens
+FOR EACH ROW EXECUTE FUNCTION public.prevent_token_spam();
+
+CREATE OR REPLACE FUNCTION public.ensure_membership_from_whitelist()
+RETURNS void
+SECURITY DEFINER
+SET search_path = public, auth
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  current_user_id uuid := auth.uid();
+  current_email text;
+  whitelist_record public.membership_whitelist%ROWTYPE;
+  membership_record public.memberships%ROWTYPE;
+  expires_at date;
+BEGIN
+  IF current_user_id IS NULL THEN
+    RETURN;
   END IF;
 
-  -- Insert into members table
-  INSERT INTO public.members (
+  SELECT email INTO current_email
+  FROM auth.users
+  WHERE id = current_user_id;
+
+  IF current_email IS NULL THEN
+    RETURN;
+  END IF;
+
+  SELECT * INTO membership_record
+  FROM public.memberships
+  WHERE user_id = current_user_id;
+
+  IF FOUND THEN
+    IF membership_record.email IS DISTINCT FROM current_email THEN
+      UPDATE public.memberships
+      SET email = current_email
+      WHERE user_id = current_user_id;
+    END IF;
+    RETURN;
+  END IF;
+
+  SELECT * INTO whitelist_record
+  FROM public.membership_whitelist
+  WHERE lower(email) = lower(current_email)
+    AND active IS TRUE
+    AND consumed_at IS NULL
+  LIMIT 1;
+
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  expires_at := (CURRENT_DATE + INTERVAL '1 year')::date;
+
+  INSERT INTO public.memberships (
     user_id,
     email,
+    first_name,
+    last_name,
+    full_name,
+    phone,
+    branch_id,
     role,
     membership_active,
     membership_expires,
-    full_name
+    approved,
+    approved_at
   )
   VALUES (
-    NEW.id,
-    NEW.email,
-    new_role,
+    current_user_id,
+    current_email,
+    whitelist_record.first_name,
+    whitelist_record.last_name,
+    NULLIF(concat_ws(' ', whitelist_record.first_name, whitelist_record.last_name), ''),
+    whitelist_record.phone,
+    whitelist_record.branch_id,
+    whitelist_record.role,
     true,
-    (CURRENT_DATE + INTERVAL '1 year')::date,
-    new_full_name
+    expires_at,
+    true,
+    now()
   )
-  ON CONFLICT (user_id) DO UPDATE SET
-    role = EXCLUDED.role,
-    membership_active = EXCLUDED.membership_active,
-    membership_expires = EXCLUDED.membership_expires,
-    full_name = COALESCE(EXCLUDED.full_name, public.members.full_name);
+  ON CONFLICT (user_id) DO NOTHING;
 
-  RETURN NEW;
+  UPDATE public.membership_whitelist
+  SET
+    consumed_at = now(),
+    consumed_by = current_user_id,
+    active = false
+  WHERE id = whitelist_record.id;
 EXCEPTION
-  WHEN OTHERS THEN
-    RAISE WARNING 'Error in handle_new_user trigger: %', SQLERRM;
-    RETURN NEW;
+  WHEN others THEN
+    RAISE WARNING 'ensure_membership_from_whitelist failed: %', SQLERRM;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
--- Step 6: Create trigger
+GRANT EXECUTE ON FUNCTION public.ensure_membership_from_whitelist() TO authenticated, service_role;
+
+-- Backwards compatibility wrapper
+CREATE OR REPLACE FUNCTION public.ensure_membership()
+RETURNS void
+SECURITY DEFINER
+SET search_path = public, auth
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  PERFORM public.ensure_membership_from_whitelist();
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.ensure_membership() TO authenticated, service_role;
+
+-- Step 6: Views
 -- ========================================
+CREATE OR REPLACE VIEW public.redemptions_daily AS
+SELECT branch_id, date_trunc('day', redeemed_at)::date AS day, count(*) AS total
+FROM public.redemptions
+GROUP BY 1, 2;
 
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE OR REPLACE VIEW public.membership_whitelist_status AS
+SELECT
+  id,
+  email,
+  first_name,
+  last_name,
+  role,
+  branch_id,
+  note,
+  invited_at,
+  invited_by,
+  consumed_at,
+  consumed_by,
+  active
+FROM public.membership_whitelist;
 
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW
-  EXECUTE FUNCTION public.handle_new_user();
-
--- Step 7: Grant permissions
+-- Step 7: Permissions
 -- ========================================
-
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
-GRANT ALL ON public.members TO authenticated, service_role;
+GRANT ALL ON public.memberships TO authenticated, service_role;
 GRANT ALL ON public.tokens TO authenticated, service_role;
 GRANT ALL ON public.redemptions TO authenticated, service_role;
 GRANT ALL ON public.branches TO authenticated, service_role;
+GRANT ALL ON public.partner_offers TO authenticated, service_role;
+GRANT ALL ON public.membership_whitelist TO authenticated, service_role;
 
--- Step 8: Insert test branch (optional)
--- ========================================
-
-INSERT INTO public.branches (name, city)
-VALUES ('Psychočas Brno', 'Brno')
-ON CONFLICT DO NOTHING;
-
--- Step 9: Verification
--- ========================================
-
-DO $$
-BEGIN
-  RAISE NOTICE '========================================';
-  RAISE NOTICE '✅ Database setup completed successfully!';
-  RAISE NOTICE '========================================';
-  RAISE NOTICE '';
-  RAISE NOTICE 'Tables created:';
-  RAISE NOTICE '  ✓ branches';
-  RAISE NOTICE '  ✓ members';
-  RAISE NOTICE '  ✓ tokens';
-  RAISE NOTICE '  ✓ redemptions';
-  RAISE NOTICE '';
-  RAISE NOTICE 'RLS policies enabled: ✓';
-  RAISE NOTICE 'Trigger configured: ✓';
-  RAISE NOTICE 'Permissions granted: ✓';
-  RAISE NOTICE '';
-  RAISE NOTICE 'Test accounts ready:';
-  RAISE NOTICE '  • bunnik.matias@seznam.cz → member';
-  RAISE NOTICE '  • viceprezident@psychočas.cz → council';
-  RAISE NOTICE '  • any @psychočas.cz email → manager';
-  RAISE NOTICE '';
-  RAISE NOTICE 'Next step: Try OTP login at /login';
-  RAISE NOTICE '========================================';
-END $$;
+-- Step 8: (Optional) Seed data using scripts in sql/05_test_data.sql

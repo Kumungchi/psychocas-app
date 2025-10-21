@@ -1,4 +1,4 @@
-export type MemberRole = 'member' | 'manager' | 'council' | 'technician';
+export type MemberRole = 'member' | 'manager' | 'council' | 'technician' | 'admin';
 
 export interface BranchInfo {
   id: string;
@@ -9,7 +9,7 @@ export interface BranchInfo {
   active?: boolean | null;
 }
 
-export interface MemberRow {
+export interface MembershipRow {
   membership_active: boolean;
   membership_expires: string | null;
   full_name: string | null;
@@ -20,18 +20,6 @@ export interface MemberRow {
   approved_at?: string | null;
   phone?: string | null;
   branch?: BranchInfo | BranchInfo[] | null;
-}
-
-export interface TrustedUserRow {
-  email?: string | null;
-  first_name?: string | null;
-  last_name?: string | null;
-  role?: string | null;
-  branch_id?: string | null;
-  branch?: BranchInfo | BranchInfo[] | null;
-  approved_at?: string | null;
-  access_expires_at?: string | null;
-  membership_active?: boolean | null;
 }
 
 export interface MemberData {
@@ -45,8 +33,7 @@ export interface MemberData {
   approved_at?: string | null;
   phone?: string | null;
   branch?: BranchInfo | null;
-  origin?: 'members' | 'trusted_users' | 'demo';
-  trusted_access_expires_at?: string | null;
+  origin?: 'memberships' | 'demo';
 }
 
 export interface TokenData {

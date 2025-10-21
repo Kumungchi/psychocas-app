@@ -8,18 +8,40 @@ Deno.serve(async (req) => {
     { global: { headers: { Authorization: req.headers.get("Authorization")! } } }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return new Response("Unauthorized", { status: 401 });
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) {
+    return new Response("Unable to verify session", { status: 401 });
+  }
 
-  const { data: me } = await supabase
-    .from("members")
-    .select("membership_active")
+  const user = session?.user ?? null;
+  if (!user) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  const { error: ensureError } = await supabase.rpc('ensure_membership_from_whitelist');
+  if (ensureError) {
+    console.warn('ensure_membership_from_whitelist RPC failed', ensureError);
+  }
+
+  const { data: me, error: membershipError } = await supabase
+    .from("memberships")
+    .select("membership_active, membership_expires")
     .eq("user_id", user.id)
-    .single();
-    
-  if (!me?.membership_active) {
+    .maybeSingle();
+
+  if (membershipError) {
+    console.warn('Unable to load membership in generate_token', membershipError);
+  }
+
+  const membershipExpires = me?.membership_expires
+    ? new Date(me.membership_expires)
+    : null;
+  const membershipActive =
+    Boolean(me?.membership_active) && (!membershipExpires || membershipExpires.getTime() > Date.now());
+
+  if (!membershipActive) {
     return new Response(
-      JSON.stringify({ error: "membership_inactive" }), 
+      JSON.stringify({ error: "membership_inactive" }),
       { status: 403 }
     );
   }

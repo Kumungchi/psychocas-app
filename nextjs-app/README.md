@@ -4,10 +4,10 @@ This package contains the public-facing Psychočas PWA. It is built with Next.js
 
 ## Features
 - Magic-link authentication backed by Supabase Auth
-- Shared member context that honours `members` and `trusted_users` records
+- Shared member context sourced from the `memberships` table
 - Role-aware navigation and feature gating for members, managers, council, and technicians
 - QR-based membership confirmation and token validation workflows
-- Technician console for managing member activation and trusted-user access
+- Technician console for managing membership activation
 - Localised UI copy (Czech and English preview) with a runtime language toggle
 
 ## Prerequisites
@@ -30,12 +30,13 @@ This package contains the public-facing Psychočas PWA. It is built with Next.js
    ```bash
    npm run dev
    ```
-4. Open http://localhost:3000 and sign in with a Supabase account that is present in `members` or `trusted_users`.
+4. Open http://localhost:3000 and sign in with a Supabase account that is present in `memberships`.
 
 ## Database Notes
-- `members` rows power the full experience, including profile editing and partner visibility
-- `trusted_users` fallback grants access when only an email address is available; optional role, branch, and expiry fields add extra context
-- Technicians can toggle `membership_active` directly from the technician console once the service role key is available to the client
+- `memberships` rows power the full experience, including profile editing and partner visibility
+- `ensure_membership_from_whitelist` RPC hydrates member records automatically based on the whitelist
+- `membership_whitelist` entries act as the allow-list that `ensure_membership_from_whitelist` consumes on sign-in
+- Technicians and admins can toggle `membership_active` directly from the technician console once the service role key is available to the client
 
 See the root-level `DATABASE_SETUP.md` for the full schema walkthrough and policies.
 

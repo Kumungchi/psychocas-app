@@ -61,7 +61,7 @@ export default function ProfileDrawer({ member, open, onClose, onUpdated }: Prof
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const canEditProfile = Boolean(member && member.origin !== 'trusted_users' && member.email);
+  const canEditProfile = Boolean(member && member.origin !== 'demo' && member.email);
 
   useEffect(() => {
     setForm({
@@ -82,7 +82,7 @@ export default function ProfileDrawer({ member, open, onClose, onUpdated }: Prof
     setError(null);
 
     const { data, error: updateError } = await supabase
-      .from('members')
+      .from('memberships')
       .update({
         full_name: form.full_name.trim() || null,
         phone: form.phone?.trim() || null,

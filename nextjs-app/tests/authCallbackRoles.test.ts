@@ -45,7 +45,7 @@ describe('auth callback role handling', () => {
     expect(isAllowedRedirect('/technician', 'council')).toBe(true)
   })
 
-  it('only exposes technician tools when the email is trusted', () => {
+  it('only exposes technician tools for psychočas technician accounts', () => {
     const technician = createMember('technician', 'technik@psychocas.cz')
     const externalTech = createMember('technician', 'technician@gmail.com')
 
@@ -54,6 +54,15 @@ describe('auth callback role handling', () => {
 
     expect(normaliseRole(externalTech)).toBe('member')
     expect(isAllowedRedirect('/technician', 'member')).toBe(false)
+  })
+
+  it('retains admin privileges regardless of email domain', () => {
+    const admin = createMember('admin', 'admin@example.com')
+
+    expect(normaliseRole(admin)).toBe('admin')
+    expect(ROLE_DEFAULT_REDIRECT.admin).toBe('/admin')
+    expect(isAllowedRedirect('/admin', 'admin')).toBe(true)
+    expect(isAllowedRedirect('/technician', 'admin')).toBe(true)
   })
 
   it('allows nested paths within the permitted areas', () => {
@@ -66,5 +75,6 @@ describe('auth callback role handling', () => {
     expect(ROLE_ALLOWED_PATHS.member).toEqual(['/home', '/redeem'])
     expect(ROLE_ALLOWED_PATHS.manager).toContain('/stats')
     expect(ROLE_ALLOWED_PATHS.council).toContain('/admin')
+    expect(ROLE_ALLOWED_PATHS.admin).toContain('/admin')
   })
 })

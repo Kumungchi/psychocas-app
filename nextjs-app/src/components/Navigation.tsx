@@ -1,13 +1,21 @@
 'use client';
 
 import { useRouter, usePathname } from 'next/navigation';
-import { Home, QrCode, BarChart3, Settings, LogOut } from 'lucide-react';
+import { Home, QrCode, BarChart3, Settings, LogOut, type LucideIcon } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { colors, radii, spacing, typography } from '@/ui/theme';
 import useLocale from '@/hooks/useLocale';
+import type { MemberRole } from '@/types/member';
 
 interface NavigationProps {
-  userRole: 'member' | 'manager' | 'council' | 'technician';
+  userRole: MemberRole;
+}
+
+interface MenuItem {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  roles: MemberRole[];
 }
 
 const containerStyle: React.CSSProperties = {
@@ -45,14 +53,14 @@ export default function Navigation({ userRole }: NavigationProps) {
     router.push('/login');
   };
 
-  const menuItems = [
-    { id: '/home', label: t('navigation.home'), icon: Home, roles: ['member', 'manager', 'council', 'technician'] as const },
-    { id: '/validate', label: t('navigation.validate'), icon: QrCode, roles: ['manager', 'council'] as const },
-    { id: '/stats', label: t('navigation.stats'), icon: BarChart3, roles: ['manager', 'council'] as const },
-    { id: '/technician', label: t('navigation.technician'), icon: Settings, roles: ['technician', 'council'] as const },
+  const menuItems: MenuItem[] = [
+    { id: '/home', label: t('navigation.home'), icon: Home, roles: ['member', 'manager', 'council', 'technician', 'admin'] },
+    { id: '/validate', label: t('navigation.validate'), icon: QrCode, roles: ['manager', 'council', 'admin'] },
+    { id: '/stats', label: t('navigation.stats'), icon: BarChart3, roles: ['manager', 'council', 'admin'] },
+    { id: '/technician', label: t('navigation.technician'), icon: Settings, roles: ['technician', 'council', 'admin'] },
   ];
 
-  const visibleItems = menuItems.filter((item) => item.roles.includes(userRole as never));
+  const visibleItems = menuItems.filter((item) => item.roles.includes(userRole));
 
   return (
     <nav style={containerStyle} aria-label={t('navigation.mainNav')}>

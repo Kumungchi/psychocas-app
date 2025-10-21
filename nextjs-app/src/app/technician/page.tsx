@@ -10,7 +10,6 @@ import {
   ShieldCheck,
   ShieldOff,
   RefreshCcw,
-  UserPlus,
   UserCog,
 } from 'lucide-react';
 import Navigation from '@/components/Navigation';
@@ -24,7 +23,7 @@ interface BranchRecord {
   name: string | null;
 }
 
-interface MemberRow {
+interface MembershipRow {
   id: string;
   user_id: string | null;
   email: string | null;
@@ -35,19 +34,6 @@ interface MemberRow {
   branch?: BranchRecord | BranchRecord[] | null;
 }
 
-interface TrustedUserRow {
-  id: string;
-  email: string;
-  first_name: string | null;
-  last_name: string | null;
-  role: string | null;
-  membership_active: boolean | null;
-  access_expires_at: string | null;
-  branch?: BranchRecord | BranchRecord[] | null;
-}
-
-type RecordOrigin = 'members' | 'trusted_users';
-
 interface ManagedPerson {
   id: string;
   tableId: string;
@@ -56,17 +42,14 @@ interface ManagedPerson {
   role: MemberRole;
   membershipActive: boolean;
   membershipExpires: string | null;
-  accessExpiresAt?: string | null;
   branchName?: string | null;
-  origin: RecordOrigin;
 }
 
-type SourceFilter = 'all' | 'members' | 'trusted';
 type StatusFilter = 'all' | 'active' | 'inactive';
 
 const demoPeople: ManagedPerson[] = [
   {
-    id: 'members:demo-1',
+    id: 'memberships:demo-1',
     tableId: 'demo-1',
     email: 'jana.novakova@example.com',
     fullName: 'Jana Nováková',
@@ -74,10 +57,9 @@ const demoPeople: ManagedPerson[] = [
     membershipActive: true,
     membershipExpires: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(),
     branchName: 'Demo Branch',
-    origin: 'members',
   },
   {
-    id: 'members:demo-2',
+    id: 'memberships:demo-2',
     tableId: 'demo-2',
     email: 'ondrej.technician@example.com',
     fullName: 'Ondřej Technik',
@@ -85,10 +67,9 @@ const demoPeople: ManagedPerson[] = [
     membershipActive: true,
     membershipExpires: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
     branchName: 'Demo Branch',
-    origin: 'members',
   },
   {
-    id: 'members:demo-3',
+    id: 'memberships:demo-3',
     tableId: 'demo-3',
     email: 'eva.member@example.com',
     fullName: 'Eva Členová',
@@ -96,19 +77,6 @@ const demoPeople: ManagedPerson[] = [
     membershipActive: false,
     membershipExpires: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
     branchName: 'Demo Branch',
-    origin: 'members',
-  },
-  {
-    id: 'trusted:demo-4',
-    tableId: 'demo-4',
-    email: 'partner@demo-branch.cz',
-    fullName: 'Partner Demo',
-    role: 'manager',
-    membershipActive: true,
-    membershipExpires: null,
-    accessExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-    branchName: 'Demo Branch',
-    origin: 'trusted_users',
   },
 ];
 
@@ -125,12 +93,11 @@ export default function Technician() {
   const { t, formatMessage, locale } = useLocale();
   const { status, member, error, refresh } = useMemberContext({ scope: 'technician-console' });
   const memberRole: MemberRole = member?.role ?? 'member';
-  const canManage = memberRole === 'technician' || memberRole === 'council';
+  const canManage = memberRole === 'technician' || memberRole === 'council' || memberRole === 'admin';
   const isDemo = member?.origin === 'demo';
 
   const [people, setPeople] = useState<ManagedPerson[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -138,11 +105,6 @@ export default function Technician() {
 
   const resolveRoleLabel = useCallback(
     (role: MemberRole) => t(`technician.roleLabels.${role}`),
-    [t]
-  );
-
-  const resolveOriginLabel = useCallback(
-    (origin: RecordOrigin) => t(`technician.originLabels.${origin}`),
     [t]
   );
 
@@ -157,38 +119,25 @@ export default function Technician() {
     setIsLoading(true);
     setLoadError(null);
 
-    const [membersResponse, trustedResponse] = await Promise.all([
-      supabase
-        .from('members')
-        .select(
-          `id, user_id, email, full_name, role, membership_active, membership_expires,
-           branch:branch_id (id, name)`
-        )
-        .order('full_name', { ascending: true }),
-      supabase
-        .from('trusted_users')
-        .select(
-          `id, email, first_name, last_name, role, membership_active, access_expires_at,
-           branch:branch_id (id, name)`
-        )
-        .order('first_name', { ascending: true }),
-    ]);
+    const { data, error } = await supabase
+      .from('memberships')
+      .select(
+        `id, user_id, email, full_name, role, membership_active, membership_expires,
+         branch:branch_id (id, name)`
+      )
+      .order('full_name', { ascending: true });
 
-    let message: string | null = null;
-
-    if (membersResponse.error && trustedResponse.error) {
-      message = t('technician.states.loadErrorGeneral');
-    } else if (membersResponse.error) {
-      message = t('technician.states.loadErrorMembers');
-    } else if (trustedResponse.error) {
-      message = t('technician.states.loadErrorTrusted');
+    if (error) {
+      setLoadError(t('technician.states.loadErrorMembers'));
+      setPeople([]);
+      setIsLoading(false);
+      return;
     }
 
-    const memberRows = membersResponse.error ? [] : ((membersResponse.data ?? []) as MemberRow[]);
-    const trustedRows = trustedResponse.error ? [] : ((trustedResponse.data ?? []) as TrustedUserRow[]);
+    const memberRows = (data ?? []) as MembershipRow[];
 
     const normalizedMembers: ManagedPerson[] = memberRows.map((row) => ({
-      id: `members:${row.id}`,
+      id: `memberships:${row.id}`,
       tableId: row.id,
       email: row.email ?? 'unknown@example.com',
       fullName: row.full_name?.trim() || row.email || 'Member',
@@ -196,32 +145,12 @@ export default function Technician() {
       membershipActive: row.membership_active,
       membershipExpires: row.membership_expires,
       branchName: toBranchName(row.branch),
-      origin: 'members',
     }));
 
-    const normalizedTrusted: ManagedPerson[] = trustedRows.map((row) => {
-      const nameParts = [row.first_name, row.last_name]
-        .filter((part): part is string => Boolean(part && part.trim().length > 0))
-        .map((part) => part.trim());
-
-      return {
-        id: `trusted:${row.id}`,
-        tableId: row.id,
-        email: row.email,
-        fullName: nameParts.length > 0 ? nameParts.join(' ') : row.email,
-        role: (row.role ?? 'member') as MemberRole,
-        membershipActive: row.membership_active ?? true,
-        membershipExpires: row.access_expires_at,
-        accessExpiresAt: row.access_expires_at,
-        branchName: toBranchName(row.branch),
-        origin: 'trusted_users',
-      };
-    });
-
-    setPeople([...normalizedMembers, ...normalizedTrusted]);
-    setLoadError(message);
+    setPeople(normalizedMembers);
+    setLoadError(null);
     setIsLoading(false);
-  }, [isDemo, t]);
+  }, [isDemo, supabase, t]);
 
   useEffect(() => {
     if (status === 'ready' && canManage) {
@@ -240,28 +169,15 @@ export default function Technician() {
       setUpdatingId(person.id);
       setLoadError(null);
 
-      if (person.origin === 'members') {
-        const { error: updateError } = await supabase
-          .from('members')
-          .update({ membership_active: nextStatus })
-          .eq('id', person.tableId);
+      const { error: updateError } = await supabase
+        .from('memberships')
+        .update({ membership_active: nextStatus })
+        .eq('id', person.tableId);
 
-        if (updateError) {
-          setLoadError(t('technician.states.loadErrorGeneral'));
-          setUpdatingId(null);
-          return;
-        }
-      } else {
-        const { error: updateError } = await supabase
-          .from('trusted_users')
-          .update({ membership_active: nextStatus })
-          .eq('id', person.tableId);
-
-        if (updateError) {
-          setLoadError(t('technician.states.loadErrorTrusted'));
-          setUpdatingId(null);
-          return;
-        }
+      if (updateError) {
+        setLoadError(t('technician.states.loadErrorGeneral'));
+        setUpdatingId(null);
+        return;
       }
 
       setPeople((previous) =>
@@ -279,12 +195,6 @@ export default function Technician() {
   const filteredPeople = useMemo(() => {
     const search = searchTerm.trim().toLowerCase();
     return people.filter((item) => {
-      if (sourceFilter === 'members' && item.origin !== 'members') {
-        return false;
-      }
-      if (sourceFilter === 'trusted' && item.origin !== 'trusted_users') {
-        return false;
-      }
       if (statusFilter === 'active' && !item.membershipActive) {
         return false;
       }
@@ -300,15 +210,14 @@ export default function Technician() {
         item.fullName.toLowerCase().includes(search)
       );
     });
-  }, [people, searchTerm, sourceFilter, statusFilter]);
+  }, [people, searchTerm, statusFilter]);
 
   const summary = useMemo(() => {
     const total = people.length;
-    const active = people.filter((person) => person.membershipActive && person.origin === 'members').length;
-    const inactive = people.filter((person) => !person.membershipActive && person.origin === 'members').length;
-    const trusted = people.filter((person) => person.origin === 'trusted_users').length;
+    const active = people.filter((person) => person.membershipActive).length;
+    const inactive = people.filter((person) => !person.membershipActive).length;
 
-    return { total, active, inactive, trusted };
+    return { total, active, inactive };
   }, [people]);
 
   if (status === 'loading' || status === 'idle') {
@@ -422,39 +331,6 @@ export default function Technician() {
             <button
               className="px-3 py-1 rounded-full border"
               style={{
-                backgroundColor: sourceFilter === 'all' ? colors.brandPrimary : colors.background,
-                color: sourceFilter === 'all' ? colors.background : colors.textSecondary,
-                borderColor: sourceFilter === 'all' ? colors.brandPrimary : colors.border,
-              }}
-              onClick={() => setSourceFilter('all')}
-            >
-              {formatMessage('technician.filters.source.all', { count: people.length })}
-            </button>
-            <button
-              className="px-3 py-1 rounded-full border"
-              style={{
-                backgroundColor: sourceFilter === 'members' ? colors.brandPrimary : colors.background,
-                color: sourceFilter === 'members' ? colors.background : colors.textSecondary,
-                borderColor: sourceFilter === 'members' ? colors.brandPrimary : colors.border,
-              }}
-              onClick={() => setSourceFilter('members')}
-            >
-              {formatMessage('technician.filters.source.members', { count: summary.total - summary.trusted })}
-            </button>
-            <button
-              className="px-3 py-1 rounded-full border"
-              style={{
-                backgroundColor: sourceFilter === 'trusted' ? colors.brandPrimary : colors.background,
-                color: sourceFilter === 'trusted' ? colors.background : colors.textSecondary,
-                borderColor: sourceFilter === 'trusted' ? colors.brandPrimary : colors.border,
-              }}
-              onClick={() => setSourceFilter('trusted')}
-            >
-              {formatMessage('technician.filters.source.trusted', { count: summary.trusted })}
-            </button>
-            <button
-              className="px-3 py-1 rounded-full border"
-              style={{
                 backgroundColor: statusFilter === 'active' ? colors.accent : colors.background,
                 color: statusFilter === 'active' ? colors.background : colors.textSecondary,
                 borderColor: statusFilter === 'active' ? colors.accent : colors.border,
@@ -477,7 +353,7 @@ export default function Technician() {
           </div>
         </section>
 
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="psychocas-card text-center space-y-1">
             <Users className="h-8 w-8 mx-auto" style={{ color: colors.brandPrimary }} />
             <div className="text-2xl font-bold" style={{ color: colors.textPrimary }}>{summary.total}</div>
@@ -492,11 +368,6 @@ export default function Technician() {
             <XCircle className="h-8 w-8 mx-auto" style={{ color: colors.danger }} />
             <div className="text-2xl font-bold" style={{ color: colors.textPrimary }}>{summary.inactive}</div>
             <p className="text-sm" style={{ color: colors.textSecondary }}>{t('technician.statsCards.inactive')}</p>
-          </div>
-          <div className="psychocas-card text-center space-y-1">
-            <UserPlus className="h-8 w-8 mx-auto" style={{ color: colors.warning }} />
-            <div className="text-2xl font-bold" style={{ color: colors.textPrimary }}>{summary.trusted}</div>
-            <p className="text-sm" style={{ color: colors.textSecondary }}>{t('technician.statsCards.trusted')}</p>
           </div>
         </section>
 
@@ -515,17 +386,21 @@ export default function Technician() {
 
           <div className="space-y-3">
             {filteredPeople.map((person) => {
-              const statusBadge = person.membershipActive
-                ? {
-                    backgroundColor: colors.successSurface,
-                    color: colors.success,
-                    label: t('technician.statusBadge.active'),
-                  }
-                : {
-                    backgroundColor: colors.dangerSurface,
-                    color: colors.dangerStrong,
-                    label: t('technician.statusBadge.inactive'),
-                  };
+            const statusBadge = person.membershipActive
+              ? {
+                  backgroundColor: colors.successSurface,
+                  color: colors.success,
+                  label: t('technician.statusBadge.active'),
+                }
+              : {
+                  backgroundColor: colors.dangerSurface,
+                  color: colors.dangerStrong,
+                  label: t('technician.statusBadge.inactive'),
+                };
+            const statusBadgeStyle = {
+              backgroundColor: statusBadge.backgroundColor,
+              color: statusBadge.color,
+            };
 
               const roleBadge = person.membershipActive
                 ? { backgroundColor: colors.brandSurfaceAlt, color: colors.brandPrimary }
@@ -535,17 +410,11 @@ export default function Technician() {
                 ? formatMessage('technician.table.branch', { branch: person.branchName })
                 : null;
 
-              const membershipLabel = person.membershipExpires
-                ? formatMessage('technician.table.membershipExpires', {
-                    date: new Intl.DateTimeFormat(locale).format(new Date(person.membershipExpires)),
-                  })
-                : null;
-
-              const accessLabel = person.accessExpiresAt
-                ? formatMessage('technician.table.accessExpires', {
-                    date: new Intl.DateTimeFormat(locale).format(new Date(person.accessExpiresAt)),
-                  })
-                : null;
+            const membershipLabel = person.membershipExpires
+              ? formatMessage('technician.table.membershipExpires', {
+                  date: new Intl.DateTimeFormat(locale).format(new Date(person.membershipExpires)),
+                })
+              : t('technician.table.membershipNoExpiry');
 
               return (
                 <div
@@ -562,14 +431,8 @@ export default function Technician() {
                         <span className="px-2 py-1 text-xs font-medium rounded-full" style={roleBadge}>
                           {resolveRoleLabel(person.role)}
                         </span>
-                        <span className="px-2 py-1 text-xs font-medium rounded-full" style={statusBadge}>
+                        <span className="px-2 py-1 text-xs font-medium rounded-full" style={statusBadgeStyle}>
                           {statusBadge.label}
-                        </span>
-                        <span
-                          className="px-2 py-1 text-xs font-medium rounded-full"
-                          style={{ backgroundColor: colors.brandSurface, color: colors.brandPrimary }}
-                        >
-                          {resolveOriginLabel(person.origin)}
                         </span>
                       </div>
 
@@ -584,11 +447,6 @@ export default function Technician() {
                       {membershipLabel && (
                         <p className="text-sm" style={{ color: colors.textSecondary }}>
                           {membershipLabel}
-                        </p>
-                      )}
-                      {accessLabel && (
-                        <p className="text-sm" style={{ color: colors.textSecondary }}>
-                          {accessLabel}
                         </p>
                       )}
                     </div>

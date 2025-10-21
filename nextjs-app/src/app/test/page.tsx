@@ -37,7 +37,7 @@ const roleOptions: RoleOption[] = [
   {
     role: 'technician',
     label: 'Technician',
-    description: 'Inspect the technician console for member and trusted-user administration.',
+    description: 'Inspect the technician console for membership administration.',
   },
   {
     role: 'council',

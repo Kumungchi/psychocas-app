@@ -87,16 +87,52 @@ export async function GET(request: Request) {
       return handleAuthError('callback_failed', error.message)
     }
 
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+
+    if (sessionError) {
+      return handleAuthError('callback_failed', sessionError.message)
+    }
+
+    const user = session?.user ?? null
+
+    type MembershipLookup = MemberSummary & {
+      membership_active: boolean
+      membership_expires: string | null
+    }
 
     let member: MemberSummary | null = null
     if (user) {
-      const { data } = await supabase
-        .from('members')
-        .select('role, email')
+      const { error: ensureError } = await supabase.rpc('ensure_membership_from_whitelist')
+      if (ensureError) {
+        console.warn('ensure_membership_from_whitelist RPC failed', ensureError)
+      }
+
+      const { data, error: membershipError } = await supabase
+        .from('memberships')
+        .select('role, email, membership_active, membership_expires')
         .eq('user_id', user.id)
-        .single<MemberSummary>()
-      member = data ?? null
+        .maybeSingle<MembershipLookup>()
+
+      if (membershipError) {
+        console.warn('Failed to load membership during auth callback', membershipError)
+      }
+
+      if (data) {
+        const expiresAt = data.membership_expires
+          ? new Date(data.membership_expires)
+          : null
+        const isActive =
+          data.membership_active && (!expiresAt || expiresAt.getTime() > Date.now())
+
+        if (!isActive) {
+          console.warn('Membership record is inactive; treating user as non-member', {
+            membership_active: data.membership_active,
+            membership_expires: data.membership_expires,
+          })
+        } else {
+          member = { role: data.role, email: data.email }
+        }
+      }
     }
 
     const effectiveRole = normaliseRole(member)

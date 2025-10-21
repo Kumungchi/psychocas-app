@@ -6,11 +6,10 @@ SELECT 'AUTH USER:' as info, id, email, created_at
 FROM auth.users 
 WHERE email = 'bunnik.matias@seznam.cz';
 
--- 2. Delete any existing problematic member record
-DELETE FROM public.members WHERE email = 'bunnik.matias@seznam.cz';
+-- 2. Delete any existing problematic membership record
+DELETE FROM public.memberships WHERE email = 'bunnik.matias@seznam.cz';
 
--- 3. Create simple member record with just the essentials
-INSERT INTO public.members (
+INSERT INTO public.memberships (
   user_id,
   email,
   role,
@@ -22,7 +21,7 @@ INSERT INTO public.members (
   approved,
   approved_at
 )
-SELECT 
+SELECT
   au.id,
   'bunnik.matias@seznam.cz',
   'member',
@@ -37,7 +36,7 @@ FROM auth.users au
 WHERE au.email = 'bunnik.matias@seznam.cz';
 
 -- 4. Verify it worked
-SELECT 
+SELECT
   'CREATED MEMBER:' as info,
   user_id,
   email,
@@ -46,5 +45,5 @@ SELECT
   last_name,
   membership_active,
   approved
-FROM public.members 
+FROM public.memberships
 WHERE email = 'bunnik.matias@seznam.cz';
