@@ -34,19 +34,6 @@ interface AdminMember {
   phone: string | null;
 }
 
-interface TrustedUserRow {
-  id: string;
-  email: string;
-  first_name: string | null;
-  last_name: string | null;
-  phone: string | null;
-  role: string;
-  branch_id: string | null;
-  branch?: { id: string; name: string | null } | null;
-  notes: string | null;
-  added_at: string;
-}
-
 interface BranchRow {
   id: string;
   name: string;
@@ -55,7 +42,7 @@ interface BranchRow {
   active: boolean;
 }
 
-type AdminTab = 'members' | 'trusted' | 'branches' | 'partners';
+type AdminTab = 'members' | 'branches' | 'partners';
 
 const demoMembers: AdminMember[] = [
   {
@@ -82,21 +69,6 @@ const demoPendingMembers: AdminMember[] = [
     approved: false,
     approved_at: null,
     phone: null,
-  },
-];
-
-const demoTrusted: TrustedUserRow[] = [
-  {
-    id: 'demo-trusted',
-    email: 'trusted@demo.cz',
-    first_name: 'Demo',
-    last_name: 'Trusted',
-    phone: null,
-    role: 'manager',
-    branch_id: null,
-    branch: null,
-    notes: 'Ukázkový přístup',
-    added_at: new Date().toISOString(),
   },
 ];
 
@@ -129,28 +101,19 @@ export default function AdminPage() {
   const { t, formatMessage, locale } = useLocale();
   const { status, member, user, error, refresh } = useMemberContext({ scope: 'admin-page' });
   const memberRole = member?.role ?? 'member';
+  const isAdmin = memberRole === 'admin';
   const isCouncil = memberRole === 'council';
   const isPsychocasManager = memberRole === 'manager' && Boolean(member?.email?.toLowerCase().endsWith('@psychocas.cz'));
-  const canAccess = isCouncil || isPsychocasManager;
+  const canAccess = isAdmin || isCouncil || isPsychocasManager;
   const isDemo = member?.origin === 'demo';
 
   const [activeTab, setActiveTab] = useState<AdminTab>('members');
 
   const [members, setMembers] = useState<AdminMember[]>([]);
   const [pendingMembers, setPendingMembers] = useState<AdminMember[]>([]);
-  const [trustedUsers, setTrustedUsers] = useState<TrustedUserRow[]>([]);
   const [branches, setBranches] = useState<BranchRow[]>([]);
   const [partnerOffers, setPartnerOffers] = useState<PartnerOfferRecord[]>([]);
 
-  const [newTrusted, setNewTrusted] = useState({
-    email: '',
-    first_name: '',
-    last_name: '',
-    phone: '',
-    role: 'member',
-    branch_id: '',
-    notes: '',
-  });
   const [newBranch, setNewBranch] = useState({
     name: '',
     location: '',
@@ -177,7 +140,7 @@ export default function AdminPage() {
     }
 
     const { data } = await supabase
-      .from('members')
+      .from('memberships')
       .select('user_id, email, full_name, role, membership_active, membership_expires, approved, approved_at, phone')
       .order('created_at', { ascending: false });
 
@@ -188,33 +151,6 @@ export default function AdminPage() {
       }));
       setMembers(normalized.filter((item) => item.approved));
       setPendingMembers(normalized.filter((item) => !item.approved));
-    }
-  }, [isDemo]);
-
-  const loadTrusted = useCallback(async () => {
-    if (isDemo) {
-      setTrustedUsers(demoTrusted);
-      return;
-    }
-
-    const { data } = await supabase
-      .from('trusted_users')
-      .select('id, email, first_name, last_name, phone, role, branch_id, branch:branch_id (id, name), notes, added_at')
-      .order('added_at', { ascending: false });
-
-    if (data) {
-      const rawRows = data as unknown as Array<
-        Omit<TrustedUserRow, 'branch'> & {
-          branch: TrustedUserRow['branch'] | TrustedUserRow['branch'][] | null;
-        }
-      >;
-
-      const normalized: TrustedUserRow[] = rawRows.map((row) => ({
-        ...row,
-        branch: Array.isArray(row.branch) ? row.branch?.[0] ?? null : row.branch ?? null,
-      }));
-
-      setTrustedUsers(normalized);
     }
   }, [isDemo]);
 
@@ -258,8 +194,8 @@ export default function AdminPage() {
       return;
     }
 
-    void Promise.all([loadMembers(), loadTrusted(), loadBranches(), loadPartnerOffers()]);
-  }, [canAccess, loadBranches, loadMembers, loadPartnerOffers, loadTrusted, status]);
+    void Promise.all([loadMembers(), loadBranches(), loadPartnerOffers()]);
+  }, [canAccess, loadBranches, loadMembers, loadPartnerOffers, status]);
 
   const approveMember = useCallback(
     async (memberId: string) => {
@@ -289,57 +225,6 @@ export default function AdminPage() {
       }
     },
     [isDemo, loadMembers, t, formatMessage, user]
-  );
-
-  const handleAddTrusted = useCallback(
-    async (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-
-      if (isDemo) {
-        setMessage({ type: 'success', text: t('admin.messages.success') });
-        return;
-      }
-
-      const { error: insertError } = await supabase.from('trusted_users').insert([
-        {
-          ...newTrusted,
-          branch_id: newTrusted.branch_id || null,
-          added_by: user?.id ?? null,
-        },
-      ]);
-
-      if (insertError) {
-        setMessage({ type: 'error', text: formatMessage('admin.messages.error', { message: insertError.message }) });
-      } else {
-        setMessage({ type: 'success', text: t('admin.messages.success') });
-        setNewTrusted({ email: '', first_name: '', last_name: '', phone: '', role: 'member', branch_id: '', notes: '' });
-        await loadTrusted();
-      }
-    },
-    [isDemo, loadTrusted, newTrusted, t, formatMessage, user]
-  );
-
-  const handleDeleteTrusted = useCallback(
-    async (id: string) => {
-      if (!confirm(t('admin.trusted.deleteConfirm'))) {
-        return;
-      }
-
-      if (isDemo) {
-        setMessage({ type: 'success', text: t('admin.trusted.deleteSuccess') });
-        return;
-      }
-
-      const { error: deleteError } = await supabase.from('trusted_users').delete().eq('id', id);
-
-      if (deleteError) {
-        setMessage({ type: 'error', text: formatMessage('admin.trusted.deleteError', { message: deleteError.message }) });
-      } else {
-        setMessage({ type: 'success', text: t('admin.trusted.deleteSuccess') });
-        await loadTrusted();
-      }
-    },
-    [formatMessage, isDemo, loadTrusted, t]
   );
 
   const handleAddBranch = useCallback(
@@ -512,7 +397,6 @@ export default function AdminPage() {
 
   const pendingTitle = formatMessage('admin.members.pendingTitle', { count: pendingMembers.length });
   const approvedTitle = formatMessage('admin.members.listTitle', { count: members.length });
-  const trustedTitle = formatMessage('admin.trusted.listTitle', { count: trustedUsers.length });
   const branchesTitle = formatMessage('admin.branches.listTitle', { count: branches.length });
   const partnersTitle = formatMessage('admin.partners.listTitle', { count: partnerOffers.length });
 
@@ -587,7 +471,7 @@ export default function AdminPage() {
         )}
 
         <nav className="flex flex-wrap gap-3">
-          {(['members', 'trusted', 'branches', 'partners'] as AdminTab[]).map((tab) => (
+        {(['members', 'branches', 'partners'] as AdminTab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -669,113 +553,6 @@ export default function AdminPage() {
                             {new Intl.DateTimeFormat(locale).format(new Date(item.membership_expires))}
                           </div>
                         )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
-        )}
-
-        {activeTab === 'trusted' && (
-          <section className="space-y-6">
-            <form className="psychocas-card space-y-3" onSubmit={handleAddTrusted}>
-              <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>{t('admin.trusted.formTitle')}</h2>
-              <div className="grid gap-3 md:grid-cols-2">
-                <input
-                  className="psychocas-input"
-                  placeholder={t('admin.trusted.form.email')}
-                  value={newTrusted.email}
-                  onChange={(event) => setNewTrusted((prev) => ({ ...prev, email: event.target.value }))}
-                  required
-                />
-                <input
-                  className="psychocas-input"
-                  placeholder={t('admin.trusted.form.firstName')}
-                  value={newTrusted.first_name}
-                  onChange={(event) => setNewTrusted((prev) => ({ ...prev, first_name: event.target.value }))}
-                  required
-                />
-                <input
-                  className="psychocas-input"
-                  placeholder={t('admin.trusted.form.lastName')}
-                  value={newTrusted.last_name}
-                  onChange={(event) => setNewTrusted((prev) => ({ ...prev, last_name: event.target.value }))}
-                  required
-                />
-                <input
-                  className="psychocas-input"
-                  placeholder={t('admin.trusted.form.phone')}
-                  value={newTrusted.phone}
-                  onChange={(event) => setNewTrusted((prev) => ({ ...prev, phone: event.target.value }))}
-                />
-                <select
-                  className="psychocas-input"
-                  value={newTrusted.role}
-                  onChange={(event) => setNewTrusted((prev) => ({ ...prev, role: event.target.value }))}
-                >
-                  <option value="member">{t('admin.trusted.form.roleOptions.member')}</option>
-                  <option value="manager">{t('admin.trusted.form.roleOptions.manager')}</option>
-                  <option value="council">{t('admin.trusted.form.roleOptions.council')}</option>
-                  <option value="technician">{t('admin.trusted.form.roleOptions.technician')}</option>
-                </select>
-                <select
-                  className="psychocas-input"
-                  value={newTrusted.branch_id}
-                  onChange={(event) => setNewTrusted((prev) => ({ ...prev, branch_id: event.target.value }))}
-                >
-                  <option value="">{t('admin.trusted.form.branchNone')}</option>
-                  {branches.map((branch) => (
-                    <option key={branch.id} value={branch.id}>
-                      {branch.name}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  className="psychocas-input md:col-span-2"
-                  placeholder={t('admin.trusted.form.notes')}
-                  value={newTrusted.notes}
-                  onChange={(event) => setNewTrusted((prev) => ({ ...prev, notes: event.target.value }))}
-                />
-              </div>
-              <button type="submit" className="psychocas-button-primary w-max flex items-center gap-2">
-                <UserCheck className="h-4 w-4" />
-                {t('admin.trusted.form.submit')}
-              </button>
-            </form>
-
-            <div className="psychocas-card space-y-3">
-              <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>{trustedTitle}</h2>
-              {trustedUsers.length === 0 ? (
-                <p style={{ color: colors.textSecondary }}>{t('admin.trusted.listEmpty')}</p>
-              ) : (
-                <div className="space-y-3">
-                  {trustedUsers.map((userRow) => (
-                    <div key={userRow.id} className="rounded-lg border p-4" style={{ borderColor: colors.border }}>
-                      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                        <div>
-                          <div className="font-medium" style={{ color: colors.textPrimary }}>
-                            {`${userRow.first_name ?? ''} ${userRow.last_name ?? ''}`.trim() || userRow.email}
-                          </div>
-                          <div className="text-sm" style={{ color: colors.textSecondary }}>{userRow.email}</div>
-                          {userRow.branch?.name && (
-                            <div className="text-sm" style={{ color: colors.textSecondary }}>
-                              <MapPin className="mr-1 inline h-4 w-4" />
-                              {userRow.branch.name}
-                            </div>
-                          )}
-                          {userRow.notes && (
-                            <div className="text-sm" style={{ color: colors.textSecondary }}>{userRow.notes}</div>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => void handleDeleteTrusted(userRow.id)}
-                          className="psychocas-button-secondary flex items-center gap-2"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          {t('admin.trusted.delete')}
-                        </button>
                       </div>
                     </div>
                   ))}

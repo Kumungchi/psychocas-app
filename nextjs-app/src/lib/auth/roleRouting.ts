@@ -1,10 +1,11 @@
-export type MemberRole = 'member' | 'manager' | 'council' | 'technician'
+export type MemberRole = 'member' | 'manager' | 'council' | 'technician' | 'admin'
 
 export const ROLE_DEFAULT_REDIRECT: Record<MemberRole, string> = {
   member: '/home',
   manager: '/stats',
   council: '/admin',
   technician: '/technician',
+  admin: '/admin',
 }
 
 export const ROLE_ALLOWED_PATHS: Record<MemberRole, readonly string[]> = {
@@ -12,6 +13,7 @@ export const ROLE_ALLOWED_PATHS: Record<MemberRole, readonly string[]> = {
   manager: ['/home', '/redeem', '/validate', '/stats'],
   council: ['/home', '/redeem', '/validate', '/stats', '/admin', '/technician'],
   technician: ['/home', '/redeem', '/technician'],
+  admin: ['/home', '/redeem', '/validate', '/stats', '/admin', '/technician'],
 }
 
 export type MemberSummary = { role: MemberRole; email: string | null }
@@ -22,6 +24,10 @@ export const hasPsychocasEmail = (email: string | null | undefined) =>
 export const normaliseRole = (member: MemberSummary | null): MemberRole => {
   if (!member) {
     return 'member'
+  }
+
+  if (member.role === 'admin') {
+    return 'admin'
   }
 
   if (member.role === 'council') {

@@ -8,11 +8,23 @@ Deno.serve(async (req) => {
     { global: { headers: { Authorization: req.headers.get("Authorization")! } } }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return new Response("Unauthorized", { status: 401 });
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) {
+    return new Response("Unable to verify session", { status: 401 });
+  }
+
+  const user = session?.user ?? null;
+  if (!user) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  const { error: ensureError } = await supabase.rpc('ensure_membership');
+  if (ensureError) {
+    console.warn('ensure_membership RPC failed', ensureError);
+  }
 
   const { data: me } = await supabase
-    .from("members")
+    .from("memberships")
     .select("membership_active")
     .eq("user_id", user.id)
     .single();

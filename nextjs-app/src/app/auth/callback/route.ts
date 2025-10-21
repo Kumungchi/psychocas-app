@@ -87,12 +87,23 @@ export async function GET(request: Request) {
       return handleAuthError('callback_failed', error.message)
     }
 
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+
+    if (sessionError) {
+      return handleAuthError('callback_failed', sessionError.message)
+    }
+
+    const user = session?.user ?? null
 
     let member: MemberSummary | null = null
     if (user) {
+      const { error: ensureError } = await supabase.rpc('ensure_membership')
+      if (ensureError) {
+        console.warn('ensure_membership RPC failed', ensureError)
+      }
+
       const { data } = await supabase
-        .from('members')
+        .from('memberships')
         .select('role, email')
         .eq('user_id', user.id)
         .single<MemberSummary>()

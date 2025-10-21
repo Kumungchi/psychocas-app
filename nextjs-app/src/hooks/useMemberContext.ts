@@ -11,8 +11,7 @@ import type {
   BranchInfo,
   MemberData,
   MemberRole,
-  MemberRow,
-  TrustedUserRow,
+  MembershipRow,
 } from '@/types/member';
 import { logDebug, logError, logInfo, logWarn } from '@/lib/logging';
 
@@ -25,7 +24,6 @@ export interface MemberResolutionResult {
   status: Extract<MemberContextStatus, 'ready' | 'error' | 'unauthenticated'>;
   user: User | null;
   member: MemberData | null;
-  usedTrustedFallback: boolean;
   error?: string;
   lastSyncedAt?: string | null;
 }
@@ -43,15 +41,12 @@ export interface UseMemberContextValue {
   user: User | null;
   error: string | null;
   refresh: () => Promise<MemberResolutionResult>;
-  usedTrustedFallback: boolean;
   lastSyncedAt: string | null;
 }
 
 const DEFAULT_SCOPE = 'member-context';
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-const escapeIlikePattern = (value: string) => value.replace(/[\\%_]/g, (char) => `\\${char}`);
 
 function normalizeBranch(branch: BranchInfo | BranchInfo[] | null | undefined): BranchInfo | null {
   if (!branch) {
@@ -65,7 +60,7 @@ function normalizeBranch(branch: BranchInfo | BranchInfo[] | null | undefined): 
   return branch;
 }
 
-function normalizeMemberRow(memberRow: MemberRow | null): MemberData | null {
+function normalizeMemberRow(memberRow: MembershipRow | null): MemberData | null {
   if (!memberRow) {
     return null;
   }
@@ -83,11 +78,9 @@ function normalizeMemberRow(memberRow: MemberRow | null): MemberData | null {
     approved_at: memberRow.approved_at ?? null,
     phone: memberRow.phone ?? undefined,
     branch: normalizedBranch,
-    origin: 'members',
+    origin: 'memberships',
   };
 }
-
-const MEMBER_ROLE_VALUES: MemberRole[] = ['member', 'manager', 'council', 'technician'];
 
 function buildPreviewMember(state: RolePreviewState): MemberData {
   const fallbackRole: MemberRole = (state.role ?? 'member') as MemberRole;
@@ -107,107 +100,7 @@ function buildPreviewMember(state: RolePreviewState): MemberData {
     phone: null,
     branch: branchName ? { id: branchId ?? 'demo-branch', name: branchName } : null,
     origin: 'demo',
-    trusted_access_expires_at: null,
   };
-}
-
-function normalizeTrustedUser(
-  trustedRow: TrustedUserRow | null,
-  userEmail: string | null
-): MemberData | null {
-  if (!trustedRow) {
-    return null;
-  }
-
-  const normalizedBranch = normalizeBranch(trustedRow.branch);
-  const nameParts = [trustedRow.first_name, trustedRow.last_name]
-    .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
-    .map((part) => part.trim());
-
-  const expiresAtRaw = typeof trustedRow.access_expires_at === 'string' ? trustedRow.access_expires_at.trim() : null;
-  const expiresAt = expiresAtRaw && expiresAtRaw.length > 0 ? expiresAtRaw : null;
-  const isActive =
-    typeof trustedRow.membership_active === 'boolean'
-      ? trustedRow.membership_active
-      : expiresAt
-        ? new Date(expiresAt) > new Date()
-        : true;
-
-  const normalizedRole = (trustedRow.role ?? '').trim().toLowerCase();
-  const candidateRole = normalizedRole as MemberRole;
-  const role: MemberRole = MEMBER_ROLE_VALUES.includes(candidateRole) ? candidateRole : 'member';
-
-  const normalizedEmailFromUser = userEmail?.trim().toLowerCase() ?? null;
-  const normalizedEmailFromRow =
-    typeof trustedRow.email === 'string' && trustedRow.email.trim().length > 0
-      ? trustedRow.email.trim().toLowerCase()
-      : null;
-  const normalizedEmail = normalizedEmailFromUser ?? normalizedEmailFromRow;
-  const branchIdRaw = typeof trustedRow.branch_id === 'string' ? trustedRow.branch_id.trim() : null;
-  const branchId = branchIdRaw && branchIdRaw.length > 0 ? branchIdRaw : null;
-  const approvedAtRaw = typeof trustedRow.approved_at === 'string' ? trustedRow.approved_at.trim() : null;
-  const approvedAt = approvedAtRaw && approvedAtRaw.length > 0 ? approvedAtRaw : null;
-
-  return {
-    membership_active: isActive,
-    membership_expires: expiresAt,
-    full_name: nameParts.length > 0 ? nameParts.join(' ') : null,
-    role,
-    branch_id: branchId,
-    email: normalizedEmail,
-    approved: approvedAt ? true : undefined,
-    approved_at: approvedAt,
-    phone: undefined,
-    branch: normalizedBranch,
-    origin: 'trusted_users',
-    trusted_access_expires_at: expiresAt,
-  };
-}
-
-async function fetchTrustedUserFallback(
-  scope: string,
-  emailRaw: string | null
-): Promise<MemberData | null> {
-  if (!emailRaw) {
-    return null;
-  }
-
-  const normalizedEmail = emailRaw.trim().toLowerCase();
-  const emailPatterns = Array.from(
-    new Set(
-      [emailRaw, normalizedEmail]
-        .filter((value): value is string => Boolean(value && value.length > 0))
-        .map((value) => escapeIlikePattern(value.toLowerCase()))
-    )
-  );
-
-  if (emailPatterns.length === 0) {
-    return null;
-  }
-
-  let trustedQuery = supabase
-    .from('trusted_users')
-    .select(
-      `email, first_name, last_name, role, branch_id, approved_at, access_expires_at, membership_active,
-       branch:branch_id (id, name, location, city, discount_percentage, active)`
-    )
-    .limit(1);
-
-  if (emailPatterns.length === 1) {
-    trustedQuery = trustedQuery.filter('email', 'ilike', emailPatterns[0]!);
-  } else {
-    trustedQuery = trustedQuery.or(emailPatterns.map((pattern) => `email.ilike.${pattern}`).join(','));
-  }
-
-  const { data, error } = await trustedQuery;
-
-  if (error) {
-    logError(scope, 'Trusted user fallback failed', error);
-    return null;
-  }
-
-  const trustedRecord = data?.[0] ?? null;
-  return normalizeTrustedUser(trustedRecord ?? null, emailRaw);
 }
 
 function buildMemberSelect(includeFullBranch: boolean): string {
@@ -250,12 +143,12 @@ function buildMemberSelect(includeFullBranch: boolean): string {
   `;
 }
 
-async function fetchMemberWithFallback(scope: string, userId: string): Promise<PostgrestResponse<MemberRow>> {
+async function fetchMemberWithFallback(scope: string, userId: string): Promise<PostgrestResponse<MembershipRow>> {
   let response = (await supabase
-    .from('members')
+    .from('memberships')
     .select(buildMemberSelect(true))
     .eq('user_id', userId)
-    .limit(1)) as PostgrestResponse<MemberRow>;
+    .limit(1)) as PostgrestResponse<MembershipRow>;
 
   if (!response.error) {
     return response;
@@ -264,10 +157,10 @@ async function fetchMemberWithFallback(scope: string, userId: string): Promise<P
   if (response.error.code === '42703') {
     logWarn(scope, 'Member query missing optional columns, retrying with reduced branch view.', response.error);
     response = (await supabase
-      .from('members')
+      .from('memberships')
       .select(buildMemberSelect(false))
       .eq('user_id', userId)
-      .limit(1)) as PostgrestResponse<MemberRow>;
+      .limit(1)) as PostgrestResponse<MembershipRow>;
     if (!response.error) {
       return response;
     }
@@ -275,7 +168,7 @@ async function fetchMemberWithFallback(scope: string, userId: string): Promise<P
 
   logWarn(scope, 'Member query failed with branch join, retrying without branch.', response.error);
   response = (await supabase
-    .from('members')
+    .from('memberships')
     .select(
       `membership_active,
        membership_expires,
@@ -288,7 +181,7 @@ async function fetchMemberWithFallback(scope: string, userId: string): Promise<P
        phone`
     )
     .eq('user_id', userId)
-    .limit(1)) as PostgrestResponse<MemberRow>;
+    .limit(1)) as PostgrestResponse<MembershipRow>;
 
   return response;
 }
@@ -300,8 +193,8 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
   const [member, setMember] = useState<MemberData | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [usedTrustedFallback, setUsedTrustedFallback] = useState(false);
   const lastSyncedAtRef = useRef<string | null>(null);
+  const ensuredMembershipForUserRef = useRef<string | null>(null);
   const previewFeatureEnabled = isRolePreviewEnabled();
   const [previewState, setPreviewState] = useState<RolePreviewState>(() =>
     previewFeatureEnabled
@@ -334,7 +227,6 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
         status: 'error',
         user: null,
         member: null,
-        usedTrustedFallback: false,
         error: 'Načítání členství je aktuálně vypnuto.',
         lastSyncedAt: lastSyncedAtRef.current,
       };
@@ -342,15 +234,14 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
 
     setStatus('loading');
     setError(null);
-    setUsedTrustedFallback(false);
 
     const previewActive = previewFeatureEnabled && Boolean(previewState.role);
     const {
-      data: { user: currentUser } = { user: null },
-      error: authError,
-    } = await supabase.auth.getUser();
+      data: { session } = { session: null },
+      error: sessionError,
+    } = await supabase.auth.getSession();
 
-    if (authError) {
+    if (sessionError) {
       if (previewActive) {
         const previewMember = buildPreviewMember(previewState);
         lastSyncedAtRef.current = new Date().toISOString();
@@ -358,22 +249,19 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
         setError(null);
         setMember(previewMember);
         setUser(null);
-        setUsedTrustedFallback(false);
         return {
           status: 'ready',
           user: null,
           member: previewMember,
-          usedTrustedFallback: false,
           lastSyncedAt: lastSyncedAtRef.current,
         };
       }
 
-      logError(scope, 'supabase.auth.getUser failed', authError);
+      logError(scope, 'supabase.auth.getSession failed', sessionError);
       const authFailure: MemberResolutionResult = {
         status: 'error',
         user: null,
         member: null,
-        usedTrustedFallback: false,
         error: 'Nepodařilo se ověřit relaci. Zkuste to prosím znovu.',
         lastSyncedAt: lastSyncedAtRef.current,
       };
@@ -384,6 +272,8 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
       return authFailure;
     }
 
+    const currentUser = session?.user ?? null;
+
     if (!currentUser) {
       if (previewActive) {
         const previewMember = buildPreviewMember(previewState);
@@ -392,14 +282,12 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
           status: 'ready',
           user: null,
           member: previewMember,
-          usedTrustedFallback: false,
           lastSyncedAt: lastSyncedAtRef.current,
         };
         setStatus('ready');
         setUser(null);
         setMember(previewMember);
         setError(null);
-        setUsedTrustedFallback(false);
         return previewResult;
       }
 
@@ -408,7 +296,6 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
         status: 'unauthenticated',
         user: null,
         member: null,
-        usedTrustedFallback: false,
         lastSyncedAt: null,
       };
       setStatus('unauthenticated');
@@ -420,8 +307,16 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
     }
 
     setUser(currentUser);
-    const trustedEmailRaw = currentUser.email ?? null;
-    logDebug(scope, 'Resolving member context.', { userId: currentUser.id, email: trustedEmailRaw });
+    logDebug(scope, 'Resolving membership.', { userId: currentUser.id, email: currentUser.email });
+
+    if (ensuredMembershipForUserRef.current !== currentUser.id) {
+      const { error: ensureError } = await supabase.rpc('ensure_membership');
+      if (ensureError) {
+        logWarn(scope, 'ensure_membership RPC failed', ensureError);
+      } else {
+        ensuredMembershipForUserRef.current = currentUser.id;
+      }
+    }
 
     let memberResponse = await fetchMemberWithFallback(scope, currentUser.id);
     let attempt = 1;
@@ -432,7 +327,7 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
       attempt < MEMBER_FETCH_MAX_ATTEMPTS
     ) {
       attempt += 1;
-      logWarn(scope, `Member record empty. Retrying (${attempt}/${MEMBER_FETCH_MAX_ATTEMPTS}).`);
+      logWarn(scope, `Membership record empty. Retrying (${attempt}/${MEMBER_FETCH_MAX_ATTEMPTS}).`);
       await delay(MEMBER_FETCH_RETRY_DELAY_MS);
       memberResponse = await fetchMemberWithFallback(scope, currentUser.id);
     }
@@ -445,22 +340,19 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
         setMember(previewMember);
         setUser(currentUser);
         setError(null);
-        setUsedTrustedFallback(false);
         return {
           status: 'ready',
           user: currentUser,
           member: previewMember,
-          usedTrustedFallback: false,
           lastSyncedAt: lastSyncedAtRef.current,
         };
       }
 
-      logError(scope, 'Member fetch failed', memberResponse.error);
+      logError(scope, 'Membership fetch failed', memberResponse.error);
       const failure: MemberResolutionResult = {
         status: 'error',
         user: currentUser,
         member: null,
-        usedTrustedFallback: false,
         error: 'Nepodařilo se načíst informace o členství.',
         lastSyncedAt: lastSyncedAtRef.current,
       };
@@ -470,38 +362,19 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
       return failure;
     }
 
-    const memberRows = (memberResponse.data ?? []) as MemberRow[];
+    const memberRows = (memberResponse.data ?? []) as MembershipRow[];
     const memberRow = memberRows[0] ?? null;
     const normalizedMember = normalizeMemberRow(memberRow);
 
     if (normalizedMember) {
-      logDebug(scope, 'Member resolved from primary table.');
+      logDebug(scope, 'Membership resolved.');
       setMember(normalizedMember);
       setStatus('ready');
-      setUsedTrustedFallback(false);
       lastSyncedAtRef.current = new Date().toISOString();
       return {
         status: 'ready',
         user: currentUser,
         member: normalizedMember,
-        usedTrustedFallback: false,
-        lastSyncedAt: lastSyncedAtRef.current,
-      };
-    }
-
-    const trustedFallback = await fetchTrustedUserFallback(scope, trustedEmailRaw);
-
-    if (trustedFallback) {
-      logInfo(scope, 'Using trusted_users fallback for member context.');
-      setMember(trustedFallback);
-      setStatus('ready');
-      setUsedTrustedFallback(true);
-      lastSyncedAtRef.current = new Date().toISOString();
-      return {
-        status: 'ready',
-        user: currentUser,
-        member: trustedFallback,
-        usedTrustedFallback: true,
         lastSyncedAt: lastSyncedAtRef.current,
       };
     }
@@ -512,22 +385,19 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
       setMember(previewMember);
       setStatus('ready');
       setError(null);
-      setUsedTrustedFallback(false);
       return {
         status: 'ready',
         user: currentUser,
         member: previewMember,
-        usedTrustedFallback: false,
         lastSyncedAt: lastSyncedAtRef.current,
       };
     }
 
-    logWarn(scope, 'Member context not found for user.');
+    logWarn(scope, 'Membership not found for user.');
     const emptyState: MemberResolutionResult = {
       status: 'error',
       user: currentUser,
       member: null,
-      usedTrustedFallback: false,
       error: 'Členství nebylo nalezeno.',
       lastSyncedAt: lastSyncedAtRef.current,
     };
@@ -536,6 +406,7 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
     setError(emptyState.error ?? null);
     return emptyState;
   }, [enabled, previewFeatureEnabled, previewState, scope]);
+
 
   const refresh = useCallback(async () => {
     const result = await resolveMember();
@@ -552,6 +423,37 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
     }
   }, [autoResolve, enabled, refresh, status]);
 
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        ensuredMembershipForUserRef.current = null;
+        lastSyncedAtRef.current = null;
+        setUser(null);
+        setMember(null);
+        setStatus('unauthenticated');
+        setError(null);
+        return;
+      }
+
+      setUser(session.user ?? null);
+
+      if (!enabled) {
+        return;
+      }
+
+      if (autoResolve && ['INITIAL_SESSION', 'SIGNED_IN', 'TOKEN_REFRESHED'].includes(event)) {
+        ensuredMembershipForUserRef.current = null;
+        void refresh();
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [autoResolve, enabled, refresh]);
+
   const memoizedValue = useMemo<UseMemberContextValue>(
     () => ({
       status,
@@ -559,10 +461,9 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
       user,
       error,
       refresh,
-      usedTrustedFallback,
       lastSyncedAt: lastSyncedAtRef.current,
     }),
-    [error, member, refresh, status, usedTrustedFallback, user]
+    [error, member, refresh, status, user]
   );
 
   return memoizedValue;

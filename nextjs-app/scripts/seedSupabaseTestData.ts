@@ -8,11 +8,11 @@ type BranchSeed = {
   city: string | null;
 };
 
-type TrustedUserSeed = {
+type WhitelistSeed = {
   email: string;
   first_name: string;
   last_name: string;
-  role: 'member' | 'manager' | 'council' | 'technician';
+  role: 'member' | 'manager' | 'council' | 'technician' | 'admin';
   branch_id: string | null;
   phone?: string;
   notes?: string;
@@ -20,7 +20,7 @@ type TrustedUserSeed = {
 
 type MemberSeed = {
   email: string;
-  role: 'member' | 'manager' | 'council' | 'technician';
+  role: 'member' | 'manager' | 'council' | 'technician' | 'admin';
   branch_id: string | null;
   first_name: string;
   last_name: string;
@@ -39,7 +39,7 @@ const branches: BranchSeed[] = [
   },
 ];
 
-const trustedUsers: TrustedUserSeed[] = [
+const whitelistSeeds: WhitelistSeed[] = [
   {
     email: 'bunnik.matias@seznam.cz',
     first_name: 'Matias',
@@ -91,9 +91,17 @@ const trustedUsers: TrustedUserSeed[] = [
     role: 'technician',
     branch_id: null,
   },
+  {
+    email: 'admin@psychocas.cz',
+    first_name: 'Admin',
+    last_name: 'Psychočas',
+    role: 'admin',
+    branch_id: null,
+    notes: 'Administrátorský účet pro správu whitelistu a členství',
+  },
 ];
 
-const memberSeeds: MemberSeed[] = trustedUsers.map((user) => ({
+const memberSeeds: MemberSeed[] = whitelistSeeds.map((user) => ({
   email: user.email,
   role: user.role,
   branch_id: user.branch_id,
@@ -155,12 +163,21 @@ async function seedDatabase() {
     }
   }
 
-  console.log('🌱 Seeding trusted users...');
-  for (const trusted of trustedUsers) {
-    const { error } = await client.from('trusted_users').upsert(
+  console.log('🌱 Seeding membership whitelist...');
+  for (const entry of whitelistSeeds) {
+    const { error } = await client.from('membership_whitelist').upsert(
       {
-        ...trusted,
-        added_at: new Date().toISOString(),
+        email: entry.email,
+        first_name: entry.first_name,
+        last_name: entry.last_name,
+        role: entry.role,
+        branch_id: entry.branch_id,
+        phone: entry.phone,
+        note: entry.notes,
+        invited_at: new Date().toISOString(),
+        active: true,
+        consumed_at: null,
+        consumed_by: null,
       },
       { onConflict: 'email' }
     );
@@ -178,7 +195,7 @@ async function seedDatabase() {
       .toISOString()
       .slice(0, 10);
 
-    const { error } = await client.from('members').upsert(
+    const { error } = await client.from('memberships').upsert(
       {
         user_id: authUser.id,
         email: member.email,
