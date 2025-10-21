@@ -8,7 +8,7 @@ type BranchSeed = {
   city: string | null;
 };
 
-type TrustedUserSeed = {
+type InviteSeed = {
   email: string;
   first_name: string;
   last_name: string;
@@ -39,7 +39,7 @@ const branches: BranchSeed[] = [
   },
 ];
 
-const trustedUsers: TrustedUserSeed[] = [
+const invites: InviteSeed[] = [
   {
     email: 'bunnik.matias@seznam.cz',
     first_name: 'Matias',
@@ -93,7 +93,7 @@ const trustedUsers: TrustedUserSeed[] = [
   },
 ];
 
-const memberSeeds: MemberSeed[] = trustedUsers.map((user) => ({
+const memberSeeds: MemberSeed[] = invites.map((user) => ({
   email: user.email,
   role: user.role,
   branch_id: user.branch_id,
@@ -155,11 +155,18 @@ async function seedDatabase() {
     }
   }
 
-  console.log('🌱 Seeding trusted users...');
-  for (const trusted of trustedUsers) {
-    const { error } = await client.from('trusted_users').upsert(
+  console.log('🌱 Seeding invites...');
+  for (const invite of invites) {
+    const { error } = await client.from('invites').upsert(
       {
-        ...trusted,
+        email: invite.email,
+        first_name: invite.first_name,
+        last_name: invite.last_name,
+        role: invite.role,
+        branch_id: invite.branch_id,
+        phone: invite.phone ?? null,
+        notes: invite.notes ?? null,
+        status: 'active',
         added_at: new Date().toISOString(),
       },
       { onConflict: 'email' }
@@ -178,25 +185,31 @@ async function seedDatabase() {
       .toISOString()
       .slice(0, 10);
 
-    const { error } = await client.from('members').upsert(
+    await client.from('profiles').upsert(
+      {
+        id: authUser.id,
+        email: member.email,
+        full_name: `${member.first_name} ${member.last_name}`.trim(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' }
+    );
+
+    const { error: membershipError } = await client.from('memberships').upsert(
       {
         user_id: authUser.id,
-        email: member.email,
         role: member.role,
         branch_id: member.branch_id,
-        first_name: member.first_name,
-        last_name: member.last_name,
-        full_name: `${member.first_name} ${member.last_name}`.trim(),
+        status: 'active',
         membership_active: true,
         membership_expires: membershipExpires,
-        approved: true,
         approved_at: new Date().toISOString(),
       },
       { onConflict: 'user_id' }
     );
 
-    if (error) {
-      throw error;
+    if (membershipError) {
+      throw membershipError;
     }
   }
 

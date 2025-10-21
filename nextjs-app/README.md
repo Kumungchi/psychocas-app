@@ -4,7 +4,7 @@ This package contains the public-facing Psychočas PWA. It is built with Next.js
 
 ## Features
 - Magic-link authentication backed by Supabase Auth
-- Shared member context that honours `members` and `trusted_users` records
+- Shared member context that honours `memberships` and `invites` records
 - Role-aware navigation and feature gating for members, managers, council, and technicians
 - QR-based membership confirmation and token validation workflows
 - Technician console for managing member activation and trusted-user access
@@ -30,11 +30,11 @@ This package contains the public-facing Psychočas PWA. It is built with Next.js
    ```bash
    npm run dev
    ```
-4. Open http://localhost:3000 and sign in with a Supabase account that is present in `members` or `trusted_users`.
+4. Open http://localhost:3000 and sign in with a Supabase account that is present in `memberships` or `invites`.
 
 ## Database Notes
-- `members` rows power the full experience, including profile editing and partner visibility
-- `trusted_users` fallback grants access when only an email address is available; optional role, branch, and expiry fields add extra context
+- `member_profiles` view powers the full experience, combining `profiles`, `memberships`, and branch details
+- `invites` fallback grants access when only an email address is available; optional role, branch, and expiry fields add extra context
 - Technicians can toggle `membership_active` directly from the technician console once the service role key is available to the client
 
 See the root-level `DATABASE_SETUP.md` for the full schema walkthrough and policies.
@@ -46,6 +46,8 @@ npm run build     # Create a production build
 npm run start     # Run the production build locally
 npm run lint      # Lint the codebase
 npm run test      # Execute Vitest unit tests
+npm run test:vercel # Smoke-test a production build in a Vercel-like environment
+npm run verify    # Run linting, unit tests, and the Vercel build check
 ```
 
 ## Project Structure
@@ -62,4 +64,10 @@ src/
 
 ## Deployment
 The project is optimised for Vercel. Use the helper scripts in the repository root (`deploy.sh` / `deploy.bat`) to install dependencies, run a production build, and verify Supabase connectivity before pushing to production.
+
+For local smoke tests that mirror Vercel, run `npm run verify` — it lints the project, executes the Vitest suites, and performs the same PWA-aware production build verification that Vercel uses.
+
+### Role preview sandbox
+
+When you set `NEXT_PUBLIC_ENABLE_ROLE_PREVIEW=true` in your environment, the `/test` route unlocks a role preview tool. It lets you impersonate manager, council, and technician accounts without sending magic links so you can validate dashboard and redemption flows quickly on shared devices.
 

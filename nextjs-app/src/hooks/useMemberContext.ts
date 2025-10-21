@@ -1,19 +1,152 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { PostgrestResponse, User } from '@supabase/supabase-js';
+import type { PostgrestError, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
+import {
+  isRolePreviewEnabled,
+  readRolePreview,
+  subscribeToRolePreview,
+  type RolePreviewState,
+} from '@/lib/demo/rolePreview';
 import type {
   BranchInfo,
   MemberData,
   MemberRole,
-  MemberRow,
-  TrustedUserRow,
+  MembershipProfileRow,
+  MembershipRow,
+  MembershipStatus,
 } from '@/types/member';
 import { logDebug, logError, logInfo, logWarn } from '@/lib/logging';
 
 const MEMBER_FETCH_MAX_ATTEMPTS = 3;
 const MEMBER_FETCH_RETRY_DELAY_MS = 400;
 
-type MemberContextStatus = 'idle' | 'loading' | 'ready' | 'error' | 'unauthenticated';
+const DEFAULT_SCOPE = 'member-context';
+
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+function normalizeBranch(branch: BranchInfo | BranchInfo[] | null | undefined): BranchInfo | null {
+  if (!branch) {
+    return null;
+  }
+
+  if (Array.isArray(branch)) {
+    return branch[0] ?? null;
+  }
+
+  return branch;
+}
+
+function normalizeMembership(
+  membership: MembershipRow | null,
+  profile: MembershipProfileRow | null,
+  branch: BranchInfo | null
+): MemberData | null {
+  if (!membership) {
+    return null;
+  }
+
+  const role = (membership.role ?? 'member') as MemberRole;
+  const status = (membership.status ?? 'pending') as MembershipStatus;
+
+  return {
+    membership_active: Boolean(membership.membership_active),
+    membership_expires: membership.membership_expires ?? null,
+    status,
+    full_name: profile?.full_name ?? null,
+    role,
+    branch_id: membership.branch_id ?? null,
+    email: profile?.email ?? null,
+    approved: status === 'active',
+    approved_at: membership.approved_at ?? null,
+    phone: profile?.phone ?? null,
+    branch,
+    origin: 'memberships',
+  };
+}
+
+async function fetchProfile(userId: string, scope: string): Promise<MembershipProfileRow | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('full_name, email, phone')
+    .eq('id', userId)
+    .maybeSingle<MembershipProfileRow>();
+
+  if (error) {
+    logWarn(scope, 'Failed to load profile for membership context.', error);
+    return null;
+  }
+
+  return data ?? null;
+}
+
+async function fetchBranch(branchId: string | null, scope: string): Promise<BranchInfo | null> {
+  if (!branchId) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from('branches')
+    .select('id, name, location, city, discount_percentage, active')
+    .eq('id', branchId)
+    .maybeSingle<BranchInfo>();
+
+  if (error) {
+    logWarn(scope, 'Failed to load branch for membership context.', error);
+    return null;
+  }
+
+  return normalizeBranch(data ?? null);
+}
+
+interface MembershipFetchResult {
+  member: MemberData | null;
+  error: PostgrestError | null;
+}
+
+async function resolveMembership(scope: string, userId: string): Promise<MembershipFetchResult> {
+  let attempt = 0;
+  let lastError: PostgrestError | null = null;
+
+  while (attempt < MEMBER_FETCH_MAX_ATTEMPTS) {
+    attempt += 1;
+    const { data, error } = await supabase
+      .from('memberships')
+      .select('membership_active, membership_expires, role, status, branch_id, approved_at')
+      .eq('user_id', userId)
+      .maybeSingle<MembershipRow>();
+
+    if (error) {
+      lastError = error;
+      logWarn(scope, `Membership lookup failed (attempt ${attempt}).`, error);
+      if (attempt < MEMBER_FETCH_MAX_ATTEMPTS) {
+        await delay(MEMBER_FETCH_RETRY_DELAY_MS);
+        continue;
+      }
+      return { member: null, error };
+    }
+
+    if (!data) {
+      logWarn(scope, `Membership row empty (attempt ${attempt}).`);
+      if (attempt < MEMBER_FETCH_MAX_ATTEMPTS) {
+        await delay(MEMBER_FETCH_RETRY_DELAY_MS);
+        continue;
+      }
+      return { member: null, error: lastError };
+    }
+
+    const [profile, branch] = await Promise.all([
+      fetchProfile(userId, scope),
+      fetchBranch(data.branch_id ?? null, scope),
+    ]);
+
+    const normalized = normalizeMembership(data, profile, branch);
+    return { member: normalized, error: null };
+  }
+
+  return { member: null, error: lastError };
+}
+
+export type MemberContextStatus = 'idle' | 'loading' | 'ready' | 'error' | 'unauthenticated';
 
 export interface MemberResolutionResult {
   status: Extract<MemberContextStatus, 'ready' | 'error' | 'unauthenticated'>;
@@ -41,230 +174,6 @@ export interface UseMemberContextValue {
   lastSyncedAt: string | null;
 }
 
-const DEFAULT_SCOPE = 'member-context';
-
-const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-const escapeIlikePattern = (value: string) => value.replace(/[\\%_]/g, (char) => `\\${char}`);
-
-function normalizeBranch(branch: BranchInfo | BranchInfo[] | null | undefined): BranchInfo | null {
-  if (!branch) {
-    return null;
-  }
-
-  if (Array.isArray(branch)) {
-    return branch[0] ?? null;
-  }
-
-  return branch;
-}
-
-function normalizeMemberRow(memberRow: MemberRow | null): MemberData | null {
-  if (!memberRow) {
-    return null;
-  }
-
-  const normalizedBranch = normalizeBranch(memberRow.branch);
-
-  return {
-    membership_active: memberRow.membership_active,
-    membership_expires: memberRow.membership_expires,
-    full_name: memberRow.full_name,
-    role: (memberRow.role ?? 'member') as MemberRole,
-    branch_id: memberRow.branch_id,
-    email: memberRow.email,
-    approved: memberRow.approved ?? undefined,
-    approved_at: memberRow.approved_at ?? null,
-    phone: memberRow.phone ?? undefined,
-    branch: normalizedBranch,
-    origin: 'members',
-  };
-}
-
-const MEMBER_ROLE_VALUES: MemberRole[] = ['member', 'manager', 'council', 'technician'];
-
-function normalizeTrustedUser(
-  trustedRow: TrustedUserRow | null,
-  userEmail: string | null
-): MemberData | null {
-  if (!trustedRow) {
-    return null;
-  }
-
-  const normalizedBranch = normalizeBranch(trustedRow.branch);
-  const nameParts = [trustedRow.first_name, trustedRow.last_name]
-    .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
-    .map((part) => part.trim());
-
-  const expiresAtRaw = typeof trustedRow.access_expires_at === 'string' ? trustedRow.access_expires_at.trim() : null;
-  const expiresAt = expiresAtRaw && expiresAtRaw.length > 0 ? expiresAtRaw : null;
-  const isActive =
-    typeof trustedRow.membership_active === 'boolean'
-      ? trustedRow.membership_active
-      : expiresAt
-        ? new Date(expiresAt) > new Date()
-        : true;
-
-  const normalizedRole = (trustedRow.role ?? '').trim().toLowerCase();
-  const candidateRole = normalizedRole as MemberRole;
-  const role: MemberRole = MEMBER_ROLE_VALUES.includes(candidateRole) ? candidateRole : 'member';
-
-  const normalizedEmailFromUser = userEmail?.trim().toLowerCase() ?? null;
-  const normalizedEmailFromRow =
-    typeof trustedRow.email === 'string' && trustedRow.email.trim().length > 0
-      ? trustedRow.email.trim().toLowerCase()
-      : null;
-  const normalizedEmail = normalizedEmailFromUser ?? normalizedEmailFromRow;
-  const branchIdRaw = typeof trustedRow.branch_id === 'string' ? trustedRow.branch_id.trim() : null;
-  const branchId = branchIdRaw && branchIdRaw.length > 0 ? branchIdRaw : null;
-  const approvedAtRaw = typeof trustedRow.approved_at === 'string' ? trustedRow.approved_at.trim() : null;
-  const approvedAt = approvedAtRaw && approvedAtRaw.length > 0 ? approvedAtRaw : null;
-
-  return {
-    membership_active: isActive,
-    membership_expires: expiresAt,
-    full_name: nameParts.length > 0 ? nameParts.join(' ') : null,
-    role,
-    branch_id: branchId,
-    email: normalizedEmail,
-    approved: approvedAt ? true : undefined,
-    approved_at: approvedAt,
-    phone: undefined,
-    branch: normalizedBranch,
-    origin: 'trusted_users',
-    trusted_access_expires_at: expiresAt,
-  };
-}
-
-async function fetchTrustedUserFallback(
-  scope: string,
-  emailRaw: string | null
-): Promise<MemberData | null> {
-  if (!emailRaw) {
-    return null;
-  }
-
-  const normalizedEmail = emailRaw.trim().toLowerCase();
-  const emailPatterns = Array.from(
-    new Set(
-      [emailRaw, normalizedEmail]
-        .filter((value): value is string => Boolean(value && value.length > 0))
-        .map((value) => escapeIlikePattern(value.toLowerCase()))
-    )
-  );
-
-  if (emailPatterns.length === 0) {
-    return null;
-  }
-
-  let trustedQuery = supabase
-    .from('trusted_users')
-    .select(
-      `email, first_name, last_name, role, branch_id, approved_at, access_expires_at, membership_active,
-       branch:branch_id (id, name, location, city, discount_percentage, active)`
-    )
-    .limit(1);
-
-  if (emailPatterns.length === 1) {
-    trustedQuery = trustedQuery.filter('email', 'ilike', emailPatterns[0]!);
-  } else {
-    trustedQuery = trustedQuery.or(emailPatterns.map((pattern) => `email.ilike.${pattern}`).join(','));
-  }
-
-  const { data, error } = await trustedQuery;
-
-  if (error) {
-    logError(scope, 'Trusted user fallback failed', error);
-    return null;
-  }
-
-  const trustedRecord = data?.[0] ?? null;
-  return normalizeTrustedUser(trustedRecord ?? null, emailRaw);
-}
-
-function buildMemberSelect(includeFullBranch: boolean): string {
-  if (includeFullBranch) {
-    return `
-      membership_active,
-      membership_expires,
-      full_name,
-      role,
-      branch_id,
-      email,
-      approved,
-      approved_at,
-      phone,
-      branch:branch_id (
-        id,
-        name,
-        location,
-        city,
-        discount_percentage,
-        active
-      )
-    `;
-  }
-
-  return `
-    membership_active,
-    membership_expires,
-    full_name,
-    role,
-    branch_id,
-    email,
-    approved,
-    approved_at,
-    phone,
-    branch:branch_id (
-      id,
-      name
-    )
-  `;
-}
-
-async function fetchMemberWithFallback(scope: string, userId: string): Promise<PostgrestResponse<MemberRow>> {
-  let response = (await supabase
-    .from('members')
-    .select(buildMemberSelect(true))
-    .eq('user_id', userId)
-    .limit(1)) as PostgrestResponse<MemberRow>;
-
-  if (!response.error) {
-    return response;
-  }
-
-  if (response.error.code === '42703') {
-    logWarn(scope, 'Member query missing optional columns, retrying with reduced branch view.', response.error);
-    response = (await supabase
-      .from('members')
-      .select(buildMemberSelect(false))
-      .eq('user_id', userId)
-      .limit(1)) as PostgrestResponse<MemberRow>;
-    if (!response.error) {
-      return response;
-    }
-  }
-
-  logWarn(scope, 'Member query failed with branch join, retrying without branch.', response.error);
-  response = (await supabase
-    .from('members')
-    .select(
-      `membership_active,
-       membership_expires,
-       full_name,
-       role,
-       branch_id,
-       email,
-       approved,
-       approved_at,
-       phone`
-    )
-    .eq('user_id', userId)
-    .limit(1)) as PostgrestResponse<MemberRow>;
-
-  return response;
-}
-
 export default function useMemberContext(options?: UseMemberContextOptions): UseMemberContextValue {
   const { enabled = true, autoResolve = true, onUnauthorized, scope = DEFAULT_SCOPE } = options ?? {};
 
@@ -272,53 +181,90 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
   const [member, setMember] = useState<MemberData | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [usedTrustedFallback, setUsedTrustedFallback] = useState(false);
+  const [usedTrustedFallback] = useState(false);
   const lastSyncedAtRef = useRef<string | null>(null);
+  const previewFeatureEnabled = isRolePreviewEnabled();
+  const [previewState, setPreviewState] = useState<RolePreviewState>(() =>
+    previewFeatureEnabled
+      ? readRolePreview()
+      : { role: null, branchId: null, branchName: null, fullName: null, email: null }
+  );
 
   const unauthorizedRef = useRef(onUnauthorized);
   useEffect(() => {
     unauthorizedRef.current = onUnauthorized;
   }, [onUnauthorized]);
 
+  useEffect(() => {
+    if (!previewFeatureEnabled) {
+      return;
+    }
+
+    setPreviewState(readRolePreview());
+
+    const unsubscribe = subscribeToRolePreview((nextState) => {
+      setPreviewState(nextState);
+    });
+
+    return unsubscribe;
+  }, [previewFeatureEnabled]);
+
   const resolveMember = useCallback(async (): Promise<MemberResolutionResult> => {
     if (!enabled) {
+      logDebug(scope, 'Member context disabled. Skipping resolution.');
       return {
-        status: 'error',
+        status: 'unauthenticated',
         user: null,
         member: null,
         usedTrustedFallback: false,
-        error: 'Načítání členství je aktuálně vypnuto.',
         lastSyncedAt: lastSyncedAtRef.current,
       };
     }
 
     setStatus('loading');
     setError(null);
-    setUsedTrustedFallback(false);
 
-    const {
-      data: { user: currentUser } = { user: null },
-      error: authError,
-    } = await supabase.auth.getUser();
+    const { data, error: sessionError } = await supabase.auth.getSession();
 
-    if (authError) {
-      logError(scope, 'supabase.auth.getUser failed', authError);
-      const authFailure: MemberResolutionResult = {
-        status: 'error',
-        user: null,
-        member: null,
-        usedTrustedFallback: false,
-        error: 'Nepodařilo se ověřit relaci. Zkuste to prosím znovu.',
-        lastSyncedAt: lastSyncedAtRef.current,
-      };
-      setStatus('error');
-      setError(authFailure.error ?? null);
-      setUser(null);
-      setMember(null);
-      return authFailure;
+    if (sessionError) {
+      logError(scope, 'supabase.auth.getSession failed.', sessionError);
     }
 
+    const currentUser = data?.session?.user ?? null;
+
     if (!currentUser) {
+      if (previewFeatureEnabled && previewState.role) {
+        const previewMember: MemberData = {
+          membership_active: true,
+          membership_expires: null,
+          status: 'active',
+          full_name: previewState.fullName ?? 'Demo User',
+          role: (previewState.role ?? 'member') as MemberRole,
+          branch_id: previewState.branchId ?? null,
+          email: previewState.email ?? 'demo@psychocas.cz',
+          approved: true,
+          approved_at: null,
+          phone: null,
+          branch: previewState.branchId
+            ? { id: previewState.branchId, name: previewState.branchName ?? 'Demo Branch' }
+            : null,
+          origin: 'demo',
+        };
+
+        lastSyncedAtRef.current = new Date().toISOString();
+        setStatus('ready');
+        setMember(previewMember);
+        setUser(null);
+        setError(null);
+        return {
+          status: 'ready',
+          user: null,
+          member: previewMember,
+          usedTrustedFallback: false,
+          lastSyncedAt: lastSyncedAtRef.current,
+        };
+      }
+
       logInfo(scope, 'No authenticated user found.');
       const unauthenticated: MemberResolutionResult = {
         status: 'unauthenticated',
@@ -336,106 +282,110 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
     }
 
     setUser(currentUser);
-    const trustedEmailRaw = currentUser.email ?? null;
-    logDebug(scope, 'Resolving member context.', { userId: currentUser.id, email: trustedEmailRaw });
 
-    let memberResponse = await fetchMemberWithFallback(scope, currentUser.id);
+    let ensureError: PostgrestError | null = null;
+
+    try {
+      const { error: rpcError } = await supabase.rpc('ensure_membership');
+      ensureError = rpcError;
+    } catch (rpcError) {
+      logWarn(scope, 'ensure_membership RPC threw.', rpcError);
+    }
+
+    if (ensureError) {
+      logWarn(scope, 'ensure_membership RPC failed.', ensureError);
+    }
+
+    let membershipResult = await resolveMembership(scope, currentUser.id);
     let attempt = 1;
 
-    while (
-      !memberResponse.error &&
-      (!memberResponse.data || memberResponse.data.length === 0) &&
-      attempt < MEMBER_FETCH_MAX_ATTEMPTS
-    ) {
+    while (!membershipResult.member && attempt < MEMBER_FETCH_MAX_ATTEMPTS) {
       attempt += 1;
-      logWarn(scope, `Member record empty. Retrying (${attempt}/${MEMBER_FETCH_MAX_ATTEMPTS}).`);
+      logWarn(scope, `Membership missing. Retrying (${attempt}/${MEMBER_FETCH_MAX_ATTEMPTS}).`);
       await delay(MEMBER_FETCH_RETRY_DELAY_MS);
-      memberResponse = await fetchMemberWithFallback(scope, currentUser.id);
+      membershipResult = await resolveMembership(scope, currentUser.id);
     }
 
-    if (memberResponse.error) {
-      logError(scope, 'Member fetch failed', memberResponse.error);
-      const failure: MemberResolutionResult = {
-        status: 'error',
-        user: currentUser,
-        member: null,
-        usedTrustedFallback: false,
-        error: 'Nepodařilo se načíst informace o členství.',
-        lastSyncedAt: lastSyncedAtRef.current,
-      };
-      setStatus('error');
-      setMember(null);
-      setError(failure.error ?? null);
-      return failure;
+    if (membershipResult.error) {
+      logError(scope, 'Membership resolution failed.', membershipResult.error);
     }
 
-    const memberRows = (memberResponse.data ?? []) as MemberRow[];
-    const memberRow = memberRows[0] ?? null;
-    const normalizedMember = normalizeMemberRow(memberRow);
+    const resolvedMember = membershipResult.member;
 
-    if (normalizedMember) {
-      logDebug(scope, 'Member resolved from primary table.');
-      setMember(normalizedMember);
-      setStatus('ready');
-      setUsedTrustedFallback(false);
+    if (resolvedMember) {
+      logDebug(scope, 'Membership resolved successfully.');
       lastSyncedAtRef.current = new Date().toISOString();
+      setMember(resolvedMember);
+      setStatus('ready');
+      setError(null);
       return {
         status: 'ready',
         user: currentUser,
-        member: normalizedMember,
+        member: resolvedMember,
         usedTrustedFallback: false,
         lastSyncedAt: lastSyncedAtRef.current,
       };
     }
 
-    const trustedFallback = await fetchTrustedUserFallback(scope, trustedEmailRaw);
+    if (previewFeatureEnabled && previewState.role) {
+      const previewMember: MemberData = {
+        membership_active: true,
+        membership_expires: null,
+        status: 'active',
+        full_name: previewState.fullName ?? 'Demo User',
+        role: (previewState.role ?? 'member') as MemberRole,
+        branch_id: previewState.branchId ?? null,
+        email: previewState.email ?? 'demo@psychocas.cz',
+        approved: true,
+        approved_at: null,
+        phone: null,
+        branch: previewState.branchId
+          ? { id: previewState.branchId, name: previewState.branchName ?? 'Demo Branch' }
+          : null,
+        origin: 'demo',
+      };
 
-    if (trustedFallback) {
-      logInfo(scope, 'Using trusted_users fallback for member context.');
-      setMember(trustedFallback);
-      setStatus('ready');
-      setUsedTrustedFallback(true);
       lastSyncedAtRef.current = new Date().toISOString();
+      setMember(previewMember);
+      setStatus('ready');
+      setError(null);
       return {
         status: 'ready',
         user: currentUser,
-        member: trustedFallback,
-        usedTrustedFallback: true,
+        member: previewMember,
+        usedTrustedFallback: false,
         lastSyncedAt: lastSyncedAtRef.current,
       };
     }
 
-    logWarn(scope, 'Member context not found for user.');
-    const emptyState: MemberResolutionResult = {
+    logWarn(scope, 'Membership not found for authenticated user.');
+    const failure: MemberResolutionResult = {
       status: 'error',
       user: currentUser,
       member: null,
       usedTrustedFallback: false,
-      error: 'Členství nebylo nalezeno.',
+      error: 'Nepodařilo se načíst informace o členství.',
       lastSyncedAt: lastSyncedAtRef.current,
     };
-    setMember(null);
     setStatus('error');
-    setError(emptyState.error ?? null);
-    return emptyState;
-  }, [enabled, scope]);
+    setMember(null);
+    setError(failure.error ?? null);
+    unauthorizedRef.current?.();
+    return failure;
+  }, [enabled, previewFeatureEnabled, previewState, scope]);
+
+  useEffect(() => {
+    if (autoResolve) {
+      void resolveMember();
+    }
+  }, [autoResolve, resolveMember]);
 
   const refresh = useCallback(async () => {
     const result = await resolveMember();
     return result;
   }, [resolveMember]);
 
-  useEffect(() => {
-    if (!enabled || !autoResolve) {
-      return;
-    }
-
-    if (status === 'idle') {
-      void refresh();
-    }
-  }, [autoResolve, enabled, refresh, status]);
-
-  const memoizedValue = useMemo<UseMemberContextValue>(
+  const value = useMemo<UseMemberContextValue>(
     () => ({
       status,
       member,
@@ -448,5 +398,5 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
     [error, member, refresh, status, usedTrustedFallback, user]
   );
 
-  return memoizedValue;
+  return value;
 }

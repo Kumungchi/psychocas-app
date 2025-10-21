@@ -2,186 +2,147 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { TrendingUp, Users, Percent, Clock, AlertCircle, Filter, RefreshCcw } from 'lucide-react';
+import { AlertCircle, BarChart3, Filter, RefreshCcw, TrendingUp, Users } from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import useMemberContext from '@/hooks/useMemberContext';
+import useLocale from '@/hooks/useLocale';
 import type { MemberRole } from '@/types/member';
+import { colors } from '@/ui/theme';
 
 type Period = 'day' | 'week' | 'month';
-
-type DayChartItem = { time: string; validations: number };
-type WeekChartItem = { day: string; validations: number };
-type MonthChartItem = { week: string; validations: number };
-
-type ChartItem = DayChartItem | WeekChartItem | MonthChartItem;
-
-type BranchMockKey = 'default' | 'praha' | 'brno' | 'ostrava';
-
-const mockData: Record<BranchMockKey, Record<Period, ChartItem[]>> = {
-  default: {
-    day: [
-      { time: '9:00', validations: 12 },
-      { time: '10:00', validations: 18 },
-      { time: '11:00', validations: 25 },
-      { time: '12:00', validations: 31 },
-      { time: '13:00', validations: 28 },
-      { time: '14:00', validations: 22 },
-      { time: '15:00', validations: 16 },
-      { time: '16:00', validations: 19 },
-    ],
-    week: [
-      { day: 'Po', validations: 145 },
-      { day: 'Út', validations: 162 },
-      { day: 'St', validations: 178 },
-      { day: 'Čt', validations: 153 },
-      { day: 'Pá', validations: 189 },
-      { day: 'So', validations: 234 },
-      { day: 'Ne', validations: 198 },
-    ],
-    month: [
-      { week: '1. týden', validations: 1259 },
-      { week: '2. týden', validations: 1387 },
-      { week: '3. týden', validations: 1456 },
-      { week: '4. týden', validations: 1332 },
-    ]
-  },
-  praha: {
-    day: [
-      { time: '9:00', validations: 15 },
-      { time: '10:00', validations: 21 },
-      { time: '11:00', validations: 29 },
-      { time: '12:00', validations: 34 },
-      { time: '13:00', validations: 32 },
-      { time: '14:00', validations: 25 },
-      { time: '15:00', validations: 21 },
-      { time: '16:00', validations: 18 },
-    ],
-    week: [
-      { day: 'Po', validations: 162 },
-      { day: 'Út', validations: 188 },
-      { day: 'St', validations: 196 },
-      { day: 'Čt', validations: 171 },
-      { day: 'Pá', validations: 204 },
-      { day: 'So', validations: 248 },
-      { day: 'Ne', validations: 211 },
-    ],
-    month: [
-      { week: '1. týden', validations: 1321 },
-      { week: '2. týden', validations: 1448 },
-      { week: '3. týden', validations: 1522 },
-      { week: '4. týden', validations: 1415 },
-    ]
-  },
-  brno: {
-    day: [
-      { time: '9:00', validations: 9 },
-      { time: '10:00', validations: 13 },
-      { time: '11:00', validations: 18 },
-      { time: '12:00', validations: 22 },
-      { time: '13:00', validations: 19 },
-      { time: '14:00', validations: 17 },
-      { time: '15:00', validations: 12 },
-      { time: '16:00', validations: 14 },
-    ],
-    week: [
-      { day: 'Po', validations: 118 },
-      { day: 'Út', validations: 132 },
-      { day: 'St', validations: 141 },
-      { day: 'Čt', validations: 128 },
-      { day: 'Pá', validations: 156 },
-      { day: 'So', validations: 177 },
-      { day: 'Ne', validations: 166 },
-    ],
-    month: [
-      { week: '1. týden', validations: 1098 },
-      { week: '2. týden', validations: 1162 },
-      { week: '3. týden', validations: 1210 },
-      { week: '4. týden', validations: 1154 },
-    ]
-  },
-  ostrava: {
-    day: [
-      { time: '9:00', validations: 7 },
-      { time: '10:00', validations: 12 },
-      { time: '11:00', validations: 16 },
-      { time: '12:00', validations: 19 },
-      { time: '13:00', validations: 20 },
-      { time: '14:00', validations: 16 },
-      { time: '15:00', validations: 13 },
-      { time: '16:00', validations: 11 },
-    ],
-    week: [
-      { day: 'Po', validations: 102 },
-      { day: 'Út', validations: 119 },
-      { day: 'St', validations: 126 },
-      { day: 'Čt', validations: 111 },
-      { day: 'Pá', validations: 134 },
-      { day: 'So', validations: 158 },
-      { day: 'Ne', validations: 147 },
-    ],
-    month: [
-      { week: '1. týden', validations: 984 },
-      { week: '2. týden', validations: 1027 },
-      { week: '3. týden', validations: 1081 },
-      { week: '4. týden', validations: 999 },
-    ]
-  }
-};
-
-const getLabel = (item: ChartItem): string => {
-  if ('time' in item) {
-    return item.time;
-  }
-
-  if ('day' in item) {
-    return item.day;
-  }
-
-  return item.week;
-};
 
 interface BranchOption {
   id: string;
   name: string;
 }
 
-const resolveBranchKey = (name: string | null | undefined): BranchMockKey => {
-  const normalized = (name ?? '').toLowerCase();
-  if (normalized.includes('praha')) {
-    return 'praha';
+interface RedemptionRow {
+  redeemed_at: string;
+  branch_id: string | null;
+}
+
+interface ChartDatum {
+  label: string;
+  total: number;
+}
+
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+function getRangeStart(period: Period): Date {
+  const now = new Date();
+  const start = new Date(now);
+
+  switch (period) {
+    case 'day':
+      start.setHours(0, 0, 0, 0);
+      break;
+    case 'week':
+      start.setDate(start.getDate() - 6);
+      start.setHours(0, 0, 0, 0);
+      break;
+    case 'month':
+      start.setDate(start.getDate() - 29);
+      start.setHours(0, 0, 0, 0);
+      break;
+    default:
+      break;
   }
-  if (normalized.includes('brno')) {
-    return 'brno';
+
+  return start;
+}
+
+function buildDemoRedemptions(period: Period): RedemptionRow[] {
+  const now = Date.now();
+  const base = getRangeStart(period).getTime();
+  const total = period === 'day' ? 32 : period === 'week' ? 140 : 480;
+  const entries: RedemptionRow[] = [];
+
+  for (let index = 0; index < total; index += 1) {
+    const offset = Math.floor(Math.random() * (now - base));
+    entries.push({ redeemed_at: new Date(base + offset).toISOString(), branch_id: 'demo-branch' });
   }
-  if (normalized.includes('ostrava')) {
-    return 'ostrava';
+
+  return entries;
+}
+
+function formatHourLabel(hour: number): string {
+  return `${hour.toString().padStart(2, '0')}:00`;
+}
+
+function buildChartData(
+  period: Period,
+  redemptions: RedemptionRow[],
+  formatMessage: (key: string, vars: Record<string, string | number>) => string,
+  weekdayLabels: Record<number, string>
+): ChartDatum[] {
+  if (period === 'day') {
+    const counts = Array.from({ length: 24 }, (_, hour) => ({ label: formatHourLabel(hour), total: 0 }));
+    redemptions.forEach((row) => {
+      const date = new Date(row.redeemed_at);
+      counts[date.getHours()].total += 1;
+    });
+    return counts;
   }
-  return 'default';
-};
+
+  if (period === 'week') {
+    const counts = Array.from({ length: 7 }, (_, index) => ({ label: weekdayLabels[index], total: 0 }));
+    redemptions.forEach((row) => {
+      const date = new Date(row.redeemed_at);
+      const dayIndex = (date.getDay() + 6) % 7;
+      counts[dayIndex].total += 1;
+    });
+    return counts;
+  }
+
+  const start = getRangeStart('month');
+  const groups: Map<number, ChartDatum> = new Map();
+  redemptions.forEach((row) => {
+    const date = new Date(row.redeemed_at);
+    const diff = Math.floor((date.getTime() - start.getTime()) / (7 * DAY_IN_MS));
+    const weekIndex = diff < 0 ? 0 : diff;
+    const existing = groups.get(weekIndex) ?? {
+      label: formatMessage('stats.chart.weekLabel', { index: weekIndex + 1 }),
+      total: 0,
+    };
+    existing.total += 1;
+    groups.set(weekIndex, existing);
+  });
+
+  return Array.from(groups.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([, value]) => value);
+}
 
 export default function Statistics() {
+  const { t, formatMessage, locale } = useLocale();
   const { status, member, error, refresh } = useMemberContext({ scope: 'stats-page' });
-  const [period, setPeriod] = useState<Period>('week');
-  const [branchOptions, setBranchOptions] = useState<BranchOption[]>([]);
-  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
-  const [branchError, setBranchError] = useState<string | null>(null);
-  const [isBranchLoading, setIsBranchLoading] = useState(false);
 
   const memberRole: MemberRole = member?.role ?? 'member';
   const isManager = memberRole === 'manager';
   const isCouncil = memberRole === 'council';
   const canView = isManager || isCouncil;
+  const isDemo = member?.origin === 'demo';
+
+  const [period, setPeriod] = useState<Period>('week');
+  const [branchOptions, setBranchOptions] = useState<BranchOption[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+  const [branchError, setBranchError] = useState<string | null>(null);
+  const [branchLoading, setBranchLoading] = useState(false);
+  const [redemptions, setRedemptions] = useState<RedemptionRow[]>([]);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [dataError, setDataError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isCouncil) {
+    if (!isCouncil || isDemo) {
       return;
     }
 
     let isActive = true;
     const loadBranches = async () => {
-      setIsBranchLoading(true);
+      setBranchLoading(true);
       setBranchError(null);
-      const { data, error: branchLoadError } = await supabase
+
+      const { data, error: loadError } = await supabase
         .from('branches')
         .select('id, name')
         .order('name', { ascending: true });
@@ -190,8 +151,8 @@ export default function Statistics() {
         return;
       }
 
-      if (branchLoadError) {
-        setBranchError('Nepodařilo se načíst seznam poboček.');
+      if (loadError) {
+        setBranchError(t('stats.states.branchError'));
       } else {
         setBranchOptions(
           (data ?? [])
@@ -199,63 +160,146 @@ export default function Statistics() {
             .map((row) => ({ id: row.id, name: row.name! }))
         );
       }
-      setIsBranchLoading(false);
+
+      setBranchLoading(false);
     };
 
-    loadBranches();
+    void loadBranches();
 
     return () => {
       isActive = false;
     };
-  }, [isCouncil]);
+  }, [isCouncil, isDemo, t]);
 
   useEffect(() => {
     if (isManager) {
-      const managerBranchId = member?.branch?.id ?? null;
-      setSelectedBranchId(managerBranchId);
+      setSelectedBranchId(member?.branch?.id ?? null);
     } else if (isCouncil) {
       setSelectedBranchId(null);
     }
-  }, [isManager, isCouncil, member?.branch?.id]);
+  }, [isCouncil, isManager, member?.branch?.id]);
 
-  const resolvedBranchName = useMemo(() => {
+  useEffect(() => {
+    if (!canView) {
+      return;
+    }
+
+    let isActive = true;
+    const loadRedemptions = async () => {
+      setDataLoading(true);
+      setDataError(null);
+
+      if (isDemo) {
+        setRedemptions(buildDemoRedemptions(period));
+        setDataLoading(false);
+        return;
+      }
+
+      const start = getRangeStart(period);
+      let query = supabase
+        .from('redemptions')
+        .select('redeemed_at, branch_id')
+        .gte('redeemed_at', start.toISOString())
+        .order('redeemed_at', { ascending: true });
+
+      if (isManager && member?.branch?.id) {
+        query = query.eq('branch_id', member.branch.id);
+      } else if (isCouncil && selectedBranchId) {
+        query = query.eq('branch_id', selectedBranchId);
+      }
+
+      const { data, error: loadError } = await query;
+
+      if (!isActive) {
+        return;
+      }
+
+      if (loadError) {
+        console.error('Failed to load redemptions', loadError);
+        setDataError(t('stats.states.dataError'));
+        setRedemptions([]);
+      } else {
+        setRedemptions((data ?? []) as RedemptionRow[]);
+      }
+
+      setDataLoading(false);
+    };
+
+    void loadRedemptions();
+
+    return () => {
+      isActive = false;
+    };
+  }, [canView, isCouncil, isDemo, isManager, member?.branch?.id, period, selectedBranchId, t]);
+
+  const weekdayLabels = useMemo(
+    () => ({
+      0: t('stats.weekdays.monday'),
+      1: t('stats.weekdays.tuesday'),
+      2: t('stats.weekdays.wednesday'),
+      3: t('stats.weekdays.thursday'),
+      4: t('stats.weekdays.friday'),
+      5: t('stats.weekdays.saturday'),
+      6: t('stats.weekdays.sunday'),
+    }),
+    [t]
+  );
+
+  const branchName = useMemo(() => {
     if (isManager) {
-      return member?.branch?.name ?? 'Nepřiřazená pobočka';
+      return member?.branch?.name ?? t('stats.subheadingUnknownBranch');
     }
 
     if (isCouncil && selectedBranchId) {
-      return branchOptions.find((option) => option.id === selectedBranchId)?.name ?? 'Vybraná pobočka';
+      return branchOptions.find((option) => option.id === selectedBranchId)?.name ?? null;
     }
 
     return null;
-  }, [isCouncil, isManager, member?.branch?.name, branchOptions, selectedBranchId]);
+  }, [branchOptions, isCouncil, isManager, member?.branch?.name, selectedBranchId, t]);
 
-  const dataSourceKey: BranchMockKey = useMemo(() => {
-    const fallbackBranch = resolveBranchKey(member?.branch?.name);
-    if (isManager) {
-      return fallbackBranch;
+  const chartData = useMemo(
+    () => buildChartData(period, redemptions, formatMessage, weekdayLabels),
+    [formatMessage, period, redemptions, weekdayLabels]
+  );
+
+  const totalValidations = useMemo(
+    () => chartData.reduce((sum, datum) => sum + datum.total, 0),
+    [chartData]
+  );
+
+  const averagePerSlot = useMemo(
+    () => (chartData.length > 0 ? Math.round(totalValidations / chartData.length) : 0),
+    [chartData.length, totalValidations]
+  );
+
+  const busiestSlot = useMemo(() => {
+    if (chartData.length === 0) {
+      return null;
     }
+    return chartData.reduce((max, current) => (current.total > max.total ? current : max), chartData[0]);
+  }, [chartData]);
 
-    if (isCouncil && selectedBranchId) {
-      const option = branchOptions.find((branch) => branch.id === selectedBranchId);
-      return resolveBranchKey(option?.name);
+  const lastRedemption = useMemo(() => {
+    if (redemptions.length === 0) {
+      return null;
     }
-
-    return 'default';
-  }, [branchOptions, isCouncil, isManager, member?.branch?.name, selectedBranchId]);
-
-  const chartData = useMemo(() => mockData[dataSourceKey][period], [dataSourceKey, period]);
-
-  const totalValidations = useMemo(() => chartData.reduce((sum, item) => sum + item.validations, 0), [chartData]);
-  const avgPerPeriod = useMemo(() => Math.round(totalValidations / chartData.length), [chartData.length, totalValidations]);
-  const maxValidation = useMemo(() => Math.max(...chartData.map((item) => item.validations)), [chartData]);
+    const latest = redemptions[redemptions.length - 1];
+    try {
+      return new Intl.DateTimeFormat(locale, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }).format(new Date(latest.redeemed_at));
+    } catch {
+      return latest.redeemed_at;
+    }
+  }, [locale, redemptions]);
 
   if (status === 'loading' || status === 'idle') {
     return (
       <main className="psychocas-section pb-20">
-        <div className="psychocas-container space-y-6 fade-in-up">
-          <div className="psychocas-card">
-            <p style={{ color: '#666666' }}>Načítám informace o členství…</p>
+        <div className="psychocas-container fade-in-up">
+          <div className="psychocas-card" style={{ color: colors.textSecondary }}>
+            {t('stats.states.loadingMember')}
           </div>
         </div>
       </main>
@@ -265,9 +309,9 @@ export default function Statistics() {
   if (status === 'unauthenticated') {
     return (
       <main className="psychocas-section pb-20">
-        <div className="psychocas-container space-y-6 fade-in-up">
-          <div className="psychocas-card">
-            <p style={{ color: '#666666' }}>Pro zobrazení statistik se prosím přihlaste.</p>
+        <div className="psychocas-container fade-in-up">
+          <div className="psychocas-card" style={{ color: colors.textSecondary }}>
+            {t('stats.states.loginRequired')}
           </div>
         </div>
       </main>
@@ -277,18 +321,15 @@ export default function Statistics() {
   if (status === 'error' || !member) {
     return (
       <main className="psychocas-section pb-20">
-        <div className="psychocas-container space-y-6 fade-in-up">
+        <div className="psychocas-container fade-in-up">
           <div className="psychocas-card space-y-3">
-            <div className="flex items-center gap-2 text-red-600">
-              <AlertCircle className="w-5 h-5" />
-              <p className="font-medium">Nepodařilo se načíst člena</p>
+            <div className="flex items-center gap-2" style={{ color: colors.danger }}>
+              <AlertCircle className="h-5 w-5" />
+              <p className="font-medium">{t('stats.states.memberErrorTitle')}</p>
             </div>
-            <p style={{ color: '#666666' }}>{error ?? 'Zkuste prosím stránku obnovit.'}</p>
-            <button
-              onClick={refresh}
-              className="psychocas-button-primary flex items-center gap-2 w-max"
-            >
-              <RefreshCcw className="w-4 h-4" /> Obnovit
+            <p style={{ color: colors.textSecondary }}>{error ?? t('stats.states.memberErrorDescription')}</p>
+            <button onClick={refresh} className="psychocas-button-primary flex items-center gap-2 w-max">
+              <RefreshCcw className="h-4 w-4" /> {t('stats.states.refresh')}
             </button>
           </div>
         </div>
@@ -299,12 +340,12 @@ export default function Statistics() {
   if (!canView) {
     return (
       <main className="psychocas-section pb-20">
-        <div className="psychocas-container space-y-6 fade-in-up">
+        <div className="psychocas-container fade-in-up">
           <div className="psychocas-card space-y-2">
-            <h2 className="text-lg font-semibold" style={{ color: '#333333' }}>Přístup zamítnut</h2>
-            <p style={{ color: '#666666' }}>
-              Statistiky jsou dostupné pouze pro manažery a členy rady. Pro další informace kontaktujte vedení.
-            </p>
+            <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
+              {t('stats.states.accessDeniedTitle')}
+            </h2>
+            <p style={{ color: colors.textSecondary }}>{t('stats.states.accessDeniedDescription')}</p>
           </div>
         </div>
         <Navigation userRole={memberRole} />
@@ -313,23 +354,28 @@ export default function Statistics() {
   }
 
   const showBranchDetail = isManager || (isCouncil && Boolean(selectedBranchId));
+  const subheading = branchName
+    ? formatMessage('stats.subheadingWithBranch', { branch: branchName })
+    : t('stats.subheadingAll');
 
   return (
     <main className="psychocas-section pb-20">
       <div className="psychocas-container space-y-6 fade-in-up">
-        {/* Header */}
-        <div className="text-center pt-6">
-          <h1 className="mb-3">Statistiky</h1>
-          <p style={{ color: '#666666' }}>
-            Přehled využití slevových kódů {showBranchDetail && resolvedBranchName ? `– ${resolvedBranchName}` : ''}
-          </p>
-        </div>
+        <header className="pt-6 text-center space-y-2">
+          <h1>{t('stats.heading')}</h1>
+          <p style={{ color: colors.textSecondary }}>{subheading}</p>
+          {isDemo && (
+            <p className="text-sm" style={{ color: colors.warning }}>
+              {t('stats.states.demoNotice')}
+            </p>
+          )}
+        </header>
 
-        {isCouncil && (
-          <div className="psychocas-card space-y-3">
-            <div className="flex items-center gap-2 text-sm font-medium" style={{ color: '#333333' }}>
-              <Filter className="w-4 h-4" />
-              <span>Vyberte pobočku pro zobrazení detailů</span>
+        {isCouncil && !isDemo && (
+          <section className="psychocas-card space-y-3">
+            <div className="flex items-center gap-2" style={{ color: colors.textPrimary }}>
+              <Filter className="h-4 w-4" />
+              <span>{t('stats.filters.branchLabel')}</span>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <select
@@ -337,176 +383,150 @@ export default function Statistics() {
                 value={selectedBranchId ?? ''}
                 onChange={(event) => setSelectedBranchId(event.target.value || null)}
               >
-                <option value="">Vyberte pobočku…</option>
+                <option value="">{t('stats.filters.branchPlaceholder')}</option>
                 {branchOptions.map((branch) => (
                   <option key={branch.id} value={branch.id}>
                     {branch.name}
                   </option>
                 ))}
               </select>
-              <button
-                onClick={() => setSelectedBranchId(null)}
-                className="psychocas-button-secondary"
-              >
-                Zrušit filtr
+              <button onClick={() => setSelectedBranchId(null)} className="psychocas-button-secondary">
+                {t('stats.filters.clear')}
               </button>
             </div>
-            {isBranchLoading && <p style={{ color: '#666666' }}>Načítám pobočky…</p>}
-            {branchError && <p className="text-sm" style={{ color: '#c62828' }}>{branchError}</p>}
-            {!selectedBranchId && !isBranchLoading && !branchError && (
-              <p className="text-sm" style={{ color: '#666666' }}>
-                Pro zobrazení výkonu rady je nutné zvolit konkrétní pobočku.
-              </p>
+            {branchLoading && <p style={{ color: colors.textSecondary }}>{t('stats.states.branchLoading')}</p>}
+            {branchError && <p style={{ color: colors.danger }}>{branchError}</p>}
+            {!selectedBranchId && !branchLoading && !branchError && (
+              <p style={{ color: colors.textSecondary }}>{t('stats.states.branchEmpty')}</p>
             )}
-          </div>
+          </section>
         )}
 
-        {/* Filter */}
-        <div className="psychocas-card">
-          <div className="flex items-center gap-4">
-            <label className="text-sm font-medium" style={{ color: '#333333' }}>
-              Období:
+        <section className="psychocas-card">
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+              {t('stats.filters.periodLabel')}
             </label>
             <select
               value={period}
-              onChange={(e) => setPeriod(e.target.value as Period)}
-              className="psychocas-input flex-1"
-              style={{ paddingTop: '0.5rem', paddingBottom: '0.5rem' }}
+              onChange={(event) => setPeriod(event.target.value as Period)}
+              className="psychocas-input"
+              style={{ maxWidth: '14rem' }}
             >
-              <option value="day">Den</option>
-              <option value="week">Týden</option>
-              <option value="month">Měsíc</option>
+              <option value="day">{t('stats.filters.day')}</option>
+              <option value="week">{t('stats.filters.week')}</option>
+              <option value="month">{t('stats.filters.month')}</option>
             </select>
           </div>
-        </div>
+        </section>
 
         {showBranchDetail ? (
           <>
-            {/* KPI Cards */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Total */}
-              <div className="psychocas-card">
+            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="psychocas-card space-y-2">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg" style={{ backgroundColor: '#e3f2fd' }}>
-                    <Users className="w-5 h-5" style={{ color: '#1d4f7d' }} />
+                  <div className="rounded-lg p-2" style={{ backgroundColor: colors.brandSurface }}>
+                    <Users className="h-5 w-5" style={{ color: colors.brandPrimary }} />
                   </div>
                   <div>
-                    <p className="text-sm" style={{ color: '#666666' }}>Celkem ověření</p>
-                    <p className="text-lg font-semibold" style={{ color: '#333333' }}>{totalValidations}</p>
+                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                      {t('stats.cards.total')}
+                    </p>
+                    <p className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
+                      {totalValidations}
+                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* Average */}
-              <div className="psychocas-card">
+              <div className="psychocas-card space-y-2">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg" style={{ backgroundColor: '#e1f5fe' }}>
-                    <TrendingUp className="w-5 h-5" style={{ color: '#049edb' }} />
+                  <div className="rounded-lg p-2" style={{ backgroundColor: colors.infoSurface }}>
+                    <TrendingUp className="h-5 w-5" style={{ color: colors.info }} />
                   </div>
                   <div>
-                    <p className="text-sm" style={{ color: '#666666' }}>Průměr na období</p>
-                    <p className="text-lg font-semibold" style={{ color: '#333333' }}>{avgPerPeriod}</p>
+                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                      {t('stats.cards.average')}
+                    </p>
+                    <p className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
+                      {averagePerSlot}
+                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* Success Rate */}
-              <div className="psychocas-card">
+              <div className="psychocas-card space-y-2">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg" style={{ backgroundColor: '#e8f5e8' }}>
-                    <Percent className="w-5 h-5" style={{ color: '#2e7d32' }} />
+                  <div className="rounded-lg p-2" style={{ backgroundColor: colors.warningSurface }}>
+                    <BarChart3 className="h-5 w-5" style={{ color: colors.warning }} />
                   </div>
                   <div>
-                    <p className="text-sm" style={{ color: '#666666' }}>Úspěšnost</p>
-                    <p className="text-lg font-semibold" style={{ color: '#333333' }}>94%</p>
+                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                      {t('stats.cards.busiest')}
+                    </p>
+                    <p className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
+                      {busiestSlot ? busiestSlot.label : t('stats.states.dataEmpty')}
+                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* Avg Time */}
-              <div className="psychocas-card">
+              <div className="psychocas-card space-y-2">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg" style={{ backgroundColor: '#fff3e0' }}>
-                    <Clock className="w-5 h-5" style={{ color: '#ff9800' }} />
+                  <div className="rounded-lg p-2" style={{ backgroundColor: colors.infoSurfaceAlt }}>
+                    <RefreshCcw className="h-5 w-5" style={{ color: colors.infoStrong }} />
                   </div>
                   <div>
-                    <p className="text-sm" style={{ color: '#666666' }}>Průměrný čas</p>
-                    <p className="text-lg font-semibold" style={{ color: '#333333' }}>2.3s</p>
+                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                      {t('stats.cards.lastRedemption')}
+                    </p>
+                    <p className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                      {lastRedemption ?? '—'}
+                    </p>
                   </div>
                 </div>
               </div>
-            </div>
+            </section>
 
-            {/* Chart */}
-            <div className="psychocas-card">
-              <h3 className="mb-6" style={{ color: '#333333' }}>
-                Ověření kódů – {period === 'day' ? 'Dnes' : period === 'week' ? 'Tento týden' : 'Tento měsíc'}
-              </h3>
+            <section className="psychocas-card space-y-4">
+              <h3 style={{ color: colors.textPrimary }}>{t(`stats.chart.heading.${period}`)}</h3>
 
-              <div className="space-y-3">
-                {chartData.map((item, index) => {
-                  const label = getLabel(item);
-                  const percentage = (item.validations / maxValidation) * 100;
-
-                  return (
-                    <div key={index} className="space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span style={{ color: '#666666' }}>{label}</span>
-                        <span style={{ color: '#333333', fontWeight: '600' }}>{item.validations}</span>
+              {dataLoading ? (
+                <p style={{ color: colors.textSecondary }}>{t('stats.states.dataLoading')}</p>
+              ) : chartData.length === 0 ? (
+                <p style={{ color: colors.textSecondary }}>{t('stats.states.dataEmpty')}</p>
+              ) : (
+                <div className="space-y-3">
+                  {chartData.map((datum) => {
+                    const percentage = totalValidations === 0 ? 0 : Math.round((datum.total / totalValidations) * 100);
+                    return (
+                      <div key={datum.label} className="space-y-1">
+                        <div className="flex items-center justify-between text-sm" style={{ color: colors.textSecondary }}>
+                          <span>{datum.label}</span>
+                          <span style={{ color: colors.textPrimary, fontWeight: 600 }}>{datum.total}</span>
+                        </div>
+                        <div className="h-2 w-full rounded-full bg-gray-200">
+                          <div
+                            className="h-2 rounded-full transition-all duration-500"
+                            style={{ width: `${percentage}%`, backgroundColor: colors.brandPrimary }}
+                          />
+                        </div>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="h-2 rounded-full transition-all duration-500"
-                          style={{
-                            width: `${percentage}%`,
-                            backgroundColor: '#1d4f7d'
-                          }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+                    );
+                  })}
+                </div>
+              )}
 
-            {/* Summary */}
-            <div className="psychocas-card">
-              <h3 className="mb-3" style={{ color: '#333333' }}>Shrnutí</h3>
-              <div className="space-y-2 text-sm" style={{ color: '#666666' }}>
-                <p>
-                  • Nejaktivnější {period === 'day' ? 'hodina' : period === 'week' ? 'den' : 'týden'}:{' '}
-                  <strong style={{ color: '#333333' }}>
-                    {(() => {
-                      const maxItem = chartData.reduce((max, item) => item.validations > max.validations ? item : max, chartData[0]);
-                      return getLabel(maxItem);
-                    })()}
-                  </strong>
-                </p>
-                <p>• Celkem aktivních členů: <strong style={{ color: '#333333' }}>1,247</strong></p>
-                <p>• Průměrná doba ověření: <strong style={{ color: '#333333' }}>2.3 sekundy</strong></p>
-              </div>
-            </div>
+              {dataError && <p style={{ color: colors.danger }}>{dataError}</p>}
+            </section>
           </>
         ) : (
-          <div className="psychocas-card">
-            <p style={{ color: '#666666' }}>
-              Zvolte pobočku a poté se zobrazí podrobné statistiky. Členové rady mají přístup k přehledům všech poboček po výběru filtru.
-            </p>
-          </div>
-        )}
-
-        {isCouncil && (
-          <div className="psychocas-card" style={{ backgroundColor: '#f5f5f5' }}>
-            <h3 className="mb-2" style={{ color: '#333333' }}>Kontakty vedení</h3>
-            <ul className="space-y-1 text-sm" style={{ color: '#666666' }}>
-              <li>PR tým: <a href="mailto:pr@psychocas.cz" className="underline">pr@psychocas.cz</a></li>
-              <li>HR tým: <a href="mailto:hr@psychocas.cz" className="underline">hr@psychocas.cz</a></li>
-            </ul>
-          </div>
+          <section className="psychocas-card" style={{ color: colors.textSecondary }}>
+            {t('stats.states.noBranchSelected')}
+          </section>
         )}
       </div>
 
-      {/* Navigation Bar */}
       <Navigation userRole={memberRole} />
     </main>
   );

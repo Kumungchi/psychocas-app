@@ -1,37 +1,44 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
 import Navigation from '@/components/Navigation';
-import { Users, Shield, Store, UserCheck, UserX, Mail, Phone, MapPin, Tag, Trash2, ToggleRight } from 'lucide-react';
-import type { User } from '@supabase/supabase-js';
+import useMemberContext from '@/hooks/useMemberContext';
+import useLocale from '@/hooks/useLocale';
+import { supabase } from '@/lib/supabaseClient';
 import {
-  preparePartnerOfferPayload,
-  type PartnerOfferFormState,
-  type PartnerOfferFormErrors,
-  type PartnerScope,
-  type PartnerOfferRecord,
-} from '@/lib/partners';
+  Users,
+  UserCheck,
+  UserX,
+  Mail,
+  Phone,
+  MapPin,
+  RefreshCcw,
+  ToggleRight,
+  Tag,
+  Trash2,
+  ShieldCheck,
+  Calendar,
+} from 'lucide-react';
+import type { PartnerOfferFormErrors, PartnerOfferFormState, PartnerOfferRecord, PartnerScope } from '@/lib/partners';
+import { preparePartnerOfferPayload } from '@/lib/partners';
+import type { MemberRole, MembershipStatus } from '@/types/member';
+import { colors } from '@/ui/theme';
 
-interface Member {
+interface AdminMember {
   user_id: string;
-  email: string;
-  first_name: string | null;
-  last_name: string | null;
+  email: string | null;
   full_name: string | null;
-  phone: string | null;
-  role: 'member' | 'manager' | 'council' | 'technician';
+  role: MemberRole;
   membership_active: boolean;
   membership_expires: string | null;
-  approved: boolean;
+  status: MembershipStatus;
   approved_at: string | null;
-  created_at: string;
+  phone: string | null;
+  branch_id: string | null;
+  branch?: { id: string; name: string | null } | null;
 }
 
-type TrustedBranch = { id: string; name: string; city?: string | null } | null;
-
-interface TrustedUser {
+interface InviteRow {
   id: string;
   email: string;
   first_name: string | null;
@@ -39,54 +46,130 @@ interface TrustedUser {
   phone: string | null;
   role: string;
   branch_id: string | null;
-  branch?: TrustedBranch;
+  branch?: { id: string; name: string | null } | null;
+  status: string;
+  expires_at: string | null;
   notes: string | null;
   added_at: string;
 }
 
-interface Branch {
+interface BranchRow {
   id: string;
   name: string;
   location: string | null;
-  city?: string | null;
   discount_percentage: number;
   active: boolean;
-  created_at: string;
 }
 
+type AdminTab = 'members' | 'invites' | 'branches' | 'partners';
+
+const demoMembers: AdminMember[] = [
+  {
+    user_id: 'demo-1',
+    email: 'member@psychocas.cz',
+    full_name: 'Demo Člen',
+    role: 'member',
+    membership_active: true,
+    membership_expires: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'active',
+    approved_at: new Date().toISOString(),
+    phone: '+420123456789',
+    branch_id: 'demo-branch',
+    branch: { id: 'demo-branch', name: 'Demo Branch' },
+  },
+];
+
+const demoPendingMembers: AdminMember[] = [
+  {
+    user_id: 'demo-2',
+    email: 'pending@psychocas.cz',
+    full_name: 'Čekající Člen',
+    role: 'member',
+    membership_active: false,
+    membership_expires: null,
+    status: 'pending',
+    approved_at: null,
+    phone: null,
+    branch_id: null,
+    branch: null,
+  },
+];
+
+const demoInvites: InviteRow[] = [
+  {
+    id: 'demo-trusted',
+    email: 'trusted@demo.cz',
+    first_name: 'Demo',
+    last_name: 'Trusted',
+    phone: null,
+    role: 'manager',
+    branch_id: null,
+    branch: null,
+    status: 'active',
+    expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    notes: 'Ukázkový přístup',
+    added_at: new Date().toISOString(),
+  },
+];
+
+const demoBranches: BranchRow[] = [
+  { id: 'demo-branch', name: 'Demo Branch', location: 'Praha', discount_percentage: 10, active: true },
+];
+
+const demoPartners: PartnerOfferRecord[] = [
+  {
+    id: 'demo-offer',
+    title: 'Demo kavárna',
+    description: 'Ukázková sleva 10 %',
+    discount_code: 'DEMO10',
+    discount_percentage: 10,
+    scope: 'national',
+    branch_id: null,
+    city: 'Praha',
+    active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    created_by: 'demo',
+    updated_by: 'demo',
+    branch: null,
+    creator: null,
+    updater: null,
+  },
+];
+
 export default function AdminPage() {
-  const router = useRouter();
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [memberProfile, setMemberProfile] = useState<{ role: string; email: string; branch_id: string | null } | null>(null);
-  const [activeTab, setActiveTab] = useState<'members' | 'trusted' | 'codes' | 'partners'>('members');
-  
-  // Members state
-  const [members, setMembers] = useState<Member[]>([]);
-  const [pendingMembers, setPendingMembers] = useState<Member[]>([]);
-  
-  // Trusted users state
-  const [trustedUsers, setTrustedUsers] = useState<TrustedUser[]>([]);
-  const [newTrusted, setNewTrusted] = useState({
+  const { t, formatMessage, locale } = useLocale();
+  const { status, member, user, error, refresh } = useMemberContext({ scope: 'admin-page' });
+  const memberRole = member?.role ?? 'member';
+  const isCouncil = memberRole === 'council';
+  const isPsychocasManager = memberRole === 'manager' && Boolean(member?.email?.toLowerCase().endsWith('@psychocas.cz'));
+  const canAccess = isCouncil || isPsychocasManager;
+  const isDemo = member?.origin === 'demo';
+
+  const [activeTab, setActiveTab] = useState<AdminTab>('members');
+
+  const [members, setMembers] = useState<AdminMember[]>([]);
+  const [pendingMembers, setPendingMembers] = useState<AdminMember[]>([]);
+  const [invites, setInvites] = useState<InviteRow[]>([]);
+  const [branches, setBranches] = useState<BranchRow[]>([]);
+  const [partnerOffers, setPartnerOffers] = useState<PartnerOfferRecord[]>([]);
+
+  const [newInvite, setNewInvite] = useState({
     email: '',
     first_name: '',
     last_name: '',
     phone: '',
     role: 'member',
     branch_id: '',
-    notes: ''
+    status: 'active',
+    expires_at: '',
+    notes: '',
   });
-
-  // Branches state
-  const [branches, setBranches] = useState<Branch[]>([]);
   const [newBranch, setNewBranch] = useState({
     name: '',
     location: '',
-    discount_percentage: 10
+    discount_percentage: 10,
   });
-
-  // Partner offers state
-  const [partnerOffers, setPartnerOffers] = useState<PartnerOfferRecord[]>([]);
   const [newOffer, setNewOffer] = useState<PartnerOfferFormState>({
     title: '',
     description: '',
@@ -98,996 +181,900 @@ export default function AdminPage() {
   });
   const [offerErrors, setOfferErrors] = useState<PartnerOfferFormErrors>({});
   const [isSavingOffer, setIsSavingOffer] = useState(false);
-  
-  const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const handleOfferFieldChange = <K extends keyof PartnerOfferFormState>(field: K, value: PartnerOfferFormState[K]) => {
-    setNewOffer((prev) => {
-      if (field === 'scope') {
-        const nextScope = value as PartnerScope;
-        const nextBranch = nextScope === 'local'
-          ? (prev.branchId || memberProfile?.branch_id || '')
-          : '';
+  const loadMembers = useCallback(async () => {
+    if (isDemo) {
+      setMembers(demoMembers);
+      setPendingMembers(demoPendingMembers);
+      return;
+    }
 
-        return {
-          ...prev,
-          scope: nextScope,
-          branchId: nextBranch,
-        };
+    const { data: membershipRows, error } = await supabase
+      .from('memberships')
+      .select(
+        `user_id, role, membership_active, membership_expires, status, approved_at, branch_id,
+         branch:branch_id (id, name)`
+      )
+      .order('updated_at', { ascending: false });
+
+    if (error) {
+      setMembers([]);
+      setPendingMembers([]);
+      return;
+    }
+
+    const rows = (membershipRows ?? []) as Array<
+      Omit<AdminMember, 'email' | 'full_name' | 'phone' | 'branch'> & {
+        branch: AdminMember['branch'] | AdminMember['branch'][] | null;
       }
+    >;
 
+    const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean)));
+    let profiles: Record<string, { email: string | null; full_name: string | null; phone: string | null }> = {};
+
+    if (userIds.length > 0) {
+      const { data: profileRows } = await supabase
+        .from('profiles')
+        .select('id, email, full_name, phone')
+        .in('id', userIds);
+
+      if (profileRows) {
+        profiles = (profileRows as Array<{ id: string; email: string | null; full_name: string | null; phone: string | null }>).reduce(
+            (acc, profile) => {
+              acc[profile.id] = {
+                email: profile.email ?? null,
+                full_name: profile.full_name ?? null,
+                phone: profile.phone ?? null,
+              };
+              return acc;
+            },
+            {} as Record<string, { email: string | null; full_name: string | null; phone: string | null }>
+          );
+      }
+    }
+
+    const normalized: AdminMember[] = rows.map((row) => {
+      const profile = profiles[row.user_id] ?? { email: null, full_name: null, phone: null };
+      const branch = Array.isArray(row.branch) ? row.branch?.[0] ?? null : row.branch ?? null;
       return {
-        ...prev,
-        [field]: value,
+        user_id: row.user_id,
+        email: profile.email,
+        full_name: profile.full_name,
+        role: (row.role ?? 'member') as MemberRole,
+        membership_active: row.membership_active,
+        membership_expires: row.membership_expires,
+        status: (row.status ?? 'pending') as MembershipStatus,
+        approved_at: row.approved_at,
+        phone: profile.phone,
+        branch_id: row.branch_id,
+        branch,
       };
     });
 
-    setOfferErrors((prev) => ({
-      ...prev,
-      [field]: undefined,
-      ...(field === 'scope' ? { branchId: undefined } : {}),
-    }));
-  };
+    setMembers(normalized.filter((item) => item.status === 'active'));
+    setPendingMembers(normalized.filter((item) => item.status !== 'active'));
+  }, [isDemo]);
 
-  const loadMembers = useCallback(async () => {
-    const { data } = await supabase
-      .from('members')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (data) {
-      setMembers(data.filter(m => m.approved));
-      setPendingMembers(data.filter(m => !m.approved));
+  const loadInvites = useCallback(async () => {
+    if (isDemo) {
+      setInvites(demoInvites);
+      return;
     }
-  }, []);
-
-  const loadTrustedUsers = useCallback(async () => {
-    type TrustedUserRow = Omit<TrustedUser, 'branch'> & {
-      branch: TrustedBranch | TrustedBranch[] | null;
-    };
 
     const { data } = await supabase
-      .from('trusted_users')
-      .select('id, email, first_name, last_name, phone, role, branch_id, notes, added_at, branch:branch_id (id, name, city)')
+      .from('invites')
+      .select('id, email, first_name, last_name, phone, role, status, expires_at, branch_id, branch:branch_id (id, name), notes, added_at')
       .order('added_at', { ascending: false });
 
     if (data) {
-      const normalized: TrustedUser[] = (data as TrustedUserRow[]).map((user) => ({
-        ...user,
-        branch: Array.isArray(user.branch) ? user.branch[0] ?? null : user.branch ?? null,
+      const rawRows = data as unknown as Array<
+        Omit<InviteRow, 'branch'> & {
+          branch: InviteRow['branch'] | InviteRow['branch'][] | null;
+        }
+      >;
+
+      const normalized: InviteRow[] = rawRows.map((row) => ({
+        ...row,
+        branch: Array.isArray(row.branch) ? row.branch?.[0] ?? null : row.branch ?? null,
       }));
 
-      setTrustedUsers(normalized);
+      setInvites(normalized);
     }
-  }, []);
+  }, [isDemo]);
 
   const loadBranches = useCallback(async () => {
+    if (isDemo) {
+      setBranches(demoBranches);
+      return;
+    }
+
     const { data } = await supabase
       .from('branches')
-      .select('*')
+      .select('id, name, location, discount_percentage, active')
       .order('name');
 
-    if (data) setBranches(data);
-  }, []);
+    if (data) {
+      setBranches(data as BranchRow[]);
+    }
+  }, [isDemo]);
 
   const loadPartnerOffers = useCallback(async () => {
-    type PartnerOfferRow = PartnerOfferRecord & {
-      branch: TrustedBranch | TrustedBranch[] | null;
-      creator: { full_name?: string | null; email?: string | null } | { full_name?: string | null; email?: string | null }[] | null;
-      updater: { full_name?: string | null; email?: string | null } | { full_name?: string | null; email?: string | null }[] | null;
-    };
+    if (isDemo) {
+      setPartnerOffers(demoPartners);
+      return;
+    }
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('partner_offers')
-      .select(`
-        id,
-        title,
-        description,
-        discount_code,
-        discount_percentage,
-        scope,
-        branch_id,
-        city,
-        active,
-        created_at,
-        updated_at,
-        created_by,
-        updated_by,
-        branch:branch_id (id, name, city),
-        creator:created_by (full_name, email),
-        updater:updated_by (full_name, email)
-      `)
+      .select(
+        `id, title, description, discount_code, discount_percentage, scope, branch_id, city, active,
+         created_at, updated_at, created_by, updated_by`
+      )
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Failed to load partner offers', error);
-      return;
-    }
-
     if (data) {
-      const normalized = (data as PartnerOfferRow[]).map((offer) => ({
-        ...offer,
-        branch: Array.isArray(offer.branch) ? offer.branch[0] ?? null : offer.branch ?? null,
-        creator: Array.isArray(offer.creator) ? offer.creator[0] ?? null : offer.creator ?? null,
-        updater: Array.isArray(offer.updater) ? offer.updater[0] ?? null : offer.updater ?? null,
-      }));
-
-      setPartnerOffers(normalized);
+      setPartnerOffers(data as PartnerOfferRecord[]);
     }
-  }, []);
-
-  const checkAuth = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      router.push('/login');
-      return;
-    }
-
-    setCurrentUser(user);
-
-    // Check if user is admin (council or @psychočas.cz manager)
-    const { data: memberData } = await supabase
-      .from('members')
-      .select('role, email, branch_id')
-      .eq('user_id', user.id)
-      .single();
-
-    if (!memberData) {
-      router.push('/home');
-      return;
-    }
-
-    const isAdmin = memberData.role === 'council' || 
-                   (memberData.role === 'manager' && memberData.email.endsWith('@psychocas.cz'));
-
-    if (!isAdmin) {
-      router.push('/home');
-      return;
-    }
-
-    setUserRole(memberData.role);
-    setMemberProfile({ role: memberData.role, email: memberData.email, branch_id: memberData.branch_id ?? null });
-    setIsLoading(false);
-
-    // Load data
-    loadMembers();
-    loadTrustedUsers();
-    loadBranches();
-    loadPartnerOffers();
-  }, [loadBranches, loadMembers, loadPartnerOffers, loadTrustedUsers, router]);
+  }, [isDemo]);
 
   useEffect(() => {
-    void checkAuth();
-  }, [checkAuth]);
-
-  useEffect(() => {
-    if (!memberProfile) return;
-    const isCouncil = ['council', 'technician'].includes(memberProfile.role);
-    setNewOffer((prev) => {
-      const nextScope: PartnerScope = isCouncil ? prev.scope : 'local';
-      const nextBranchId = nextScope === 'local'
-        ? (isCouncil ? prev.branchId : memberProfile.branch_id ?? '')
-        : '';
-
-      return {
-        ...prev,
-        scope: nextScope,
-        branchId: nextBranchId,
-      };
-    });
-    setOfferErrors((prev) => ({ ...prev, scope: undefined, branchId: undefined }));
-  }, [memberProfile]);
-
-  const approveMember = async (memberId: string) => {
-    if (!currentUser) {
-      setMessage({ type: 'error', text: 'Uživatel není přihlášen.' });
+    if (!canAccess || status !== 'ready') {
       return;
     }
 
-    const { error } = await supabase.rpc('approve_member', {
-      member_user_id: memberId,
-      approver_user_id: currentUser.id
-    });
+    void Promise.all([loadMembers(), loadInvites(), loadBranches(), loadPartnerOffers()]);
+  }, [canAccess, loadBranches, loadInvites, loadMembers, loadPartnerOffers, status]);
 
-    if (error) {
-      setMessage({ type: 'error', text: `Chyba schvalování: ${error.message}` });
-    } else {
-      setMessage({ type: 'success', text: 'Člen byl schválen!' });
-      loadMembers();
-    }
-  };
+  const approveMember = useCallback(
+    async (memberId: string) => {
+      if (isDemo) {
+        setMessage({ type: 'success', text: t('admin.members.approveSuccess') });
+        return;
+      }
 
-  const addTrustedUser = async (e: React.FormEvent) => {
-    e.preventDefault();
+      if (!user) {
+        setMessage({ type: 'error', text: formatMessage('admin.messages.error', { message: 'missing-user' }) });
+        return;
+      }
 
-    if (!currentUser) {
-      setMessage({ type: 'error', text: 'Uživatel není přihlášen.' });
-      return;
-    }
-
-    const { error } = await supabase
-      .from('trusted_users')
-      .insert([{
-        ...newTrusted,
-        branch_id: newTrusted.branch_id || null,
-        added_by: currentUser.id
-      }]);
-
-    if (error) {
-      setMessage({ type: 'error', text: `Chyba: ${error.message}` });
-    } else {
-      setMessage({ type: 'success', text: 'Trusted user přidán!' });
-      setNewTrusted({ email: '', first_name: '', last_name: '', phone: '', role: 'member', branch_id: '', notes: '' });
-      loadTrustedUsers();
-    }
-  };
-
-  const deleteTrustedUser = async (id: string) => {
-    if (!confirm('Opravdu smazat trusted user?')) return;
-
-    const { error } = await supabase
-      .from('trusted_users')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      setMessage({ type: 'error', text: `Chyba: ${error.message}` });
-    } else {
-      setMessage({ type: 'success', text: 'Trusted user smazán!' });
-      loadTrustedUsers();
-    }
-  };
-
-  const addBranch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const { error } = await supabase
-      .from('branches')
-      .insert([{
-        ...newBranch,
-        active: true
-      }]);
-
-    if (error) {
-      setMessage({ type: 'error', text: `Chyba: ${error.message}` });
-    } else {
-      setMessage({ type: 'success', text: 'Pobočka přidána!' });
-      setNewBranch({ name: '', location: '', discount_percentage: 10 });
-      loadBranches();
-    }
-  };
-
-  const toggleBranchActive = async (id: string, currentActive: boolean) => {
-    const { error } = await supabase
-      .from('branches')
-      .update({ active: !currentActive })
-      .eq('id', id);
-
-    if (error) {
-      setMessage({ type: 'error', text: `Chyba: ${error.message}` });
-    } else {
-      setMessage({ type: 'success', text: 'Status pobočky změněn!' });
-      loadBranches();
-    }
-  };
-
-  const addPartnerOffer = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!currentUser || !memberProfile) {
-      setMessage({ type: 'error', text: 'Uživatel není přihlášen.' });
-      return;
-    }
-
-    const isCouncil = ['council', 'technician'].includes(memberProfile.role);
-    const isPsychocasManager =
-      memberProfile.role === 'manager' && memberProfile.email.toLowerCase().endsWith('@psychocas.cz');
-
-    if (!isCouncil && !isPsychocasManager) {
-      setMessage({ type: 'error', text: 'Nemáte oprávnění přidávat partnery.' });
-      return;
-    }
-
-    const effectiveScope: PartnerScope = isCouncil ? newOffer.scope : 'local';
-    const branchForLocal = effectiveScope === 'local'
-      ? (isCouncil ? newOffer.branchId : memberProfile.branch_id)
-      : null;
-
-    const validation = preparePartnerOfferPayload(newOffer, {
-      scope: effectiveScope,
-      branchId: branchForLocal ?? null,
-      allowNational: isCouncil,
-    });
-
-    setOfferErrors(validation.errors);
-
-    if (!validation.payload) {
-      setMessage({ type: 'error', text: 'Zkontrolujte prosím zvýrazněná pole formuláře.' });
-      return;
-    }
-
-    setIsSavingOffer(true);
-
-    const payload = {
-      ...validation.payload,
-      active: true,
-      created_by: currentUser.id,
-      updated_by: currentUser.id,
-      updated_at: new Date().toISOString(),
-    };
-
-    const { error } = await supabase.from('partner_offers').insert([payload]);
-
-    if (error) {
-      setMessage({ type: 'error', text: `Chyba: ${error.message}` });
-    } else {
-      setMessage({ type: 'success', text: 'Partnerská nabídka přidána!' });
-      const defaultScope: PartnerScope = isCouncil ? effectiveScope : 'local';
-      setNewOffer({
-        title: '',
-        description: '',
-        discountCode: '',
-        discountPercentage: 10,
-        scope: defaultScope,
-        branchId: defaultScope === 'local' ? (branchForLocal ?? memberProfile.branch_id ?? '') : '',
-        city: '',
+      const { error: approveError } = await supabase.rpc('approve_member', {
+        member_user_id: memberId,
+        approver_user_id: user.id,
       });
-      setOfferErrors({});
-      loadPartnerOffers();
-    }
 
-    setIsSavingOffer(false);
-  };
+      if (approveError) {
+        setMessage({
+          type: 'error',
+          text: formatMessage('admin.members.approveError', { message: approveError.message }),
+        });
+      } else {
+        setMessage({ type: 'success', text: t('admin.members.approveSuccess') });
+        await loadMembers();
+      }
+    },
+    [isDemo, loadMembers, t, formatMessage, user]
+  );
 
-  const toggleOfferActive = async (offer: PartnerOfferRecord) => {
-    if (!currentUser) {
-      setMessage({ type: 'error', text: 'Uživatel není přihlášen.' });
-      return;
-    }
+  const handleAddInvite = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
 
-    const { error } = await supabase
-      .from('partner_offers')
-      .update({ active: !offer.active, updated_at: new Date().toISOString(), updated_by: currentUser.id })
-      .eq('id', offer.id);
+      if (isDemo) {
+        setMessage({ type: 'success', text: t('admin.messages.success') });
+        return;
+      }
 
-    if (error) {
-      setMessage({ type: 'error', text: `Chyba: ${error.message}` });
-    } else {
-      setMessage({ type: 'success', text: `Partner byl ${offer.active ? 'deaktivován' : 'aktivován'}.` });
-      loadPartnerOffers();
-    }
-  };
+      const { error: insertError } = await supabase.from('invites').insert([
+        {
+          ...newInvite,
+          branch_id: newInvite.branch_id || null,
+          expires_at: newInvite.expires_at ? new Date(newInvite.expires_at).toISOString() : null,
+          added_by: user?.id ?? null,
+        },
+      ]);
 
-  const deletePartnerOffer = async (offerId: string) => {
-    if (!confirm('Opravdu smazat partnera?')) return;
+      if (insertError) {
+        setMessage({ type: 'error', text: formatMessage('admin.messages.error', { message: insertError.message }) });
+      } else {
+        setMessage({ type: 'success', text: t('admin.messages.success') });
+        setNewInvite({ email: '', first_name: '', last_name: '', phone: '', role: 'member', branch_id: '', status: 'active', expires_at: '', notes: '' });
+        await loadInvites();
+      }
+    },
+    [formatMessage, isDemo, loadInvites, newInvite, t, user]
+  );
 
-    const { error } = await supabase
-      .from('partner_offers')
-      .delete()
-      .eq('id', offerId);
+  const handleDeleteInvite = useCallback(
+    async (id: string) => {
+      if (!confirm(t('admin.invites.deleteConfirm'))) {
+        return;
+      }
 
-    if (error) {
-      setMessage({ type: 'error', text: `Chyba: ${error.message}` });
-    } else {
-      setMessage({ type: 'success', text: 'Partnerská sleva byla odstraněna.' });
-      loadPartnerOffers();
-    }
-  };
+      if (isDemo) {
+        setMessage({ type: 'success', text: t('admin.invites.deleteSuccess') });
+        return;
+      }
 
-  const isCouncilUser = memberProfile ? ['council', 'technician'].includes(memberProfile.role) : false;
-  const activePartnerCount = partnerOffers.filter((offer) => offer.active ?? true).length;
-  const inactivePartnerCount = partnerOffers.length - activePartnerCount;
+      const { error: deleteError } = await supabase.from('invites').delete().eq('id', id);
 
-  const formatAuditTimestamp = (timestamp?: string) => {
-    if (!timestamp) return '—';
-    try {
-      return new Intl.DateTimeFormat('cs-CZ', {
-        dateStyle: 'short',
-        timeStyle: 'short',
-      }).format(new Date(timestamp));
-    } catch {
-      return timestamp;
-    }
-  };
+      if (deleteError) {
+        setMessage({ type: 'error', text: formatMessage('admin.invites.deleteError', { message: deleteError.message }) });
+      } else {
+        setMessage({ type: 'success', text: t('admin.invites.deleteSuccess') });
+        await loadInvites();
+      }
+    },
+    [formatMessage, isDemo, loadInvites, t]
+  );
 
-  if (isLoading) {
+  const handleAddBranch = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+
+      if (isDemo) {
+        setMessage({ type: 'success', text: t('admin.messages.success') });
+        return;
+      }
+
+      const { error: insertError } = await supabase.from('branches').insert([
+        {
+          ...newBranch,
+          active: true,
+        },
+      ]);
+
+      if (insertError) {
+        setMessage({ type: 'error', text: formatMessage('admin.messages.error', { message: insertError.message }) });
+      } else {
+        setMessage({ type: 'success', text: t('admin.messages.success') });
+        setNewBranch({ name: '', location: '', discount_percentage: 10 });
+        await loadBranches();
+      }
+    },
+    [formatMessage, isDemo, loadBranches, newBranch, t]
+  );
+
+  const handleToggleBranch = useCallback(
+    async (branch: BranchRow) => {
+      if (isDemo) {
+        setBranches((prev) =>
+          prev.map((entry) => (entry.id === branch.id ? { ...entry, active: !entry.active } : entry))
+        );
+        return;
+      }
+
+      const { error: updateError } = await supabase
+        .from('branches')
+        .update({ active: !branch.active })
+        .eq('id', branch.id);
+
+      if (updateError) {
+        setMessage({ type: 'error', text: formatMessage('admin.messages.error', { message: updateError.message }) });
+      } else {
+        await loadBranches();
+      }
+    },
+    [formatMessage, isDemo, loadBranches]
+  );
+
+  const handleOfferFieldChange = useCallback(
+    <K extends keyof PartnerOfferFormState>(field: K, value: PartnerOfferFormState[K]) => {
+      setNewOffer((prev) => {
+        if (field === 'scope') {
+          const nextScope = value as PartnerScope;
+          const nextBranch = nextScope === 'local' ? prev.branchId || branches[0]?.id || '' : '';
+          return { ...prev, scope: nextScope, branchId: nextBranch };
+        }
+        return { ...prev, [field]: value };
+      });
+      setOfferErrors((prev) => ({ ...prev, [field]: undefined }));
+    },
+    [branches]
+  );
+
+  const handleAddOffer = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+
+      if (isDemo) {
+        setMessage({ type: 'success', text: t('admin.messages.success') });
+        return;
+      }
+
+      const allowNational = isCouncil;
+      const effectiveScope: PartnerScope = allowNational ? newOffer.scope : 'local';
+      const branchForLocal = effectiveScope === 'local' ? (allowNational ? newOffer.branchId : member?.branch?.id ?? null) : null;
+
+      const validation = preparePartnerOfferPayload(newOffer, {
+        scope: effectiveScope,
+        branchId: branchForLocal,
+        allowNational,
+      });
+
+      setOfferErrors(validation.errors);
+
+      if (!validation.payload || !user) {
+        setMessage({ type: 'error', text: formatMessage('admin.messages.error', { message: 'validation' }) });
+        return;
+      }
+
+      setIsSavingOffer(true);
+      const payload = {
+        ...validation.payload,
+        active: true,
+        created_by: user.id,
+        updated_by: user.id,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error: insertError } = await supabase.from('partner_offers').insert([payload]);
+
+      if (insertError) {
+        setMessage({ type: 'error', text: formatMessage('admin.messages.error', { message: insertError.message }) });
+      } else {
+        setMessage({ type: 'success', text: t('admin.messages.success') });
+        setNewOffer({
+          title: '',
+          description: '',
+          discountCode: '',
+          discountPercentage: 10,
+          scope: allowNational ? newOffer.scope : 'local',
+          branchId: allowNational ? (branchForLocal ?? '') : '',
+          city: '',
+        });
+        setOfferErrors({});
+        await loadPartnerOffers();
+      }
+      setIsSavingOffer(false);
+    },
+    [formatMessage, isCouncil, isDemo, loadPartnerOffers, member?.branch?.id, newOffer, t, user]
+  );
+
+  const handleToggleOffer = useCallback(
+    async (offer: PartnerOfferRecord) => {
+      if (isDemo) {
+        setPartnerOffers((prev) =>
+          prev.map((entry) => (entry.id === offer.id ? { ...entry, active: !entry.active } : entry))
+        );
+        return;
+      }
+
+      const { error: updateError } = await supabase
+        .from('partner_offers')
+        .update({ active: !offer.active, updated_at: new Date().toISOString(), updated_by: user?.id ?? null })
+        .eq('id', offer.id);
+
+      if (updateError) {
+        setMessage({ type: 'error', text: formatMessage('admin.messages.error', { message: updateError.message }) });
+      } else {
+        await loadPartnerOffers();
+      }
+    },
+    [formatMessage, isDemo, loadPartnerOffers, user?.id]
+  );
+
+  const handleDeleteOffer = useCallback(
+    async (offerId: string) => {
+      if (!confirm(t('admin.partners.deleteConfirm'))) {
+        return;
+      }
+
+      if (isDemo) {
+        setPartnerOffers((prev) => prev.filter((offer) => offer.id !== offerId));
+        return;
+      }
+
+      const { error: deleteError } = await supabase.from('partner_offers').delete().eq('id', offerId);
+
+      if (deleteError) {
+        setMessage({ type: 'error', text: formatMessage('admin.messages.error', { message: deleteError.message }) });
+      } else {
+        await loadPartnerOffers();
+      }
+    },
+    [formatMessage, isDemo, loadPartnerOffers, t]
+  );
+
+  const pendingTitle = formatMessage('admin.members.pendingTitle', { count: pendingMembers.length });
+  const approvedTitle = formatMessage('admin.members.listTitle', { count: members.length });
+  const invitesTitle = formatMessage('admin.invites.listTitle', { count: invites.length });
+  const branchesTitle = formatMessage('admin.branches.listTitle', { count: branches.length });
+  const partnersTitle = formatMessage('admin.partners.listTitle', { count: partnerOffers.length });
+
+  if (status === 'loading' || status === 'idle') {
     return (
-      <main className="psychocas-section flex items-center justify-center">
-        <div className="psychocas-loading">
-          <div className="spinner"></div>
-          <p>Načítání...</p>
+      <main className="psychocas-section pb-20">
+        <div className="psychocas-container fade-in-up">
+          <div className="psychocas-card" style={{ color: colors.textSecondary }}>
+            {t('admin.states.loading')}
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (!canAccess) {
+    return (
+      <main className="psychocas-section pb-20">
+        <div className="psychocas-container fade-in-up">
+          <div className="psychocas-card space-y-3">
+            <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
+              {t('admin.states.unauthorizedTitle')}
+            </h2>
+            <p style={{ color: colors.textSecondary }}>{t('admin.states.unauthorizedDescription')}</p>
+          </div>
+        </div>
+        <Navigation userRole={memberRole} />
+      </main>
+    );
+  }
+
+  if (status === 'error' || !member) {
+    return (
+      <main className="psychocas-section pb-20">
+        <div className="psychocas-container fade-in-up">
+          <div className="psychocas-card space-y-3">
+            <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
+              {t('admin.states.unauthorizedTitle')}
+            </h2>
+            <p style={{ color: colors.textSecondary }}>{error ?? t('admin.states.loading')}</p>
+            <button onClick={refresh} className="psychocas-button-primary w-max flex items-center gap-2">
+              <RefreshCcw className="h-4 w-4" /> {t('admin.states.refresh')}
+            </button>
+          </div>
         </div>
       </main>
     );
   }
 
   return (
-    <>
-      <Navigation userRole={userRole as 'member' | 'manager' | 'council' | 'technician'} />
-      <main className="psychocas-section">
-        <div className="psychocas-container fade-in-up">
-          <div className="mb-8">
-            <h1 className="mb-2">Administrace</h1>
-            <p className="text-lg" style={{ color: '#666666' }}>
-              Správa členů, trusted users a partnerských podniků
-            </p>
-          </div>
-
-          {/* Tabs */}
-          <div className="flex gap-4 mb-8 border-b border-gray-200">
-            <button
-              onClick={() => setActiveTab('members')}
-              className={`pb-4 px-2 font-medium transition-colors ${
-                activeTab === 'members'
-                  ? 'text-[#1d4f7d] border-b-2 border-[#1d4f7d]'
-                  : 'text-gray-500 hover:text-[#1d4f7d]'
-              }`}
-            >
-              <Users className="inline-block mr-2 h-5 w-5" />
-              Členové ({pendingMembers.length} čeká)
-            </button>
-            <button
-              onClick={() => setActiveTab('trusted')}
-              className={`pb-4 px-2 font-medium transition-colors ${
-                activeTab === 'trusted'
-                  ? 'text-[#1d4f7d] border-b-2 border-[#1d4f7d]'
-                  : 'text-gray-500 hover:text-[#1d4f7d]'
-              }`}
-            >
-              <Shield className="inline-block mr-2 h-5 w-5" />
-              Trusted Users
-            </button>
-            <button
-              onClick={() => setActiveTab('partners')}
-              className={`pb-4 px-2 font-medium transition-colors ${
-                activeTab === 'partners'
-                  ? 'text-[#1d4f7d] border-b-2 border-[#1d4f7d]'
-                  : 'text-gray-500 hover:text-[#1d4f7d]'
-              }`}
-            >
-              <Store className="inline-block mr-2 h-5 w-5" />
-              Partnerské slevy
-            </button>
-          </div>
-
-          {/* Message */}
-          {message && (
-            <div className={`mb-6 p-4 rounded-lg ${
-              message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
-            }`}>
-              {message.text}
-            </div>
+    <main className="psychocas-section pb-24">
+      <div className="psychocas-container space-y-6 fade-in-up">
+        <header className="space-y-1 pt-6">
+          <h1>{t('admin.heading')}</h1>
+          <p style={{ color: colors.textSecondary }}>{t('admin.subheading')}</p>
+          {isDemo && (
+            <p className="text-sm" style={{ color: colors.warning }}>{t('admin.states.demoNotice')}</p>
           )}
+        </header>
 
-          {/* Members Tab */}
-          {activeTab === 'members' && (
-            <div className="space-y-8">
-              {/* Pending Members */}
-              {pendingMembers.length > 0 && (
-                <div className="psychocas-card">
-                  <h2 className="mb-4 flex items-center">
-                    <UserX className="mr-2 h-6 w-6" />
-                    Čekající na schválení ({pendingMembers.length})
-                  </h2>
-                  <div className="space-y-3">
-                    {pendingMembers.map((member) => (
-                      <div key={member.user_id} className="flex items-center justify-between p-4 bg-yellow-50 rounded-lg">
-                        <div>
-                          <p className="font-medium">{member.full_name || 'Bez jména'}</p>
-                          <p className="text-sm text-gray-600 flex items-center mt-1">
-                            <Mail className="h-4 w-4 mr-1" />
-                            {member.email}
-                          </p>
-                          {member.phone && (
-                            <p className="text-sm text-gray-600 flex items-center mt-1">
-                              <Phone className="h-4 w-4 mr-1" />
-                              {member.phone}
-                            </p>
-                          )}
-                          <p className="text-xs text-gray-500 mt-1">
-                            Registrován: {new Date(member.created_at).toLocaleDateString('cs-CZ')}
-                          </p>
+        {message && (
+          <div
+            className="psychocas-card text-sm"
+            style={{
+              border: `1px solid ${message.type === 'error' ? colors.danger : colors.accent}`,
+              color: message.type === 'error' ? colors.danger : colors.success,
+              backgroundColor: message.type === 'error' ? colors.dangerSurface : colors.successSurface,
+            }}
+          >
+            {message.text}
+          </div>
+        )}
+
+        <nav className="flex flex-wrap gap-3">
+          {(['members', 'invites', 'branches', 'partners'] as AdminTab[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className="px-3 py-2 rounded-full border text-sm font-medium"
+              style={{
+                backgroundColor: activeTab === tab ? colors.brandPrimary : colors.background,
+                color: activeTab === tab ? colors.background : colors.textSecondary,
+                borderColor: activeTab === tab ? colors.brandPrimary : colors.border,
+              }}
+            >
+              {t(`admin.tabs.${tab}`)}
+            </button>
+          ))}
+        </nav>
+
+        {activeTab === 'members' && (
+          <section className="space-y-6">
+            <div className="psychocas-card space-y-4">
+              <div className="flex items-center gap-2">
+                <Users className="h-5 w-5" style={{ color: colors.brandPrimary }} />
+                <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>{pendingTitle}</h2>
+              </div>
+              {pendingMembers.length === 0 ? (
+                <p style={{ color: colors.textSecondary }}>{t('admin.members.pendingEmpty')}</p>
+              ) : (
+                <div className="space-y-3">
+                  {pendingMembers.map((item) => (
+                    <div key={item.user_id} className="rounded-lg border p-4" style={{ borderColor: colors.border }}>
+                      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <div style={{ color: colors.textPrimary }}>
+                          <div className="font-medium">{item.full_name ?? item.email}</div>
+                          <div className="text-sm" style={{ color: colors.textSecondary }}>{item.email}</div>
                         </div>
-                        <button
-                          onClick={() => approveMember(member.user_id)}
-                          className="psychocas-button"
-                        >
-                          <UserCheck className="h-4 w-4 mr-2" />
-                          Schválit
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => void approveMember(item.user_id)}
+                            className="psychocas-button-primary flex items-center gap-2"
+                          >
+                            <UserCheck className="h-4 w-4" />
+                            {t('admin.members.approve')}
+                          </button>
+                          <button className="psychocas-button-secondary flex items-center gap-2" disabled>
+                            <UserX className="h-4 w-4" />
+                            {t('admin.members.reject')}
+                          </button>
+                        </div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
               )}
-
-              {/* Approved Members */}
-              <div className="psychocas-card">
-                <h2 className="mb-4 flex items-center">
-                  <Users className="mr-2 h-6 w-6" />
-                  Schválení členové ({members.length})
-                </h2>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Jméno</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Email</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Role</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Členství</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Vyprší</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {members.map((member) => (
-                        <tr key={member.user_id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm">{member.full_name || 'Bez jména'}</td>
-                          <td className="px-4 py-3 text-sm">{member.email}</td>
-                          <td className="px-4 py-3 text-sm">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              member.role === 'council' ? 'bg-purple-100 text-purple-800' :
-                              member.role === 'manager' ? 'bg-blue-100 text-blue-800' :
-                              member.role === 'technician' ? 'bg-green-100 text-green-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {member.role}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              member.membership_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                            }`}>
-                              {member.membership_active ? 'Aktivní' : 'Neaktivní'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm">
-                            {member.membership_expires 
-                              ? new Date(member.membership_expires).toLocaleDateString('cs-CZ')
-                              : 'N/A'
-                            }
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
             </div>
-          )}
 
-          {/* Trusted Users Tab */}
-          {activeTab === 'trusted' && (
-            <div className="space-y-8">
-              {/* Add New Trusted User */}
-              <div className="psychocas-card">
-                <h2 className="mb-4">Přidat Trusted User</h2>
-                <form onSubmit={addTrustedUser} className="space-y-4">
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <input
-                      type="email"
-                      placeholder="Email"
-                      value={newTrusted.email}
-                      onChange={(e) => setNewTrusted({...newTrusted, email: e.target.value})}
-                      className="psychocas-input"
-                      required
-                    />
-                    <input
-                      type="text"
-                      placeholder="Jméno"
-                      value={newTrusted.first_name}
-                      onChange={(e) => setNewTrusted({...newTrusted, first_name: e.target.value})}
-                      className="psychocas-input"
-                      required
-                    />
-                    <input
-                      type="text"
-                      placeholder="Příjmení"
-                      value={newTrusted.last_name}
-                      onChange={(e) => setNewTrusted({...newTrusted, last_name: e.target.value})}
-                      className="psychocas-input"
-                      required
-                    />
-                    <input
-                      type="tel"
-                      placeholder="Telefon (volitelné)"
-                      value={newTrusted.phone}
-                      onChange={(e) => setNewTrusted({...newTrusted, phone: e.target.value})}
-                      className="psychocas-input"
-                    />
-                    <select
-                      value={newTrusted.role}
-                      onChange={(e) => setNewTrusted({...newTrusted, role: e.target.value})}
-                      className="psychocas-input"
-                    >
-                      <option value="member">Člen</option>
-                      <option value="manager">Manažer</option>
-                      <option value="council">Rada</option>
-                      <option value="technician">Technik</option>
-                    </select>
-                    <select
-                      value={newTrusted.branch_id}
-                      onChange={(e) => setNewTrusted({ ...newTrusted, branch_id: e.target.value })}
-                      className="psychocas-input"
-                    >
-                      <option value="">Bez pobočky / celostátní</option>
-                      {branches.map((branch) => (
-                        <option key={branch.id} value={branch.id}>
-                          {branch.name}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="text"
-                      placeholder="Poznámka (volitelné)"
-                      value={newTrusted.notes}
-                      onChange={(e) => setNewTrusted({...newTrusted, notes: e.target.value})}
-                      className="psychocas-input"
-                    />
-                  </div>
-                  <button type="submit" className="psychocas-button">
-                    <UserCheck className="h-4 w-4 mr-2" />
-                    Přidat Trusted User
-                  </button>
-                </form>
-              </div>
-
-              {/* Trusted Users List */}
-              <div className="psychocas-card">
-                <h2 className="mb-4">Seznam Trusted Users ({trustedUsers.length})</h2>
+            <div className="psychocas-card space-y-3">
+              <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>{approvedTitle}</h2>
+              {members.length === 0 ? (
+                <p style={{ color: colors.textSecondary }}>{t('admin.members.listEmpty')}</p>
+              ) : (
                 <div className="space-y-3">
-                  {trustedUsers.map((user) => (
-                    <div
-                      key={user.id}
-                      className="flex flex-col gap-3 rounded-lg border border-blue-100 bg-blue-50 p-4 md:flex-row md:items-center md:justify-between"
-                    >
-                      <div>
-                        <p className="font-medium">{user.first_name} {user.last_name}</p>
-                        <p className="text-sm text-gray-600">{user.email}</p>
-                        {user.phone && <p className="text-sm text-gray-600">{user.phone}</p>}
-                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                          <span className="rounded-full bg-blue-100 px-2 py-1 font-medium uppercase tracking-wide text-blue-800">
-                            {user.role}
-                          </span>
-                          {user.branch && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-blue-700">
-                              <MapPin className="h-3 w-3" />
-                              {user.branch.name}
-                            </span>
-                          )}
-                          {user.notes && (
-                            <span className="text-gray-500">{user.notes}</span>
-                          )}
+                  {members.map((item) => (
+                    <div key={item.user_id} className="rounded-lg border p-4" style={{ borderColor: colors.border }}>
+                      <div className="flex flex-col gap-2">
+                        <div className="font-medium" style={{ color: colors.textPrimary }}>
+                          {item.full_name ?? item.email}
                         </div>
+                        <div className="text-sm" style={{ color: colors.textSecondary }}>
+                          <Mail className="mr-1 inline h-4 w-4" />
+                          {item.email}
+                        </div>
+                        {item.phone && (
+                          <div className="text-sm" style={{ color: colors.textSecondary }}>
+                            <Phone className="mr-1 inline h-4 w-4" />
+                            {item.phone}
+                          </div>
+                        )}
+                        {item.membership_expires && (
+                          <div className="text-sm" style={{ color: colors.textSecondary }}>
+                            <MapPin className="mr-1 inline h-4 w-4" />
+                            {new Intl.DateTimeFormat(locale).format(new Date(item.membership_expires))}
+                          </div>
+                        )}
                       </div>
-                      <button
-                        onClick={() => deleteTrustedUser(user.id)}
-                        className="self-start rounded-lg bg-red-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-600 md:self-auto"
-                      >
-                        Smazat
-                      </button>
                     </div>
                   ))}
                 </div>
-              </div>
+              )}
             </div>
-          )}
+          </section>
+        )}
 
-          {/* Partners Tab */}
-          {activeTab === 'partners' && (
-            <div className="space-y-8">
-              <div className="psychocas-card">
-                <h2 className="mb-4 flex items-center">
-                  <Store className="mr-2 h-5 w-5" />
-                  Přidat partnerskou nabídku
-                </h2>
-                <form onSubmit={addPartnerOffer} className="space-y-4" noValidate>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="md:col-span-2">
-                      <input
-                        type="text"
-                        placeholder="Název partnera"
-                        value={newOffer.title}
-                        onChange={(e) => handleOfferFieldChange('title', e.target.value)}
-                        className="psychocas-input"
-                        aria-invalid={Boolean(offerErrors.title)}
-                        style={offerErrors.title ? { borderColor: '#c62828' } : undefined}
-                        required
-                      />
-                      {offerErrors.title && (
-                        <p className="mt-2 text-xs text-red-600">{offerErrors.title}</p>
-                      )}
-                    </div>
-                    <div>
-                      <input
-                        type="text"
-                        placeholder="Slevový kód (volitelné)"
-                        value={newOffer.discountCode}
-                        onChange={(e) => handleOfferFieldChange('discountCode', e.target.value)}
-                        className="psychocas-input"
-                        aria-invalid={Boolean(offerErrors.discountCode)}
-                        style={offerErrors.discountCode ? { borderColor: '#c62828' } : undefined}
-                      />
-                      {offerErrors.discountCode && (
-                        <p className="mt-2 text-xs text-red-600">{offerErrors.discountCode}</p>
-                      )}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-3">
-                        <label className="text-sm font-medium text-gray-600" htmlFor="offer-discount">
-                          Sleva %
-                        </label>
-                        <input
-                          id="offer-discount"
-                          type="number"
-                          min={0}
-                          max={100}
-                          value={newOffer.discountPercentage}
-                          onChange={(e) => handleOfferFieldChange('discountPercentage', Number(e.target.value || 0))}
-                          className="psychocas-input"
-                          aria-invalid={Boolean(offerErrors.discountPercentage)}
-                          style={{
-                            maxWidth: '120px',
-                            ...(offerErrors.discountPercentage ? { borderColor: '#c62828' } : {}),
-                          }}
-                        />
-                      </div>
-                      {offerErrors.discountPercentage && (
-                        <p className="mt-2 text-xs text-red-600">{offerErrors.discountPercentage}</p>
-                      )}
-                    </div>
-                    <div className="md:col-span-2">
-                      <textarea
-                        placeholder="Popis slevy (volitelné)"
-                        value={newOffer.description}
-                        onChange={(e) => handleOfferFieldChange('description', e.target.value)}
-                        className="psychocas-input"
-                        aria-invalid={Boolean(offerErrors.description)}
-                        style={offerErrors.description ? { borderColor: '#c62828' } : undefined}
-                        rows={3}
-                      />
-                      {offerErrors.description && (
-                        <p className="mt-2 text-xs text-red-600">{offerErrors.description}</p>
-                      )}
-                    </div>
-                    <div className="md:col-span-2 space-y-2">
-                      <p className="text-sm font-medium text-gray-600">Typ nabídky</p>
-                      <div className="flex flex-wrap gap-3">
-                        <label className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm ${newOffer.scope === 'national' ? 'border-[#1d4f7d] text-[#1d4f7d]' : 'border-gray-200 text-gray-600'}`}>
-                          <input
-                            type="radio"
-                            name="offerScope"
-                            value="national"
-                            checked={newOffer.scope === 'national'}
-                            onChange={(e) => handleOfferFieldChange('scope', e.target.value as PartnerScope)}
-                            disabled={!isCouncilUser}
-                          />
-                          Celostátní
-                        </label>
-                        <label className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm ${newOffer.scope === 'local' ? 'border-[#1d4f7d] text-[#1d4f7d]' : 'border-gray-200 text-gray-600'}`}>
-                          <input
-                            type="radio"
-                            name="offerScope"
-                            value="local"
-                            checked={newOffer.scope === 'local'}
-                            onChange={(e) => handleOfferFieldChange('scope', e.target.value as PartnerScope)}
-                          />
-                          Lokální
-                        </label>
-                      </div>
-                      {offerErrors.scope && (
-                        <p className="text-xs text-red-600">{offerErrors.scope}</p>
-                      )}
-                      {!isCouncilUser && (
-                        <p className="text-xs text-gray-500">
-                          Manažeři s @psychocas.cz mohou přidávat pouze lokální nabídky.
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-gray-600" htmlFor="offer-city">
-                        Město / lokalita (volitelné)
-                      </label>
-                      <input
-                        id="offer-city"
-                        type="text"
-                        placeholder="Praha, Brno, Online..."
-                        value={newOffer.city}
-                        onChange={(e) => handleOfferFieldChange('city', e.target.value)}
-                        className="psychocas-input"
-                        aria-invalid={Boolean(offerErrors.city)}
-                        style={offerErrors.city ? { borderColor: '#c62828' } : undefined}
-                      />
-                      {offerErrors.city && (
-                        <p className="mt-2 text-xs text-red-600">{offerErrors.city}</p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-gray-600" htmlFor="offer-branch">
-                        Pobočka (pro lokální nabídky)
-                      </label>
-                      <select
-                        id="offer-branch"
-                        value={newOffer.branchId}
-                        onChange={(e) => handleOfferFieldChange('branchId', e.target.value)}
-                        className="psychocas-input"
-                        aria-invalid={Boolean(offerErrors.branchId)}
-                        style={offerErrors.branchId ? { borderColor: '#c62828' } : undefined}
-                        disabled={newOffer.scope === 'national' && isCouncilUser}
-                      >
-                        <option value="">Vyberte pobočku</option>
-                        {branches.map((branch) => (
-                          <option key={branch.id} value={branch.id}>
-                            {branch.name}
-                          </option>
-                        ))}
-                      </select>
-                      {offerErrors.branchId && (
-                        <p className="mt-2 text-xs text-red-600">{offerErrors.branchId}</p>
-                      )}
-                    </div>
-                  </div>
-                  <button type="submit" className="psychocas-button" disabled={isSavingOffer}>
-                    {isSavingOffer ? 'Ukládám…' : 'Přidat nabídku'}
-                  </button>
-                </form>
+        {activeTab === 'invites' && (
+          <section className="space-y-6">
+            <form className="psychocas-card space-y-3" onSubmit={handleAddInvite}>
+              <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>{t('admin.invites.formTitle')}</h2>
+              <div className="grid gap-3 md:grid-cols-2">
+                <input
+                  className="psychocas-input"
+                  placeholder={t('admin.invites.form.email')}
+                  value={newInvite.email}
+                  onChange={(event) => setNewInvite((prev) => ({ ...prev, email: event.target.value }))}
+                  required
+                />
+                <input
+                  className="psychocas-input"
+                  placeholder={t('admin.invites.form.firstName')}
+                  value={newInvite.first_name}
+                  onChange={(event) => setNewInvite((prev) => ({ ...prev, first_name: event.target.value }))}
+                  required
+                />
+                <input
+                  className="psychocas-input"
+                  placeholder={t('admin.invites.form.lastName')}
+                  value={newInvite.last_name}
+                  onChange={(event) => setNewInvite((prev) => ({ ...prev, last_name: event.target.value }))}
+                  required
+                />
+                <input
+                  className="psychocas-input"
+                  placeholder={t('admin.invites.form.phone')}
+                  value={newInvite.phone}
+                  onChange={(event) => setNewInvite((prev) => ({ ...prev, phone: event.target.value }))}
+                />
+                <select
+                  className="psychocas-input"
+                  value={newInvite.role}
+                  onChange={(event) => setNewInvite((prev) => ({ ...prev, role: event.target.value }))}
+                >
+                  <option value="member">{t('admin.invites.form.roleOptions.member')}</option>
+                  <option value="manager">{t('admin.invites.form.roleOptions.manager')}</option>
+                  <option value="council">{t('admin.invites.form.roleOptions.council')}</option>
+                  <option value="technician">{t('admin.invites.form.roleOptions.technician')}</option>
+                </select>
+                <select
+                  className="psychocas-input"
+                  value={newInvite.branch_id}
+                  onChange={(event) => setNewInvite((prev) => ({ ...prev, branch_id: event.target.value }))}
+                >
+                  <option value="">{t('admin.invites.form.branchNone')}</option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  className="psychocas-input"
+                  type="date"
+                  value={newInvite.expires_at}
+                  onChange={(event) => setNewInvite((prev) => ({ ...prev, expires_at: event.target.value }))}
+                  placeholder={t('admin.invites.form.expiresAt')}
+                />
+                <select
+                  className="psychocas-input"
+                  value={newInvite.status}
+                  onChange={(event) => setNewInvite((prev) => ({ ...prev, status: event.target.value }))}
+                >
+                  <option value="pending">{t('admin.invites.form.statusOptions.pending')}</option>
+                  <option value="active">{t('admin.invites.form.statusOptions.active')}</option>
+                  <option value="revoked">{t('admin.invites.form.statusOptions.revoked')}</option>
+                </select>
+                <input
+                  className="psychocas-input md:col-span-2"
+                  placeholder={t('admin.invites.form.notes')}
+                  value={newInvite.notes}
+                  onChange={(event) => setNewInvite((prev) => ({ ...prev, notes: event.target.value }))}
+                />
               </div>
+              <button type="submit" className="psychocas-button-primary w-max flex items-center gap-2">
+                <UserCheck className="h-4 w-4" />
+                {t('admin.invites.form.submit')}
+              </button>
+            </form>
 
-              <div className="psychocas-card">
-                <h2 className="mb-4">Správa partnerských nabídek ({activePartnerCount} aktivních / {inactivePartnerCount} neaktivních)</h2>
-                <div className="space-y-4">
-                  {partnerOffers.length === 0 && (
-                    <p className="text-sm text-gray-600">Zatím nejsou nastaveny žádné partnerské nabídky.</p>
-                  )}
-                  {partnerOffers.map((offer) => (
-                    <div
-                      key={offer.id}
-                      className={`rounded-xl border p-4 ${offer.active ? 'border-gray-200 bg-white' : 'border-dashed border-gray-300 bg-gray-50'}`}
-                    >
-                      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                        <div>
-                          <p className="text-lg font-semibold text-gray-800">{offer.title}</p>
-                          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs font-semibold uppercase tracking-wide">
-                            <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 ${offer.active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}>
-                              {offer.active ? 'Aktivní' : 'Neaktivní'}
-                            </span>
-                            <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 ${offer.scope === 'national' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                              <Tag className="h-3 w-3" />
-                              {offer.scope === 'national' ? 'Celostátní' : 'Lokální'}
-                            </span>
-                            {offer.scope === 'local' && offer.branch && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-3 py-1 text-teal-700">
-                                <MapPin className="h-3 w-3" />
-                                {offer.branch.name}
-                              </span>
-                            )}
-                            {offer.city && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-blue-700">
-                                <MapPin className="h-3 w-3" />
-                                {offer.city}
-                              </span>
-                            )}
-                            {offer.discount_code && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-3 py-1 text-purple-700">
-                                Kód: {offer.discount_code}
-                              </span>
-                            )}
-                            {typeof offer.discount_percentage === 'number' && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-3 py-1 text-sky-700">
-                                Sleva {offer.discount_percentage}%
-                              </span>
-                            )}
+            <div className="psychocas-card space-y-3">
+              <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>{invitesTitle}</h2>
+              {invites.length === 0 ? (
+                <p style={{ color: colors.textSecondary }}>{t('admin.invites.listEmpty')}</p>
+              ) : (
+                <div className="space-y-3">
+                  {invites.map((invite) => (
+                    <div key={invite.id} className="rounded-lg border p-4" style={{ borderColor: colors.border }}>
+                      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <div className="space-y-1">
+                          <div className="font-medium" style={{ color: colors.textPrimary }}>
+                            {`${invite.first_name ?? ''} ${invite.last_name ?? ''}`.trim() || invite.email}
                           </div>
-                          {offer.description && (
-                            <p className="mt-3 text-sm text-gray-600">{offer.description}</p>
+                          <div className="text-sm" style={{ color: colors.textSecondary }}>
+                            <Mail className="mr-1 inline h-4 w-4" />
+                            {invite.email}
+                          </div>
+                          {invite.phone && (
+                            <div className="text-sm" style={{ color: colors.textSecondary }}>
+                              <Phone className="mr-1 inline h-4 w-4" />
+                              {invite.phone}
+                            </div>
                           )}
-                          <div className="mt-3 space-y-1 text-xs text-gray-500">
-                            <p>
-                              Vytvořil: {offer.creator?.full_name || offer.creator?.email || '—'} • {formatAuditTimestamp(offer.created_at)}
-                            </p>
-                            <p>
-                              Upravil: {offer.updater?.full_name || offer.updater?.email || '—'} • {formatAuditTimestamp(offer.updated_at)}
-                            </p>
+                          {invite.branch?.name && (
+                            <div className="text-sm" style={{ color: colors.textSecondary }}>
+                              <MapPin className="mr-1 inline h-4 w-4" />
+                              {invite.branch.name}
+                            </div>
+                          )}
+                          <div className="text-sm" style={{ color: colors.textSecondary }}>
+                            <Tag className="mr-1 inline h-4 w-4" />
+                            {t(`admin.invites.status.${invite.status}`)}
                           </div>
+                          {invite.expires_at && (
+                            <div className="text-sm" style={{ color: colors.textSecondary }}>
+                              <Calendar className="mr-1 inline h-4 w-4" />
+                              {new Intl.DateTimeFormat(locale).format(new Date(invite.expires_at))}
+                            </div>
+                          )}
+                          {invite.notes && (
+                            <div className="text-sm" style={{ color: colors.textSecondary }}>{invite.notes}</div>
+                          )}
                         </div>
                         <div className="flex flex-col items-start gap-2 md:items-end">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-info-100 px-2 py-1 text-xs font-medium" style={{ color: colors.info }}>
+                            <ShieldCheck className="h-3 w-3" />
+                            {t(`admin.invites.form.roleOptions.${invite.role as 'member' | 'manager' | 'council' | 'technician'}`)}
+                          </span>
                           <button
-                            onClick={() => toggleOfferActive(offer)}
-                            className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${offer.active ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
-                          >
-                            <ToggleRight className="h-4 w-4" />
-                            {offer.active ? 'Deaktivovat' : 'Aktivovat'}
-                          </button>
-                          <button
-                            onClick={() => deletePartnerOffer(offer.id)}
-                            className="flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-100"
+                            onClick={() => void handleDeleteInvite(invite.id)}
+                            className="psychocas-button-secondary flex items-center gap-2"
                           >
                             <Trash2 className="h-4 w-4" />
-                            Odebrat
+                            {t('admin.invites.delete')}
                           </button>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
-
-              <div className="psychocas-card">
-                <h2 className="mb-4">Správa poboček ({branches.length})</h2>
-                <form onSubmit={addBranch} className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <input
-                      type="text"
-                      placeholder="Název pobočky"
-                      value={newBranch.name}
-                      onChange={(e) => setNewBranch({ ...newBranch, name: e.target.value })}
-                      className="psychocas-input"
-                      required
-                    />
-                    <input
-                      type="text"
-                      placeholder="Město"
-                      value={newBranch.location}
-                      onChange={(e) => setNewBranch({ ...newBranch, location: e.target.value })}
-                      className="psychocas-input"
-                    />
-                    <input
-                      type="number"
-                      placeholder="Výchozí sleva %"
-                      value={newBranch.discount_percentage}
-                      onChange={(e) => setNewBranch({ ...newBranch, discount_percentage: parseInt(e.target.value, 10) || 0 })}
-                      className="psychocas-input"
-                      min="0"
-                      max="100"
-                    />
-                  </div>
-                  <button type="submit" className="psychocas-button">
-                    Přidat pobočku
-                  </button>
-                </form>
-                <div className="mt-6 overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Název</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Město</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Výchozí sleva</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Status</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Akce</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {branches.map((branch) => (
-                        <tr key={branch.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm font-medium">{branch.name}</td>
-                          <td className="px-4 py-3 text-sm">{branch.location || branch.city || 'N/A'}</td>
-                          <td className="px-4 py-3 text-sm">{branch.discount_percentage}%</td>
-                          <td className="px-4 py-3 text-sm">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              branch.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {branch.active ? 'Aktivní' : 'Neaktivní'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm">
-                            <button
-                              onClick={() => toggleBranchActive(branch.id, branch.active)}
-                              className="text-[#1d4f7d] hover:underline"
-                            >
-                              {branch.active ? 'Deaktivovat' : 'Aktivovat'}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              )}
             </div>
-          )}
-        </div>
-      </main>
-    </>
+          </section>
+        )}
+
+        {activeTab === 'branches' && (
+          <section className="space-y-6">
+            <form className="psychocas-card space-y-3" onSubmit={handleAddBranch}>
+              <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>{t('admin.branches.formTitle')}</h2>
+              <div className="grid gap-3 md:grid-cols-3">
+                <input
+                  className="psychocas-input"
+                  placeholder={t('admin.branches.name')}
+                  value={newBranch.name}
+                  onChange={(event) => setNewBranch((prev) => ({ ...prev, name: event.target.value }))}
+                  required
+                />
+                <input
+                  className="psychocas-input"
+                  placeholder={t('admin.branches.location')}
+                  value={newBranch.location}
+                  onChange={(event) => setNewBranch((prev) => ({ ...prev, location: event.target.value }))}
+                />
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  className="psychocas-input"
+                  placeholder={t('admin.branches.discount')}
+                  value={newBranch.discount_percentage}
+                  onChange={(event) =>
+                    setNewBranch((prev) => ({ ...prev, discount_percentage: Number(event.target.value) || 0 }))
+                  }
+                />
+              </div>
+              <button type="submit" className="psychocas-button-primary w-max">
+                {t('admin.branches.submit')}
+              </button>
+            </form>
+
+            <div className="psychocas-card space-y-3">
+              <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>{branchesTitle}</h2>
+              {branches.length === 0 ? (
+                <p style={{ color: colors.textSecondary }}>{t('admin.branches.empty')}</p>
+              ) : (
+                <div className="space-y-3">
+                  {branches.map((branch) => (
+                    <div key={branch.id} className="rounded-lg border p-4" style={{ borderColor: colors.border }}>
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <div className="font-medium" style={{ color: colors.textPrimary }}>{branch.name}</div>
+                          <div className="text-sm" style={{ color: colors.textSecondary }}>
+                            {branch.location ?? '—'} · {branch.discount_percentage}%
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => void handleToggleBranch(branch)}
+                          className="psychocas-button-secondary flex items-center gap-2"
+                        >
+                          <ToggleRight className="h-4 w-4" />
+                          {t('admin.branches.toggleActive')}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'partners' && (
+          <section className="space-y-6">
+            <form className="psychocas-card space-y-3" onSubmit={handleAddOffer}>
+              <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>{t('admin.partners.formTitle')}</h2>
+              <div className="grid gap-3 md:grid-cols-2">
+                <input
+                  className="psychocas-input md:col-span-2"
+                  placeholder={t('admin.partners.form.title')}
+                  value={newOffer.title}
+                  onChange={(event) => handleOfferFieldChange('title', event.target.value)}
+                  required
+                />
+                <textarea
+                  className="psychocas-input md:col-span-2"
+                  placeholder={t('admin.partners.form.description')}
+                  value={newOffer.description}
+                  onChange={(event) => handleOfferFieldChange('description', event.target.value)}
+                  required
+                />
+                <input
+                  className="psychocas-input"
+                  placeholder={t('admin.partners.form.discountCode')}
+                  value={newOffer.discountCode}
+                  onChange={(event) => handleOfferFieldChange('discountCode', event.target.value)}
+                />
+                <input
+                  type="number"
+                  className="psychocas-input"
+                  placeholder={t('admin.partners.form.discountPercentage')}
+                  value={newOffer.discountPercentage}
+                  onChange={(event) => handleOfferFieldChange('discountPercentage', Number(event.target.value) || 0)}
+                />
+                {isCouncil && (
+                  <select
+                    className="psychocas-input"
+                    value={newOffer.scope}
+                    onChange={(event) => handleOfferFieldChange('scope', event.target.value as PartnerScope)}
+                  >
+                    <option value="national">{t('admin.partners.form.scopeOptions.national')}</option>
+                    <option value="local">{t('admin.partners.form.scopeOptions.local')}</option>
+                  </select>
+                )}
+                {(isCouncil || newOffer.scope === 'local') && (
+                  <select
+                    className="psychocas-input"
+                    value={newOffer.branchId}
+                    onChange={(event) => handleOfferFieldChange('branchId', event.target.value)}
+                  >
+                    <option value="">{t('admin.partners.form.branch')}</option>
+                    {branches.map((branch) => (
+                      <option key={branch.id} value={branch.id}>
+                        {branch.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <input
+                  className="psychocas-input"
+                  placeholder={t('admin.partners.form.city')}
+                  value={newOffer.city}
+                  onChange={(event) => handleOfferFieldChange('city', event.target.value)}
+                />
+              </div>
+              {Object.values(offerErrors).some(Boolean) && (
+                <p className="text-sm" style={{ color: colors.danger }}>
+                  {t('admin.messages.errorGeneric')}
+                </p>
+              )}
+              <button type="submit" className="psychocas-button-primary w-max" disabled={isSavingOffer}>
+                {t('admin.partners.form.submit')}
+              </button>
+            </form>
+
+            <div className="psychocas-card space-y-3">
+              <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>{partnersTitle}</h2>
+              {partnerOffers.length === 0 ? (
+                <p style={{ color: colors.textSecondary }}>{t('admin.partners.empty')}</p>
+              ) : (
+                <div className="space-y-3">
+                  {partnerOffers.map((offer) => (
+                    <div key={offer.id} className="rounded-lg border p-4" style={{ borderColor: colors.border }}>
+                      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <div className="font-medium" style={{ color: colors.textPrimary }}>{offer.title}</div>
+                          <div className="text-sm" style={{ color: colors.textSecondary }}>{offer.description}</div>
+                          <div className="text-sm" style={{ color: colors.textSecondary }}>
+                            <Tag className="mr-1 inline h-4 w-4" />
+                            {offer.discount_code || '—'} · {offer.discount_percentage}%
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => void handleToggleOffer(offer)}
+                            className="psychocas-button-secondary flex items-center gap-2"
+                          >
+                            <ToggleRight className="h-4 w-4" />
+                            {t('admin.partners.toggle')}
+                          </button>
+                          <button
+                            onClick={() => void handleDeleteOffer(offer.id)}
+                            className="psychocas-button-secondary flex items-center gap-2"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            {t('admin.partners.delete')}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+      </div>
+
+      <Navigation userRole={memberRole} />
+    </main>
   );
 }

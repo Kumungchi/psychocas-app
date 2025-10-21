@@ -11,8 +11,8 @@ export default function UserProfile() {
   useEffect(() => {
     // Získat aktuálního uživatele
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
+      const { data: { session } } = await supabase.auth.getSession()
+      setUser(session?.user ?? null)
       setLoading(false)
     }
 

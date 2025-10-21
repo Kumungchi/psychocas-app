@@ -2,39 +2,51 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { Users, CheckCircle, XCircle, Search, ShieldCheck, ShieldOff, RefreshCcw, UserPlus, UserCog } from 'lucide-react';
+import {
+  Users,
+  CheckCircle,
+  XCircle,
+  Search,
+  ShieldCheck,
+  ShieldOff,
+  RefreshCcw,
+  UserPlus,
+  UserCog,
+} from 'lucide-react';
 import Navigation from '@/components/Navigation';
 import useMemberContext from '@/hooks/useMemberContext';
-import type { MemberRole } from '@/types/member';
+import useLocale from '@/hooks/useLocale';
+import type { MemberRole, MembershipStatus } from '@/types/member';
+import { colors } from '@/ui/theme';
 
 interface BranchRecord {
   id: string;
   name: string | null;
 }
 
-interface MemberRow {
+interface MembershipRow {
   id: string;
-  user_id: string | null;
-  email: string | null;
-  full_name: string | null;
+  user_id: string;
   role: string | null;
   membership_active: boolean;
   membership_expires: string | null;
+  status: string | null;
   branch?: BranchRecord | BranchRecord[] | null;
 }
 
-interface TrustedUserRow {
+interface InviteRow {
   id: string;
   email: string;
   first_name: string | null;
   last_name: string | null;
   role: string | null;
-  membership_active: boolean | null;
-  access_expires_at: string | null;
+  status: string | null;
+  expires_at: string | null;
   branch?: BranchRecord | BranchRecord[] | null;
+  phone?: string | null;
 }
 
-type RecordOrigin = 'members' | 'trusted_users';
+type RecordOrigin = 'memberships' | 'invites';
 
 interface ManagedPerson {
   id: string;
@@ -47,10 +59,63 @@ interface ManagedPerson {
   accessExpiresAt?: string | null;
   branchName?: string | null;
   origin: RecordOrigin;
+  status: MembershipStatus;
 }
 
 type SourceFilter = 'all' | 'members' | 'trusted';
 type StatusFilter = 'all' | 'active' | 'inactive';
+
+const demoPeople: ManagedPerson[] = [
+  {
+    id: 'memberships:demo-1',
+    tableId: 'demo-1',
+    email: 'jana.novakova@example.com',
+    fullName: 'Jana Nováková',
+    role: 'manager',
+    membershipActive: true,
+    membershipExpires: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(),
+    branchName: 'Demo Branch',
+    origin: 'memberships',
+    status: 'active',
+  },
+  {
+    id: 'memberships:demo-2',
+    tableId: 'demo-2',
+    email: 'ondrej.technician@example.com',
+    fullName: 'Ondřej Technik',
+    role: 'technician',
+    membershipActive: true,
+    membershipExpires: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+    branchName: 'Demo Branch',
+    origin: 'memberships',
+    status: 'active',
+  },
+  {
+    id: 'memberships:demo-3',
+    tableId: 'demo-3',
+    email: 'eva.member@example.com',
+    fullName: 'Eva Členová',
+    role: 'member',
+    membershipActive: false,
+    membershipExpires: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    branchName: 'Demo Branch',
+    origin: 'memberships',
+    status: 'pending',
+  },
+  {
+    id: 'invites:demo-4',
+    tableId: 'demo-4',
+    email: 'partner@demo-branch.cz',
+    fullName: 'Partner Demo',
+    role: 'manager',
+    membershipActive: true,
+    membershipExpires: null,
+    accessExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    branchName: 'Demo Branch',
+    origin: 'invites',
+    status: 'active',
+  },
+];
 
 const toBranchName = (branch: BranchRecord | BranchRecord[] | null | undefined) => {
   if (!branch) {
@@ -61,29 +126,12 @@ const toBranchName = (branch: BranchRecord | BranchRecord[] | null | undefined) 
   return record?.name ?? null;
 };
 
-const roleLabel: Record<MemberRole, string> = {
-  member: 'Člen',
-  manager: 'Manažer',
-  council: 'Rada',
-  technician: 'Technik',
-};
-
-const roleBadgeStyle: Record<MemberRole, { bg: string; color: string }> = {
-  member: { bg: '#e8f5e8', color: '#2e7d32' },
-  manager: { bg: '#e1f5fe', color: '#049edb' },
-  council: { bg: '#ffebee', color: '#c62828' },
-  technician: { bg: '#fff3e0', color: '#ff9800' },
-};
-
-const originLabel: Record<RecordOrigin, string> = {
-  members: 'Členové',
-  trusted_users: 'Dočasný přístup',
-};
-
 export default function Technician() {
+  const { t, formatMessage, locale } = useLocale();
   const { status, member, error, refresh } = useMemberContext({ scope: 'technician-console' });
   const memberRole: MemberRole = member?.role ?? 'member';
   const canManage = memberRole === 'technician' || memberRole === 'council';
+  const isDemo = member?.origin === 'demo';
 
   const [people, setPeople] = useState<ManagedPerson[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -93,75 +141,120 @@ export default function Technician() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
+  const resolveRoleLabel = useCallback(
+    (role: MemberRole) => t(`technician.roleLabels.${role}`),
+    [t]
+  );
+
+  const resolveOriginLabel = useCallback(
+    (origin: RecordOrigin) => t(`technician.originLabels.${origin}`),
+    [t]
+  );
+
   const refreshRecords = useCallback(async () => {
+    if (isDemo) {
+      setPeople(demoPeople);
+      setLoadError(t('technician.states.demoNotice'));
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setLoadError(null);
 
-    const [membersResponse, trustedResponse] = await Promise.all([
+    const [membershipsResponse, invitesResponse] = await Promise.all([
       supabase
-        .from('members')
+        .from('memberships')
         .select(
-          `id, user_id, email, full_name, role, membership_active, membership_expires,
+          `id, user_id, role, membership_active, membership_expires, status,
            branch:branch_id (id, name)`
         )
-        .order('full_name', { ascending: true }),
+        .order('updated_at', { ascending: false }),
       supabase
-        .from('trusted_users')
+        .from('invites')
         .select(
-          `id, email, first_name, last_name, role, membership_active, access_expires_at,
-           branch:branch_id (id, name)`
+          `id, email, first_name, last_name, role, status, expires_at, branch_id,
+           branch:branch_id (id, name), phone`
         )
-        .order('first_name', { ascending: true })
+        .order('added_at', { ascending: false }),
     ]);
 
     let message: string | null = null;
 
-    if (membersResponse.error && trustedResponse.error) {
-      message = 'Nepodařilo se načíst žádná data. Zkuste to prosím znovu.';
-    } else if (membersResponse.error) {
-      message = 'Nepodařilo se načíst členy. Zobrazují se pouze dočasné přístupy.';
-    } else if (trustedResponse.error) {
-      message = 'Nepodařilo se načíst seznam dočasně povolených uživatelů. Zobrazují se pouze členové.';
+    if (membershipsResponse.error && invitesResponse.error) {
+      message = t('technician.states.loadErrorGeneral');
+    } else if (membershipsResponse.error) {
+      message = t('technician.states.loadErrorMembers');
+    } else if (invitesResponse.error) {
+      message = t('technician.states.loadErrorTrusted');
     }
 
-    const memberRows = membersResponse.error ? [] : ((membersResponse.data ?? []) as MemberRow[]);
-    const trustedRows = trustedResponse.error ? [] : ((trustedResponse.data ?? []) as TrustedUserRow[]);
+    const membershipRows = membershipsResponse.error ? [] : ((membershipsResponse.data ?? []) as MembershipRow[]);
+    const inviteRows = invitesResponse.error ? [] : ((invitesResponse.data ?? []) as InviteRow[]);
 
-    const normalizedMembers: ManagedPerson[] = memberRows.map((row) => ({
-      id: `members:${row.id}`,
-      tableId: row.id,
-      email: row.email ?? 'neznámý-email',
-      fullName: row.full_name?.trim() || row.email || 'Neznámý člen',
-      role: (row.role ?? 'member') as MemberRole,
-      membershipActive: row.membership_active,
-      membershipExpires: row.membership_expires,
-      branchName: toBranchName(row.branch),
-      origin: 'members',
-    }));
+    const profileIds = Array.from(new Set(membershipRows.map((row) => row.user_id)));
+    let profiles: Record<string, { email: string | null; full_name: string | null }> = {};
 
-    const normalizedTrusted: ManagedPerson[] = trustedRows.map((row) => {
+    if (profileIds.length > 0) {
+      const { data: profileRows } = await supabase
+        .from('profiles')
+        .select('id, email, full_name')
+        .in('id', profileIds);
+
+      if (profileRows) {
+        profiles = (profileRows as Array<{ id: string; email: string | null; full_name: string | null }>)
+          .reduce((acc, profile) => {
+            acc[profile.id] = {
+              email: profile.email ?? null,
+              full_name: profile.full_name ?? null,
+            };
+            return acc;
+          }, {} as Record<string, { email: string | null; full_name: string | null }>);
+      }
+    }
+
+    const normalizedMembers: ManagedPerson[] = membershipRows.map((row) => {
+      const profile = profiles[row.user_id] ?? { email: null, full_name: null };
+      const branchName = toBranchName(row.branch);
+      return {
+        id: `memberships:${row.id}`,
+        tableId: row.id,
+        email: profile.email ?? 'unknown@example.com',
+        fullName: profile.full_name?.trim() || profile.email || 'Member',
+        role: (row.role ?? 'member') as MemberRole,
+        membershipActive: row.membership_active,
+        membershipExpires: row.membership_expires,
+        branchName,
+        origin: 'memberships',
+        status: (row.status ?? 'pending') as MembershipStatus,
+      };
+    });
+
+    const normalizedInvites: ManagedPerson[] = inviteRows.map((row) => {
       const nameParts = [row.first_name, row.last_name]
         .filter((part): part is string => Boolean(part && part.trim().length > 0))
         .map((part) => part.trim());
+      const branchName = toBranchName(row.branch);
 
       return {
-        id: `trusted:${row.id}`,
+        id: `invites:${row.id}`,
         tableId: row.id,
         email: row.email,
         fullName: nameParts.length > 0 ? nameParts.join(' ') : row.email,
         role: (row.role ?? 'member') as MemberRole,
-        membershipActive: row.membership_active ?? true,
-        membershipExpires: row.access_expires_at,
-        accessExpiresAt: row.access_expires_at,
-        branchName: toBranchName(row.branch),
-        origin: 'trusted_users',
+        membershipActive: (row.status ?? 'pending') === 'active',
+        membershipExpires: row.expires_at,
+        accessExpiresAt: row.expires_at,
+        branchName,
+        origin: 'invites',
+        status: (row.status ?? 'pending') as MembershipStatus,
       };
     });
 
-    setPeople([...normalizedMembers, ...normalizedTrusted]);
+    setPeople([...normalizedMembers, ...normalizedInvites]);
     setLoadError(message);
     setIsLoading(false);
-  }, []);
+  }, [isDemo, t]);
 
   useEffect(() => {
     if (status === 'ready' && canManage) {
@@ -171,32 +264,30 @@ export default function Technician() {
 
   const handleToggleMembership = useCallback(
     async (person: ManagedPerson) => {
+      if (isDemo) {
+        setLoadError(t('technician.states.demoNotice'));
+        return;
+      }
+
       const nextStatus = !person.membershipActive;
       setUpdatingId(person.id);
       setLoadError(null);
 
-      if (person.origin === 'members') {
-        const { error: updateError } = await supabase
-          .from('members')
-          .update({ membership_active: nextStatus })
-          .eq('id', person.tableId);
+      if (person.origin !== 'memberships') {
+        setLoadError(t('technician.states.loadErrorTrusted'));
+        setUpdatingId(null);
+        return;
+      }
 
-        if (updateError) {
-          setLoadError('Nepodařilo se aktualizovat stav člena.');
-          setUpdatingId(null);
-          return;
-        }
-      } else {
-        const { error: updateError } = await supabase
-          .from('trusted_users')
-          .update({ membership_active: nextStatus })
-          .eq('id', person.tableId);
+      const { error: updateError } = await supabase
+        .from('memberships')
+        .update({ membership_active: nextStatus })
+        .eq('id', person.tableId);
 
-        if (updateError) {
-          setLoadError('Nepodařilo se aktualizovat stav dočasného přístupu.');
-          setUpdatingId(null);
-          return;
-        }
+      if (updateError) {
+        setLoadError(t('technician.states.loadErrorGeneral'));
+        setUpdatingId(null);
+        return;
       }
 
       setPeople((previous) =>
@@ -208,16 +299,16 @@ export default function Technician() {
       );
       setUpdatingId(null);
     },
-    []
+    [isDemo, t]
   );
 
   const filteredPeople = useMemo(() => {
     const search = searchTerm.trim().toLowerCase();
     return people.filter((item) => {
-      if (sourceFilter === 'members' && item.origin !== 'members') {
+      if (sourceFilter === 'members' && item.origin !== 'memberships') {
         return false;
       }
-      if (sourceFilter === 'trusted' && item.origin !== 'trusted_users') {
+      if (sourceFilter === 'trusted' && item.origin !== 'invites') {
         return false;
       }
       if (statusFilter === 'active' && !item.membershipActive) {
@@ -239,9 +330,9 @@ export default function Technician() {
 
   const summary = useMemo(() => {
     const total = people.length;
-    const active = people.filter((person) => person.membershipActive && person.origin === 'members').length;
-    const inactive = people.filter((person) => !person.membershipActive && person.origin === 'members').length;
-    const trusted = people.filter((person) => person.origin === 'trusted_users').length;
+    const active = people.filter((person) => person.membershipActive && person.origin === 'memberships').length;
+    const inactive = people.filter((person) => !person.membershipActive && person.origin === 'memberships').length;
+    const trusted = people.filter((person) => person.origin === 'invites').length;
 
     return { total, active, inactive, trusted };
   }, [people]);
@@ -249,9 +340,9 @@ export default function Technician() {
   if (status === 'loading' || status === 'idle') {
     return (
       <main className="psychocas-section pb-20">
-        <div className="psychocas-container space-y-6 fade-in-up">
-          <div className="psychocas-card">
-            <p style={{ color: '#666666' }}>Načítám oprávnění…</p>
+        <div className="psychocas-container fade-in-up">
+          <div className="psychocas-card" style={{ color: colors.textSecondary }}>
+            {t('technician.states.loadingMember')}
           </div>
         </div>
       </main>
@@ -261,9 +352,9 @@ export default function Technician() {
   if (status === 'unauthenticated') {
     return (
       <main className="psychocas-section pb-20">
-        <div className="psychocas-container space-y-6 fade-in-up">
-          <div className="psychocas-card">
-            <p style={{ color: '#666666' }}>Pro vstup do správy je nutné se přihlásit.</p>
+        <div className="psychocas-container fade-in-up">
+          <div className="psychocas-card" style={{ color: colors.textSecondary }}>
+            {t('technician.states.loginRequired')}
           </div>
         </div>
       </main>
@@ -273,15 +364,14 @@ export default function Technician() {
   if (status === 'error' || !member) {
     return (
       <main className="psychocas-section pb-20">
-        <div className="psychocas-container space-y-6 fade-in-up">
+        <div className="psychocas-container fade-in-up">
           <div className="psychocas-card space-y-3">
-            <h2 className="text-lg font-semibold" style={{ color: '#333333' }}>Nepodařilo se načíst oprávnění</h2>
-            <p style={{ color: '#666666' }}>{error ?? 'Zkuste prosím načíst stránku znovu.'}</p>
-            <button
-              onClick={refresh}
-              className="psychocas-button-primary flex items-center gap-2 w-max"
-            >
-              <RefreshCcw className="w-4 h-4" /> Obnovit
+            <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
+              {t('technician.states.memberErrorTitle')}
+            </h2>
+            <p style={{ color: colors.textSecondary }}>{error ?? t('technician.states.memberErrorDescription')}</p>
+            <button onClick={refresh} className="psychocas-button-primary w-max flex items-center gap-2">
+              <RefreshCcw className="h-4 w-4" /> {t('technician.states.refresh')}
             </button>
           </div>
         </div>
@@ -292,12 +382,12 @@ export default function Technician() {
   if (!canManage) {
     return (
       <main className="psychocas-section pb-20">
-        <div className="psychocas-container space-y-6 fade-in-up">
+        <div className="psychocas-container fade-in-up">
           <div className="psychocas-card space-y-2">
-            <h2 className="text-lg font-semibold" style={{ color: '#333333' }}>Přístup zamítnut</h2>
-            <p style={{ color: '#666666' }}>
-              Technický přehled je dostupný pouze pro techniky a členy rady. V případě potřeby kontaktujte správce.
-            </p>
+            <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
+              {t('technician.states.accessDeniedTitle')}
+            </h2>
+            <p style={{ color: colors.textSecondary }}>{t('technician.states.accessDeniedDescription')}</p>
           </div>
         </div>
         <Navigation userRole={memberRole} />
@@ -308,31 +398,39 @@ export default function Technician() {
   return (
     <main className="psychocas-section pb-20">
       <div className="psychocas-container space-y-6 fade-in-up">
-        {/* Header */}
-        <div className="text-center pt-6 space-y-2">
-          <h1 className="mb-1">Správa členů</h1>
-          <p style={{ color: '#666666' }}>Kompletní přehled členů a dočasně povolených uživatelů</p>
-          <div className="flex justify-center gap-3 text-sm" style={{ color: '#666666' }}>
-            <span className="flex items-center gap-1"><ShieldCheck className="w-4 h-4" /> Aktivní přístup</span>
-            <span className="flex items-center gap-1"><ShieldOff className="w-4 h-4" /> Pozastaveno</span>
+        <header className="text-center pt-6 space-y-2">
+          <h1>{t('technician.heading')}</h1>
+          <p style={{ color: colors.textSecondary }}>{t('technician.description')}</p>
+          <div className="flex justify-center gap-3 text-sm" style={{ color: colors.textSecondary }}>
+            <span className="flex items-center gap-1"><ShieldCheck className="h-4 w-4" />{t('technician.legend.active')}</span>
+            <span className="flex items-center gap-1"><ShieldOff className="h-4 w-4" />{t('technician.legend.inactive')}</span>
           </div>
-        </div>
+          {isDemo && (
+            <p className="text-sm" style={{ color: colors.warning }}>{t('technician.states.demoNotice')}</p>
+          )}
+        </header>
 
         {loadError && (
-          <div className="psychocas-card border border-red-200 bg-red-50 text-sm" style={{ color: '#c62828' }}>
+          <div
+            className="psychocas-card text-sm"
+            style={{
+              border: `1px solid ${colors.danger}`,
+              color: colors.danger,
+              backgroundColor: colors.dangerSurface,
+            }}
+          >
             {loadError}
           </div>
         )}
 
-        {/* Controls */}
-        <div className="psychocas-card space-y-4">
+        <section className="psychocas-card space-y-4">
           <div className="grid gap-3 md:grid-cols-3">
             <div className="relative md:col-span-2">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: '#666666' }} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: colors.textSecondary }} />
               <input
-                placeholder="Hledat podle emailu nebo jména…"
+                placeholder={t('technician.filters.searchPlaceholder')}
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(event) => setSearchTerm(event.target.value)}
                 className="psychocas-input pl-10"
               />
             </div>
@@ -341,138 +439,182 @@ export default function Technician() {
               className="psychocas-button-secondary flex items-center justify-center gap-2"
               disabled={isLoading}
             >
-              <RefreshCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-              Obnovit data
+              <RefreshCcw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              {t('technician.filters.refresh')}
             </button>
           </div>
 
           <div className="flex flex-wrap gap-2 text-sm">
             <button
-              className={`px-3 py-1 rounded-full border ${sourceFilter === 'all' ? 'bg-[#1d4f7d] text-white border-[#1d4f7d]' : 'border-[#cccccc]'}`}
+              className="px-3 py-1 rounded-full border"
+              style={{
+                backgroundColor: sourceFilter === 'all' ? colors.brandPrimary : colors.background,
+                color: sourceFilter === 'all' ? colors.background : colors.textSecondary,
+                borderColor: sourceFilter === 'all' ? colors.brandPrimary : colors.border,
+              }}
               onClick={() => setSourceFilter('all')}
             >
-              Všichni ({people.length})
+              {formatMessage('technician.filters.source.all', { count: people.length })}
             </button>
             <button
-              className={`px-3 py-1 rounded-full border ${sourceFilter === 'members' ? 'bg-[#1d4f7d] text-white border-[#1d4f7d]' : 'border-[#cccccc]'}`}
+              className="px-3 py-1 rounded-full border"
+              style={{
+                backgroundColor: sourceFilter === 'members' ? colors.brandPrimary : colors.background,
+                color: sourceFilter === 'members' ? colors.background : colors.textSecondary,
+                borderColor: sourceFilter === 'members' ? colors.brandPrimary : colors.border,
+              }}
               onClick={() => setSourceFilter('members')}
             >
-              Členové ({summary.total - summary.trusted})
+              {formatMessage('technician.filters.source.members', { count: summary.total - summary.trusted })}
             </button>
             <button
-              className={`px-3 py-1 rounded-full border ${sourceFilter === 'trusted' ? 'bg-[#1d4f7d] text-white border-[#1d4f7d]' : 'border-[#cccccc]'}`}
+              className="px-3 py-1 rounded-full border"
+              style={{
+                backgroundColor: sourceFilter === 'trusted' ? colors.brandPrimary : colors.background,
+                color: sourceFilter === 'trusted' ? colors.background : colors.textSecondary,
+                borderColor: sourceFilter === 'trusted' ? colors.brandPrimary : colors.border,
+              }}
               onClick={() => setSourceFilter('trusted')}
             >
-              Dočasně povolení ({summary.trusted})
+              {formatMessage('technician.filters.source.trusted', { count: summary.trusted })}
             </button>
             <button
-              className={`px-3 py-1 rounded-full border ${statusFilter === 'active' ? 'bg-[#2e7d32] text-white border-[#2e7d32]' : 'border-[#cccccc]'}`}
+              className="px-3 py-1 rounded-full border"
+              style={{
+                backgroundColor: statusFilter === 'active' ? colors.accent : colors.background,
+                color: statusFilter === 'active' ? colors.background : colors.textSecondary,
+                borderColor: statusFilter === 'active' ? colors.accent : colors.border,
+              }}
               onClick={() => setStatusFilter(statusFilter === 'active' ? 'all' : 'active')}
             >
-              Aktivní
+              {t('technician.filters.status.active')}
             </button>
             <button
-              className={`px-3 py-1 rounded-full border ${statusFilter === 'inactive' ? 'bg-[#c62828] text-white border-[#c62828]' : 'border-[#cccccc]'}`}
+              className="px-3 py-1 rounded-full border"
+              style={{
+                backgroundColor: statusFilter === 'inactive' ? colors.danger : colors.background,
+                color: statusFilter === 'inactive' ? colors.background : colors.textSecondary,
+                borderColor: statusFilter === 'inactive' ? colors.danger : colors.border,
+              }}
               onClick={() => setStatusFilter(statusFilter === 'inactive' ? 'all' : 'inactive')}
             >
-              Pozastavené
+              {t('technician.filters.status.inactive')}
             </button>
           </div>
-        </div>
+        </section>
 
-        {/* Summary Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="psychocas-card text-center">
-            <Users className="w-8 h-8 mx-auto mb-2" style={{ color: '#1d4f7d' }} />
-            <div className="text-2xl font-bold mb-1" style={{ color: '#333333' }}>
-              {summary.total}
-            </div>
-            <p className="text-sm" style={{ color: '#666666' }}>Celkem záznamů</p>
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="psychocas-card text-center space-y-1">
+            <Users className="h-8 w-8 mx-auto" style={{ color: colors.brandPrimary }} />
+            <div className="text-2xl font-bold" style={{ color: colors.textPrimary }}>{summary.total}</div>
+            <p className="text-sm" style={{ color: colors.textSecondary }}>{t('technician.statsCards.total')}</p>
           </div>
-
-          <div className="psychocas-card text-center">
-            <CheckCircle className="w-8 h-8 mx-auto mb-2" style={{ color: '#2e7d32' }} />
-            <div className="text-2xl font-bold mb-1" style={{ color: '#333333' }}>
-              {summary.active}
-            </div>
-            <p className="text-sm" style={{ color: '#666666' }}>Aktivních členů</p>
+          <div className="psychocas-card text-center space-y-1">
+            <CheckCircle className="h-8 w-8 mx-auto" style={{ color: colors.accent }} />
+            <div className="text-2xl font-bold" style={{ color: colors.textPrimary }}>{summary.active}</div>
+            <p className="text-sm" style={{ color: colors.textSecondary }}>{t('technician.statsCards.active')}</p>
           </div>
-
-          <div className="psychocas-card text-center">
-            <XCircle className="w-8 h-8 mx-auto mb-2" style={{ color: '#c62828' }} />
-            <div className="text-2xl font-bold mb-1" style={{ color: '#333333' }}>
-              {summary.inactive}
-            </div>
-            <p className="text-sm" style={{ color: '#666666' }}>Pozastavených členů</p>
+          <div className="psychocas-card text-center space-y-1">
+            <XCircle className="h-8 w-8 mx-auto" style={{ color: colors.danger }} />
+            <div className="text-2xl font-bold" style={{ color: colors.textPrimary }}>{summary.inactive}</div>
+            <p className="text-sm" style={{ color: colors.textSecondary }}>{t('technician.statsCards.inactive')}</p>
           </div>
-
-          <div className="psychocas-card text-center">
-            <UserPlus className="w-8 h-8 mx-auto mb-2" style={{ color: '#ff9800' }} />
-            <div className="text-2xl font-bold mb-1" style={{ color: '#333333' }}>
-              {summary.trusted}
-            </div>
-            <p className="text-sm" style={{ color: '#666666' }}>Dočasných přístupů</p>
+          <div className="psychocas-card text-center space-y-1">
+            <UserPlus className="h-8 w-8 mx-auto" style={{ color: colors.warning }} />
+            <div className="text-2xl font-bold" style={{ color: colors.textPrimary }}>{summary.trusted}</div>
+            <p className="text-sm" style={{ color: colors.textSecondary }}>{t('technician.statsCards.trusted')}</p>
           </div>
-        </div>
+        </section>
 
-        {/* Members List */}
-        <div className="psychocas-card">
-          <div className="flex items-center justify-between gap-4 border-b pb-3" style={{ borderColor: '#e0e0e0' }}>
+        <section className="psychocas-card space-y-4">
+          <div className="flex items-center justify-between gap-4 border-b pb-3" style={{ borderColor: colors.border }}>
             <div>
-              <h3 className="text-lg font-semibold" style={{ color: '#333333' }}>
-                Záznamy ({filteredPeople.length})
+              <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
+                {formatMessage('technician.table.heading', { count: filteredPeople.length })}
               </h3>
-              <p className="text-sm" style={{ color: '#666666' }}>
-                Spravujte členy i dočasné přístupy přímo z aplikace
+              <p className="text-sm" style={{ color: colors.textSecondary }}>
+                {t('technician.table.description')}
               </p>
             </div>
-            <UserCog className="w-6 h-6" style={{ color: '#1d4f7d' }} />
+            <UserCog className="h-6 w-6" style={{ color: colors.brandPrimary }} />
           </div>
 
-          <div className="space-y-3 pt-3">
+          <div className="space-y-3">
             {filteredPeople.map((person) => {
-              const badgeStyle = roleBadgeStyle[person.role] ?? roleBadgeStyle.member;
               const statusBadge = person.membershipActive
-                ? { bg: '#e8f5e8', color: '#2e7d32', label: 'Aktivní' }
-                : { bg: '#ffebee', color: '#c62828', label: 'Pozastaveno' };
+                ? {
+                    backgroundColor: colors.successSurface,
+                    color: colors.success,
+                    label: t('technician.statusBadge.active'),
+                  }
+                : {
+                    backgroundColor: colors.dangerSurface,
+                    color: colors.dangerStrong,
+                    label: t('technician.statusBadge.inactive'),
+                  };
+
+              const roleBadge = person.membershipActive
+                ? { backgroundColor: colors.brandSurfaceAlt, color: colors.brandPrimary }
+                : { backgroundColor: colors.neutralSurface, color: colors.textSecondary };
+
+              const branchLabel = person.branchName
+                ? formatMessage('technician.table.branch', { branch: person.branchName })
+                : null;
+
+              const membershipLabel = person.membershipExpires
+                ? formatMessage('technician.table.membershipExpires', {
+                    date: new Intl.DateTimeFormat(locale).format(new Date(person.membershipExpires)),
+                  })
+                : null;
+
+              const accessLabel = person.accessExpiresAt
+                ? formatMessage('technician.table.accessExpires', {
+                    date: new Intl.DateTimeFormat(locale).format(new Date(person.accessExpiresAt)),
+                  })
+                : null;
 
               return (
                 <div
                   key={person.id}
-                  className="p-4 rounded-xl border transition-shadow hover:shadow-md"
-                  style={{ borderColor: '#e0e0e0', backgroundColor: '#fafafa' }}
+                  className="rounded-xl border p-4 transition-shadow hover:shadow-md"
+                  style={{ borderColor: colors.border, backgroundColor: colors.background }}
                 >
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div className="flex-1 space-y-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="font-medium mr-2" style={{ color: '#333333' }}>
+                        <h4 className="font-medium" style={{ color: colors.textPrimary }}>
                           {person.fullName}
                         </h4>
-                        <span className="px-2 py-1 rounded-full text-xs font-medium" style={badgeStyle}>
-                          {roleLabel[person.role]}
+                        <span className="px-2 py-1 text-xs font-medium rounded-full" style={roleBadge}>
+                          {resolveRoleLabel(person.role)}
                         </span>
-                        <span className="px-2 py-1 rounded-full text-xs font-medium" style={statusBadge}>
+                        <span className="px-2 py-1 text-xs font-medium rounded-full" style={statusBadge}>
                           {statusBadge.label}
                         </span>
-                        <span className="px-2 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: '#e3f2fd', color: '#1d4f7d' }}>
-                          {originLabel[person.origin]}
+                        <span
+                          className="px-2 py-1 text-xs font-medium rounded-full"
+                          style={{ backgroundColor: colors.brandSurface, color: colors.brandPrimary }}
+                        >
+                          {resolveOriginLabel(person.origin)}
                         </span>
                       </div>
 
-                      <p className="text-sm" style={{ color: '#666666' }}>📧 {person.email}</p>
-                      {person.branchName && (
-                        <p className="text-sm" style={{ color: '#666666' }}>
-                          🏢 Pobočka: {person.branchName}
+                      <p className="text-sm" style={{ color: colors.textSecondary }}>
+                        {formatMessage('technician.table.email', { email: person.email })}
+                      </p>
+                      {branchLabel && (
+                        <p className="text-sm" style={{ color: colors.textSecondary }}>
+                          {branchLabel}
                         </p>
                       )}
-                      {person.membershipExpires && (
-                        <p className="text-sm" style={{ color: '#666666' }}>
-                          📅 Platnost do: {new Date(person.membershipExpires).toLocaleDateString('cs-CZ')}
+                      {membershipLabel && (
+                        <p className="text-sm" style={{ color: colors.textSecondary }}>
+                          {membershipLabel}
                         </p>
                       )}
-                      {person.accessExpiresAt && (
-                        <p className="text-sm" style={{ color: '#666666' }}>
-                          ⏳ Dočasný přístup končí: {new Date(person.accessExpiresAt).toLocaleDateString('cs-CZ')}
+                      {accessLabel && (
+                        <p className="text-sm" style={{ color: colors.textSecondary }}>
+                          {accessLabel}
                         </p>
                       )}
                     </div>
@@ -481,10 +623,12 @@ export default function Technician() {
                       <button
                         onClick={() => void handleToggleMembership(person)}
                         className="psychocas-button-secondary flex items-center gap-2"
-                        disabled={updatingId === person.id}
+                        disabled={updatingId === person.id || isDemo}
                       >
-                        {person.membershipActive ? <ShieldOff className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
-                        {person.membershipActive ? 'Pozastavit' : 'Aktivovat'}
+                        {person.membershipActive ? <ShieldOff className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+                        {person.membershipActive
+                          ? t('technician.table.toggleDeactivate')
+                          : t('technician.table.toggleActivate')}
                       </button>
                     </div>
                   </div>
@@ -494,32 +638,30 @@ export default function Technician() {
           </div>
 
           {filteredPeople.length === 0 && !isLoading && (
-            <div className="text-center py-8">
-              <p style={{ color: '#666666' }}>Žádné záznamy neodpovídají zvoleným filtrům.</p>
+            <div className="text-center py-8" style={{ color: colors.textSecondary }}>
+              {t('technician.table.empty')}
             </div>
           )}
 
           {isLoading && (
-            <div className="text-center py-6">
-              <p style={{ color: '#666666' }}>Načítám data…</p>
+            <div className="text-center py-6" style={{ color: colors.textSecondary }}>
+              {t('technician.table.loading')}
             </div>
           )}
-        </div>
+        </section>
 
-        {/* Info Card */}
-        <div className="psychocas-card" style={{ backgroundColor: '#e3f2fd' }}>
-          <h4 className="mb-2" style={{ color: '#1d4f7d' }}>
-            ℹ️ Doporučení pro techniky
+        <section className="psychocas-card" style={{ backgroundColor: colors.brandSurface }}>
+          <h4 className="mb-2" style={{ color: colors.brandPrimary }}>
+            {t('technician.info.title')}
           </h4>
-          <ul className="space-y-1 text-sm" style={{ color: '#1d4f7d' }}>
-            <li>• Spravujte stav členství přímo v této tabulce bez nutnosti přechodu do Supabase.</li>
-            <li>• Dočasně povolené účty sledujte v samostatném filtru a nastavte jim datum vypršení.</li>
-            <li>• Potřebujete-li upravit osobní údaje, využijte administrátorský přístup v Supabase.</li>
+          <ul className="space-y-1 text-sm" style={{ color: colors.brandPrimary }}>
+            <li>{t('technician.info.item1')}</li>
+            <li>{t('technician.info.item2')}</li>
+            <li>{t('technician.info.item3')}</li>
           </ul>
-        </div>
+        </section>
       </div>
 
-      {/* Navigation Bar */}
       <Navigation userRole={memberRole} />
     </main>
   );

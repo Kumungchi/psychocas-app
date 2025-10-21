@@ -25,8 +25,8 @@ export default function SupabaseHealthCheck() {
       // Test 1: Auth připojení
       try {
         console.log('🔍 Testování Auth připojení...');
-        const { data: authData, error: authError } = await supabase.auth.getUser();
-        
+        const { data: authData, error: authError } = await supabase.auth.getSession();
+
         if (authError) {
           setAuthStatus({
             status: 'error',
@@ -36,7 +36,7 @@ export default function SupabaseHealthCheck() {
         } else {
           setAuthStatus({
             status: 'success',
-            message: authData.user ? 'Auth OK - uživatel přihlášen ✅' : 'Auth OK - bez přihlášení ✅',
+            message: authData.session?.user ? 'Auth OK - uživatel přihlášen ✅' : 'Auth OK - bez přihlášení ✅',
             data: authData
           });
         }
@@ -166,7 +166,7 @@ export default function SupabaseHealthCheck() {
       <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-800">
         <h3 className="font-semibold mb-2">Co testujeme:</h3>
         <ul className="space-y-1">
-          <li>• <strong>Auth:</strong> supabase.auth.getUser() - očekáváme {"{ user: null }"}</li>
+          <li>• <strong>Auth:</strong> supabase.auth.getSession() - očekáváme {"{ session: null }"}</li>
           <li>• <strong>DB:</strong> SELECT z tabulek branches a partner_offers - test RLS políček</li>
           <li>• <strong>Konfigurace:</strong> URL a API klíče z .env.local</li>
         </ul>

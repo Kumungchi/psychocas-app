@@ -1,232 +1,542 @@
 -- ========================================
--- COMPLETE DATABASE SETUP SCRIPT
--- Run this ONCE in Supabase SQL Editor
+-- COMPLETE DATABASE SETUP SCRIPT (v2)
+-- ========================================
+-- This consolidated script provisions the
+-- Psychočas data model built on profiles,
+-- memberships, and invites.
 -- ========================================
 
--- Step 1: Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- 1) Extensions -------------------------------------------------
+create extension if not exists "uuid-ossp";
+create extension if not exists citext;
 
--- Step 2: Create tables in correct order
--- ========================================
+-- 2) Enum types -------------------------------------------------
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'membership_status') then
+    create type membership_status as enum ('pending', 'active', 'suspended', 'revoked');
+  end if;
+  if not exists (select 1 from pg_type where typname = 'invite_status') then
+    create type invite_status as enum ('pending', 'active', 'revoked', 'expired');
+  end if;
+end;
+$$;
 
--- Create branches table
-CREATE TABLE IF NOT EXISTS public.branches (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name text NOT NULL,
+-- 3) Tables -----------------------------------------------------
+create table if not exists public.branches (
+  id uuid primary key default uuid_generate_v4(),
+  name text not null,
   city text,
-  created_at timestamptz DEFAULT now()
+  created_at timestamptz default now()
 );
 
--- Create members table
-CREATE TABLE IF NOT EXISTS public.members (
-  user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  email text UNIQUE NOT NULL,
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email citext not null unique,
   full_name text,
-  branch_id uuid REFERENCES public.branches(id),
-  role text NOT NULL CHECK (role IN ('member','manager','council','technician')) DEFAULT 'member',
-  membership_active boolean NOT NULL DEFAULT false,
-  membership_expires date,
-  created_at timestamptz DEFAULT now()
+  phone text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
--- Create tokens table
-CREATE TABLE IF NOT EXISTS public.tokens (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  code text UNIQUE NOT NULL,
-  user_id uuid NOT NULL REFERENCES public.members(user_id) ON DELETE CASCADE,
-  issued_at timestamptz NOT NULL DEFAULT now(),
-  expires_at timestamptz NOT NULL,
+create table if not exists public.memberships (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  branch_id uuid references public.branches(id),
+  role text not null check (role in ('member','manager','council','technician')) default 'member',
+  status membership_status not null default 'pending',
+  membership_active boolean not null default false,
+  membership_expires date,
+  approved_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (user_id)
+);
+
+create table if not exists public.invites (
+  id uuid primary key default uuid_generate_v4(),
+  email citext not null unique,
+  first_name text,
+  last_name text,
+  phone text,
+  role text not null check (role in ('member','manager','council','technician')) default 'member',
+  branch_id uuid references public.branches(id),
+  status invite_status not null default 'pending',
+  expires_at timestamptz,
+  notes text,
+  invited_by uuid references auth.users(id),
+  added_at timestamptz default now()
+);
+
+create index if not exists invites_email_lower_idx on public.invites (lower(email));
+
+create table if not exists public.partner_offers (
+  id uuid primary key default uuid_generate_v4(),
+  title text not null,
+  description text,
+  discount_code text,
+  discount_percentage numeric(5,2),
+  scope text not null check (scope in ('national','local')),
+  branch_id uuid references public.branches(id),
+  city text,
+  active boolean not null default true,
+  created_by uuid references public.profiles(id) on delete set null,
+  updated_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table if not exists public.tokens (
+  id uuid primary key default uuid_generate_v4(),
+  code text unique not null,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  membership_id uuid references public.memberships(id) on delete set null,
+  issued_at timestamptz not null default now(),
+  expires_at timestamptz not null,
   consumed_at timestamptz
 );
 
--- Create redemptions table
-CREATE TABLE IF NOT EXISTS public.redemptions (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  token_id uuid REFERENCES public.tokens(id) ON DELETE SET NULL,
-  branch_id uuid REFERENCES public.branches(id),
-  redeemed_at timestamptz NOT NULL DEFAULT now()
+create table if not exists public.redemptions (
+  id uuid primary key default uuid_generate_v4(),
+  token_id uuid references public.tokens(id) on delete set null,
+  membership_id uuid references public.memberships(id) on delete set null,
+  branch_id uuid references public.branches(id),
+  redeemed_at timestamptz not null default now()
 );
 
--- Step 3: Enable Row Level Security
--- ========================================
+-- 4) Row Level Security ----------------------------------------
+alter table public.profiles enable row level security;
+alter table public.memberships enable row level security;
+alter table public.invites enable row level security;
+alter table public.tokens enable row level security;
+alter table public.redemptions enable row level security;
+alter table public.branches enable row level security;
+alter table public.partner_offers enable row level security;
 
-ALTER TABLE public.members ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.tokens ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.redemptions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.branches ENABLE ROW LEVEL SECURITY;
+-- 5) Policies ---------------------------------------------------
+create policy if not exists "profiles_read_self" on public.profiles
+for select using (auth.uid() = id);
 
--- Step 4: Create RLS Policies
--- ========================================
+create policy if not exists "profiles_update_self" on public.profiles
+for update using (auth.uid() = id)
+with check (auth.uid() = id);
 
--- Members policies
-CREATE POLICY "members_read_self" ON public.members
-FOR SELECT USING (auth.uid() = user_id);
+create policy if not exists "memberships_read_self" on public.memberships
+for select using (auth.uid() = user_id);
 
-CREATE POLICY "members_insert_on_signup" ON public.members
-FOR INSERT 
-TO authenticated
-WITH CHECK (auth.uid() = user_id);
+create policy if not exists "technician_read_all_memberships" on public.memberships
+for select using (
+  exists (
+    select 1 from public.memberships me
+    where me.user_id = auth.uid()
+      and me.role = 'technician'
+  )
+);
 
-CREATE POLICY "members_update_self" ON public.members
-FOR UPDATE
-USING (auth.uid() = user_id)
-WITH CHECK (auth.uid() = user_id);
+create policy if not exists "manager_read_branch_memberships" on public.memberships
+for select using (
+  exists (
+    select 1 from public.memberships me
+    where me.user_id = auth.uid()
+      and me.role = 'manager'
+      and me.branch_id = memberships.branch_id
+  )
+);
 
-CREATE POLICY "technician_read_all_members" ON public.members
-FOR SELECT USING (EXISTS (
-  SELECT 1 FROM public.members me WHERE me.user_id = auth.uid() AND me.role = 'technician'
-));
+create policy if not exists "council_manage_memberships" on public.memberships
+for all using (
+  exists (
+    select 1 from public.memberships me
+    where me.user_id = auth.uid()
+      and me.role in ('council','technician')
+  )
+)
+with check (
+  exists (
+    select 1 from public.memberships me
+    where me.user_id = auth.uid()
+      and me.role in ('council','technician')
+  )
+);
 
-CREATE POLICY "manager_read_branch_members" ON public.members
-FOR SELECT USING (EXISTS (
-  SELECT 1 FROM public.members me
-  WHERE me.user_id = auth.uid() AND me.role = 'manager' AND me.branch_id = members.branch_id
-));
+create policy if not exists "staff_manage_invites" on public.invites
+for all using (
+  exists (
+    select 1 from public.memberships me
+    where me.user_id = auth.uid()
+      and me.role in ('manager','council','technician')
+  )
+)
+with check (
+  exists (
+    select 1 from public.memberships me
+    where me.user_id = auth.uid()
+      and me.role in ('manager','council','technician')
+  )
+);
 
-CREATE POLICY "council_read_all_members" ON public.members
-FOR SELECT USING (EXISTS (
-  SELECT 1 FROM public.members me WHERE me.user_id = auth.uid() AND me.role = 'council'
-));
+create policy if not exists "member_read_own_tokens" on public.tokens
+for select using (user_id = auth.uid());
 
--- Tokens policies
-CREATE POLICY "member_read_own_tokens" ON public.tokens
-FOR SELECT USING (user_id = auth.uid());
+create policy if not exists "member_insert_own_tokens" on public.tokens
+for insert with check (user_id = auth.uid());
 
-CREATE POLICY "member_insert_own_tokens" ON public.tokens
-FOR INSERT WITH CHECK (user_id = auth.uid());
+create policy if not exists "manager_read_branch_tokens" on public.tokens
+for select using (
+  exists (
+    select 1 from public.memberships me
+    join public.memberships owner on owner.id = tokens.membership_id
+    where me.user_id = auth.uid()
+      and me.role = 'manager'
+      and me.branch_id = owner.branch_id
+  )
+);
 
-CREATE POLICY "manager_read_branch_tokens" ON public.tokens
-FOR SELECT USING (EXISTS (
-  SELECT 1 FROM public.members me
-  JOIN public.members owner ON owner.user_id = tokens.user_id
-  WHERE me.user_id = auth.uid() AND me.role = 'manager' AND me.branch_id = owner.branch_id
-));
+create policy if not exists "manager_read_branch_redemptions" on public.redemptions
+for select using (
+  exists (
+    select 1 from public.memberships me
+    where me.user_id = auth.uid()
+      and me.role = 'manager'
+      and me.branch_id = redemptions.branch_id
+  )
+);
 
--- Redemptions policies
-CREATE POLICY "manager_read_branch_redemptions" ON public.redemptions
-FOR SELECT USING (EXISTS (
-  SELECT 1 FROM public.members me
-  WHERE me.user_id = auth.uid() AND me.role = 'manager' AND me.branch_id = redemptions.branch_id
-));
+create policy if not exists "council_read_all_redemptions" on public.redemptions
+for select using (
+  exists (
+    select 1 from public.memberships me
+    where me.user_id = auth.uid()
+      and me.role in ('council','technician')
+  )
+);
 
-CREATE POLICY "council_read_all_redemptions" ON public.redemptions
-FOR SELECT USING (EXISTS (
-  SELECT 1 FROM public.members me WHERE me.user_id = auth.uid() AND me.role = 'council'
-));
+create policy if not exists "redemptions_insert_server_only" on public.redemptions
+for insert with check (false);
 
-CREATE POLICY "redemptions_insert_server_only" ON public.redemptions
-FOR INSERT WITH CHECK (false);
+create policy if not exists "members_read_partner_offers" on public.partner_offers
+for select using (
+  partner_offers.active = true
+  and (
+    partner_offers.scope = 'national'
+    or exists (
+      select 1 from public.memberships me
+      where me.user_id = auth.uid()
+        and (
+          me.role in ('manager','council','technician')
+          or me.branch_id = partner_offers.branch_id
+        )
+    )
+  )
+);
 
--- Branches policies
-CREATE POLICY "branches_read_all" ON public.branches
-FOR SELECT TO authenticated USING (true);
+create policy if not exists "council_manage_partner_offers" on public.partner_offers
+for all using (
+  exists (
+    select 1 from public.memberships me
+    where me.user_id = auth.uid()
+      and me.role in ('council','technician')
+  )
+)
+with check (
+  exists (
+    select 1 from public.memberships me
+    where me.user_id = auth.uid()
+      and me.role in ('council','technician')
+  )
+);
 
--- Step 5: Create trigger function for auto-creating member records
--- ========================================
+create policy if not exists "managers_manage_branch_partner_offers" on public.partner_offers
+for all using (
+  exists (
+    select 1 from public.memberships me
+    join public.profiles p on p.id = me.user_id
+    where me.user_id = auth.uid()
+      and me.role = 'manager'
+      and p.email ilike '%@psychocas.cz'
+      and partner_offers.scope = 'local'
+      and partner_offers.branch_id = me.branch_id
+  )
+)
+with check (
+  exists (
+    select 1 from public.memberships me
+    join public.profiles p on p.id = me.user_id
+    where me.user_id = auth.uid()
+      and me.role = 'manager'
+      and p.email ilike '%@psychocas.cz'
+      and partner_offers.scope = 'local'
+      and partner_offers.branch_id = me.branch_id
+  )
+);
 
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger AS $$
-DECLARE
-  new_role text := 'member';
-  new_full_name text := NULL;
-BEGIN
-  -- Set role and name based on email
-  IF NEW.email = 'viceprezident@psychočas.cz' THEN
-    new_role := 'council';
-    new_full_name := 'Viceprezident';
-  ELSIF NEW.email = 'bunnik.matias@seznam.cz' THEN
-    new_role := 'member';
-    new_full_name := 'Matias Bunnik';
-  ELSIF NEW.email LIKE '%@psychočas.cz' THEN
-    -- Any @psychočas.cz email gets manager role
-    new_role := 'manager';
-    new_full_name := NULL;
-  ELSE
-    new_role := 'member';
-    new_full_name := NULL;
-  END IF;
+-- 6) Triggers ---------------------------------------------------
+create or replace function public.prevent_token_spam()
+returns trigger language plpgsql as $$
+begin
+  if exists (
+    select 1 from public.tokens
+    where user_id = new.user_id
+      and consumed_at is null
+      and expires_at > now()
+  ) then
+    raise exception 'Active token already exists';
+  end if;
+  return new;
+end;
+$$;
 
-  -- Insert into members table
-  INSERT INTO public.members (
+drop trigger if exists trg_token_spam on public.tokens;
+create trigger trg_token_spam
+before insert on public.tokens
+for each row execute function public.prevent_token_spam();
+
+-- 7) Auth bridge ------------------------------------------------
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+as $$
+declare
+  invite_record record;
+  resolved_role text := 'member';
+  resolved_branch uuid := null;
+  resolved_status membership_status := 'pending';
+  resolved_active boolean := false;
+  resolved_expires date := null;
+  resolved_full_name text := null;
+  resolved_phone text := null;
+begin
+  select *
+    into invite_record
+    from public.invites
+    where lower(email) = lower(new.email)
+    order by added_at desc
+    limit 1;
+
+  if invite_record is not null then
+    resolved_role := invite_record.role;
+    resolved_branch := invite_record.branch_id;
+    resolved_full_name := concat_ws(' ', invite_record.first_name, invite_record.last_name);
+    resolved_phone := invite_record.phone;
+    if invite_record.status = 'active' then
+      resolved_status := 'active';
+      resolved_active := true;
+      if invite_record.expires_at is not null then
+        resolved_expires := invite_record.expires_at::date;
+      end if;
+    end if;
+  elsif new.email ilike '%@psychocas.cz' then
+    resolved_role := 'manager';
+    resolved_status := 'active';
+    resolved_active := true;
+  end if;
+
+  insert into public.profiles (id, email, full_name, phone)
+  values (new.id, new.email, nullif(resolved_full_name, ''), resolved_phone)
+  on conflict (id) do update set
+    email = excluded.email,
+    full_name = coalesce(excluded.full_name, public.profiles.full_name),
+    phone = coalesce(excluded.phone, public.profiles.phone),
+    updated_at = now();
+
+  insert into public.memberships (
     user_id,
-    email,
+    branch_id,
     role,
+    status,
     membership_active,
     membership_expires,
-    full_name
+    approved_at
   )
-  VALUES (
-    NEW.id,
-    NEW.email,
-    new_role,
-    true,
-    (CURRENT_DATE + INTERVAL '1 year')::date,
-    new_full_name
+  values (
+    new.id,
+    resolved_branch,
+    resolved_role,
+    resolved_status,
+    resolved_active,
+    resolved_expires,
+    case when resolved_active then now() else null end
   )
-  ON CONFLICT (user_id) DO UPDATE SET
-    role = EXCLUDED.role,
-    membership_active = EXCLUDED.membership_active,
-    membership_expires = EXCLUDED.membership_expires,
-    full_name = COALESCE(EXCLUDED.full_name, public.members.full_name);
+  on conflict (user_id) do update set
+    branch_id = coalesce(excluded.branch_id, public.memberships.branch_id),
+    role = excluded.role,
+    status = excluded.status,
+    membership_active = excluded.membership_active,
+    membership_expires = coalesce(excluded.membership_expires, public.memberships.membership_expires),
+    approved_at = coalesce(excluded.approved_at, public.memberships.approved_at),
+    updated_at = now();
 
-  RETURN NEW;
-EXCEPTION
-  WHEN OTHERS THEN
-    RAISE WARNING 'Error in handle_new_user trigger: %', SQLERRM;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+  return new;
+exception
+  when others then
+    raise warning 'Error in handle_new_user trigger: %', sqlerrm;
+    return new;
+end;
+$$;
 
--- Step 6: Create trigger
--- ========================================
+drop trigger if exists handle_new_user on auth.users;
+create trigger handle_new_user
+after insert on auth.users
+for each row execute function public.handle_new_user();
 
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+-- 8) Helper procedure -------------------------------------------
+create or replace function public.approve_member(
+  member_user_id uuid,
+  approver_user_id uuid
+)
+returns boolean
+language plpgsql
+security definer
+as $$
+declare
+  approver_role text;
+  target_email citext;
+begin
+  select role
+    into approver_role
+    from public.memberships
+    where user_id = approver_user_id;
 
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW
-  EXECUTE FUNCTION public.handle_new_user();
+  if approver_role not in ('manager','council','technician') then
+    raise exception 'Approver does not have permission';
+  end if;
 
--- Step 7: Grant permissions
--- ========================================
+  update public.memberships
+     set status = 'active',
+         membership_active = true,
+         approved_at = now(),
+         membership_expires = coalesce(membership_expires, (current_date + interval '1 year')::date),
+         updated_at = now()
+   where user_id = member_user_id;
 
-GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
-GRANT ALL ON public.members TO authenticated, service_role;
-GRANT ALL ON public.tokens TO authenticated, service_role;
-GRANT ALL ON public.redemptions TO authenticated, service_role;
-GRANT ALL ON public.branches TO authenticated, service_role;
+  if not found then
+    return false;
+  end if;
 
--- Step 8: Insert test branch (optional)
--- ========================================
+  select email into target_email from public.profiles where id = member_user_id;
+  if target_email is not null then
+    update public.invites
+       set status = 'active'
+     where lower(email) = lower(target_email)
+       and status <> 'active';
+  end if;
 
-INSERT INTO public.branches (name, city)
-VALUES ('Psychočas Brno', 'Brno')
-ON CONFLICT DO NOTHING;
+  return true;
+end;
+$$;
 
--- Step 9: Verification
--- ========================================
+create or replace function public.ensure_membership()
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  current_email citext;
+  invite_record public.invites%rowtype;
+  resolved_role text := 'member';
+  resolved_branch uuid := null;
+  resolved_status membership_status := 'pending';
+  resolved_active boolean := false;
+  resolved_expires date := null;
+  resolved_full_name text := null;
+begin
+  if current_user_id is null then
+    return false;
+  end if;
 
-DO $$
-BEGIN
-  RAISE NOTICE '========================================';
-  RAISE NOTICE '✅ Database setup completed successfully!';
-  RAISE NOTICE '========================================';
-  RAISE NOTICE '';
-  RAISE NOTICE 'Tables created:';
-  RAISE NOTICE '  ✓ branches';
-  RAISE NOTICE '  ✓ members';
-  RAISE NOTICE '  ✓ tokens';
-  RAISE NOTICE '  ✓ redemptions';
-  RAISE NOTICE '';
-  RAISE NOTICE 'RLS policies enabled: ✓';
-  RAISE NOTICE 'Trigger configured: ✓';
-  RAISE NOTICE 'Permissions granted: ✓';
-  RAISE NOTICE '';
-  RAISE NOTICE 'Test accounts ready:';
-  RAISE NOTICE '  • bunnik.matias@seznam.cz → member';
-  RAISE NOTICE '  • viceprezident@psychočas.cz → council';
-  RAISE NOTICE '  • any @psychočas.cz email → manager';
-  RAISE NOTICE '';
-  RAISE NOTICE 'Next step: Try OTP login at /login';
-  RAISE NOTICE '========================================';
-END $$;
+  select email
+    into current_email
+    from auth.users
+   where id = current_user_id;
+
+  if current_email is null then
+    return false;
+  end if;
+
+  select *
+    into invite_record
+    from public.invites
+   where lower(email) = lower(current_email)
+   order by added_at desc
+   limit 1;
+
+  if invite_record is not null then
+    resolved_role := invite_record.role;
+    resolved_branch := invite_record.branch_id;
+    resolved_full_name := concat_ws(' ', invite_record.first_name, invite_record.last_name);
+
+    if invite_record.status = 'active' then
+      resolved_status := 'active';
+      resolved_active := true;
+      if invite_record.expires_at is not null then
+        resolved_expires := invite_record.expires_at::date;
+      end if;
+    elsif invite_record.status = 'revoked' then
+      resolved_status := 'revoked';
+      resolved_active := false;
+    end if;
+  elsif current_email::text ilike '%@psychocas.cz' then
+    resolved_role := 'manager';
+    resolved_status := 'active';
+    resolved_active := true;
+  end if;
+
+  insert into public.profiles (id, email, full_name)
+  values (current_user_id, current_email::text, nullif(resolved_full_name, ''))
+  on conflict (id) do update set
+    email = excluded.email,
+    full_name = coalesce(excluded.full_name, public.profiles.full_name),
+    updated_at = now();
+
+  insert into public.memberships (
+    user_id,
+    branch_id,
+    role,
+    status,
+    membership_active,
+    membership_expires,
+    approved_at
+  )
+  values (
+    current_user_id,
+    resolved_branch,
+    resolved_role,
+    resolved_status,
+    resolved_active,
+    resolved_expires,
+    case when resolved_active then now() else null end
+  )
+  on conflict (user_id) do update set
+    branch_id = coalesce(excluded.branch_id, public.memberships.branch_id),
+    role = excluded.role,
+    status = excluded.status,
+    membership_active = excluded.membership_active,
+    membership_expires = coalesce(excluded.membership_expires, public.memberships.membership_expires),
+    approved_at = coalesce(excluded.approved_at, public.memberships.approved_at),
+    updated_at = now();
+
+  return true;
+end;
+$$;
+
+grant usage on schema public to anon, authenticated, service_role;
+grant select, insert, update on public.profiles to authenticated;
+grant select, insert, update on public.memberships to authenticated;
+grant select, insert, update on public.invites to authenticated;
+grant all on public.tokens to authenticated, service_role;
+grant all on public.redemptions to authenticated, service_role;
+grant all on public.partner_offers to authenticated, service_role;
+grant all on public.branches to authenticated, service_role;
+
+grant execute on function public.approve_member(uuid, uuid) to authenticated, service_role;
+grant execute on function public.ensure_membership() to authenticated, service_role;
+
+do $$
+begin
+  raise notice '✅ Psychočas schema installed (profiles + memberships + invites).';
+  raise notice '   Run sql/05_test_data.sql for demo content if needed.';
+end;
+$$;

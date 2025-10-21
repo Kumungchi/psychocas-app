@@ -3,7 +3,7 @@
 A Next.js + Supabase application for Psychočas members. This repository contains the production PWA located in `nextjs-app` along with helper scripts and design assets.
 
 ## Highlights
-- Magic-link login with support for trusted users who only exist in the `trusted_users` table
+- Magic-link login with support for invite-only users who exist in the `invites` table
 - Role-aware navigation for members, managers, council, and technicians
 - QR code redemption, validation tools, and analytics dashboards
 - Technician console for activating memberships and auditing trusted access
@@ -25,7 +25,7 @@ A Next.js + Supabase application for Psychočas members. This repository contain
    ```bash
    npm run dev
    ```
-4. Sign in using an email address that exists in `members` or `trusted_users`. The fallback accepts email-only trusted rows and will normalise optional role or branch data when it is provided.
+4. Sign in using an email address that exists in `memberships` or `invites`. The fallback accepts email-only invite rows and will normalise optional role or branch data when it is provided.
 
 ## Database
 Follow `DATABASE_SETUP.md` to apply the Supabase schema and RLS policies. The SQL scripts live in `nextjs-app/sql/` and can be applied in order or via `complete_schema.sql`.

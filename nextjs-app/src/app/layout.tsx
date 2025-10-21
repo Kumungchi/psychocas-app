@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import OfflineToast from '@/components/OfflineToast';
 import { LocaleProvider } from '@/hooks/useLocale';
 import LocaleToggle from '@/components/LocaleToggle';
+import SupabaseSessionBridge from '@/components/SupabaseSessionBridge';
 
 export const metadata: Metadata = {
   title: "Psychočas - Členská aplikace",
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="msapplication-tap-highlight" content="no" />
       </head>
       <body>
+        <SupabaseSessionBridge />
         <LocaleProvider>
           <LocaleToggle />
           {children}

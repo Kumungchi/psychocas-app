@@ -1,11 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-function code(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const pick = (n: number) => 
-    Array.from({ length: n }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-  return `${pick(4)}-${pick(4)}`;
-}
+import { generateTokenCode } from "../_shared/token.ts";
 
 Deno.serve(async (req) => {
   const supabase = createClient(
@@ -14,18 +8,21 @@ Deno.serve(async (req) => {
     { global: { headers: { Authorization: req.headers.get("Authorization")! } } }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: sessionData } = await supabase.auth.getSession();
+  const user = sessionData?.session?.user ?? null;
   if (!user) return new Response("Unauthorized", { status: 401 });
 
-  const { data: me } = await supabase
-    .from("members")
-    .select("membership_active")
+  await supabase.rpc("ensure_membership").catch(() => undefined);
+
+  const { data: membership } = await supabase
+    .from("memberships")
+    .select("membership_active, status")
     .eq("user_id", user.id)
-    .single();
-    
-  if (!me?.membership_active) {
+    .maybeSingle();
+
+  if (!membership?.membership_active || membership.status !== "active") {
     return new Response(
-      JSON.stringify({ error: "membership_inactive" }), 
+      JSON.stringify({ error: "membership_inactive" }),
       { status: 403 }
     );
   }
@@ -34,7 +31,7 @@ Deno.serve(async (req) => {
   const { data, error } = await supabase
     .from("tokens")
     .insert({ 
-      code: code(), 
+      code: generateTokenCode(),
       user_id: user.id, 
       expires_at: expiresAt 
     })

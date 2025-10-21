@@ -61,7 +61,7 @@ export default function ProfileDrawer({ member, open, onClose, onUpdated }: Prof
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const canEditProfile = Boolean(member && member.origin !== 'trusted_users' && member.email);
+  const canEditProfile = Boolean(member && member.origin !== 'demo');
 
   useEffect(() => {
     setForm({
@@ -74,41 +74,76 @@ export default function ProfileDrawer({ member, open, onClose, onUpdated }: Prof
   }, [member, open]);
 
   const handleSave = async () => {
-    if (!canEditProfile || !member?.email) {
+    if (!member) {
+      return;
+    }
+
+    if (!canEditProfile) {
       return;
     }
 
     setSaving(true);
     setError(null);
 
-    const { data, error: updateError } = await supabase
-      .from('members')
-      .update({
-        full_name: form.full_name.trim() || null,
-        phone: form.phone?.trim() || null,
-        branch_id: form.branch_id ?? null,
-      })
-      .eq('email', member.email)
-      .select(
-        `user_id, membership_active, membership_expires, full_name, role, branch_id, email, approved, approved_at,
-         phone, branch:branch_id (id, name, city, location, discount_percentage, active)`
-      )
-      .single();
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      setSaving(false);
+      setError(sessionError.message);
+      return;
+    }
+
+    const userId = sessionData?.session?.user?.id ?? null;
+
+    if (!userId) {
+      setSaving(false);
+      setError('Session missing.');
+      return;
+    }
+
+    const [{ data: profileData, error: profileError }, { data: membershipData, error: membershipError }] = await Promise.all([
+      supabase
+        .from('profiles')
+        .update({
+          full_name: form.full_name.trim() || null,
+          phone: form.phone?.trim() || null,
+        })
+        .eq('id', userId)
+        .select('full_name, email, phone')
+        .maybeSingle(),
+      supabase
+        .from('memberships')
+        .update({
+          branch_id: form.branch_id ?? null,
+        })
+        .eq('user_id', userId)
+        .select(
+          `membership_active, membership_expires, role, status, branch_id, approved_at,
+           branch:branch_id (id, name, city, location, discount_percentage, active)`
+        )
+        .maybeSingle(),
+    ]);
 
     setSaving(false);
 
-    if (updateError) {
-      setError(updateError.message);
+    if (profileError || membershipError) {
+      setError(profileError?.message ?? membershipError?.message ?? 'Aktualizace profilu selhala.');
       return;
     }
 
     setSuccess(true);
     onUpdated({
       ...member,
-      full_name: data?.full_name ?? member.full_name,
-      branch_id: data?.branch_id ?? member.branch_id,
-      branch: normalizeBranch(data?.branch) ?? member.branch,
-      phone: data?.phone ?? member.phone,
+      membership_active: membershipData?.membership_active ?? member.membership_active,
+      membership_expires: membershipData?.membership_expires ?? member.membership_expires,
+      status: (membershipData?.status as MemberData['status']) ?? member.status,
+      role: member.role,
+      branch_id: membershipData?.branch_id ?? member.branch_id,
+      branch: normalizeBranch(membershipData?.branch) ?? member.branch,
+      approved_at: membershipData?.approved_at ?? member.approved_at,
+      full_name: profileData?.full_name ?? member.full_name,
+      email: profileData?.email ?? member.email,
+      phone: profileData?.phone ?? member.phone,
     });
   };
 

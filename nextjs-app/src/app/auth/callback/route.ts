@@ -8,23 +8,20 @@ import {
   normaliseRole,
   isAllowedRedirect,
 } from '@/lib/auth/roleRouting'
+import { isSafeRelativePath, sanitizeRedirect } from '@/lib/navigation/redirect'
+import { resolveLocaleFromHeader } from '@/lib/i18n/detect'
+import { getDictionary } from '@/lib/i18n/strings'
+import { logWarn } from '@/lib/logging'
 
 function createRedirectResponse(url: URL) {
   return NextResponse.redirect(url)
 }
 
-const isSafeRelativePath = (path: string | null): path is string => {
-  if (!path) {
-    return false
-  }
-
-  return path.startsWith('/') && !path.startsWith('//') && !path.includes('://')
-}
-
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
-  const redirectTo = requestUrl.searchParams.get('redirectTo') ?? '/home'
-  const redirectUrl = new URL(redirectTo, requestUrl.origin)
+  const redirectParam = requestUrl.searchParams.get('redirectTo')
+  const sanitizedRedirect = sanitizeRedirect(redirectParam)
+  const redirectUrl = new URL(sanitizedRedirect, requestUrl.origin)
   const loginUrl = new URL('/login', requestUrl.origin)
   const cookieStore = await cookies()
 
@@ -41,9 +38,8 @@ export async function GET(request: Request) {
     if (message) {
       errorUrl.searchParams.set('message', message)
     }
-    const redirectParam = requestUrl.searchParams.get('redirectTo')
     if (redirectParam) {
-      errorUrl.searchParams.set('redirectTo', redirectParam)
+      errorUrl.searchParams.set('redirectTo', sanitizedRedirect)
     }
     return NextResponse.redirect(errorUrl)
   }
@@ -92,21 +88,43 @@ export async function GET(request: Request) {
       return handleAuthError('callback_failed', error.message)
     }
 
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user ?? null
 
     let member: MemberSummary | null = null
     if (user) {
-      const { data } = await supabase
-        .from('members')
-        .select('role, email')
-        .eq('user_id', user.id)
-        .single<MemberSummary>()
-      member = data ?? null
+      try {
+        const { error: ensureError } = await supabase.rpc('ensure_membership')
+        if (ensureError) {
+          logWarn('auth-callback', 'ensure_membership RPC failed.', ensureError)
+        }
+      } catch (rpcError) {
+        logWarn('auth-callback', 'ensure_membership RPC threw.', rpcError)
+      }
+      const [{ data: membership }, { data: profile }] = await Promise.all([
+        supabase
+          .from('memberships')
+          .select('role, status')
+          .eq('user_id', user.id)
+          .maybeSingle<{ role: string | null; status: string | null }>(),
+        supabase
+          .from('profiles')
+          .select('email')
+          .eq('id', user.id)
+          .maybeSingle<{ email: string | null }>(),
+      ])
+
+      if (membership) {
+        member = {
+          role: (membership.role ?? 'member') as MemberSummary['role'],
+          email: profile?.email ?? user.email ?? null,
+        }
+      }
     }
 
     const effectiveRole = normaliseRole(member)
-    const requestedRedirect = isSafeRelativePath(redirectTo)
-      ? redirectTo
+    const requestedRedirect = redirectParam && isSafeRelativePath(redirectParam)
+      ? redirectParam
       : null
 
     const finalRedirect = requestedRedirect && isAllowedRedirect(requestedRedirect, effectiveRole)
@@ -118,16 +136,32 @@ export async function GET(request: Request) {
     return response
   }
 
-  const safeRedirect = JSON.stringify(redirectTo)
+  const safeRedirect = JSON.stringify(sanitizedRedirect)
   const callbackPath = JSON.stringify(requestUrl.pathname)
+
+  const locale = resolveLocaleFromHeader(request.headers.get('accept-language'))
+  const dictionary = getDictionary(locale)
+  const callbackSection = (dictionary as Record<string, unknown>).callback
+  const fallbackSection =
+    callbackSection && typeof callbackSection === 'object'
+      ? (callbackSection as Record<string, unknown>).fallback
+      : undefined
+  const fallbackCopy =
+    fallbackSection && typeof fallbackSection === 'object'
+      ? (fallbackSection as { title?: unknown; heading?: unknown; wait?: unknown })
+      : {}
+
+  const title = typeof fallbackCopy.title === 'string' ? fallbackCopy.title : 'Přihlašování...'
+  const heading = typeof fallbackCopy.heading === 'string' ? fallbackCopy.heading : 'Přihlašuji vás do aplikace...'
+  const wait = typeof fallbackCopy.wait === 'string' ? fallbackCopy.wait : 'Prosím čekejte'
 
   return new NextResponse(
     `<!DOCTYPE html>
-    <html lang="cs">
+    <html lang="${locale}">
       <head>
         <meta charset="utf-8" />
         <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-        <title>Přihlašování...</title>
+        <title>${title}</title>
         <style>
           body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
@@ -160,8 +194,8 @@ export async function GET(request: Request) {
       <body>
         <div class="container">
           <div class="spinner"></div>
-          <h2>Přihlašuji vás do aplikace...</h2>
-          <p>Prosím čekejte</p>
+          <h2>${heading}</h2>
+          <p>${wait}</p>
         </div>
         <script>
           (function () {
@@ -195,7 +229,7 @@ export async function GET(request: Request) {
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'Content-Language': 'cs',
+        'Content-Language': locale,
         'Cache-Control': 'no-store, max-age=0',
       },
     }

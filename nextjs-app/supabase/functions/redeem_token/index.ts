@@ -24,16 +24,19 @@ Deno.serve(async (req) => {
     } 
   });
 
-  const { data: { user } } = await userClient.auth.getUser();
+  const { data: sessionData } = await userClient.auth.getSession();
+  const user = sessionData?.session?.user ?? null;
   if (!user) return new Response("Unauthorized", { status: 401 });
 
+  await userClient.rpc("ensure_membership").catch(() => undefined);
+
   const { data: manager } = await userClient
-    .from("members")
-    .select("role, branch_id")
+    .from("memberships")
+    .select("role, branch_id, status")
     .eq("user_id", user.id)
-    .single();
-    
-  if (manager?.role !== "manager") {
+    .maybeSingle();
+
+  if (manager?.role !== "manager" || manager.status !== "active") {
     return new Response(
       JSON.stringify({ error: "forbidden" }), 
       { status: 403 }
@@ -61,12 +64,12 @@ Deno.serve(async (req) => {
   }
 
   const { data: owner } = await svc
-    .from("members")
-    .select("membership_active")
+    .from("memberships")
+    .select("membership_active, status")
     .eq("user_id", tok.user_id)
-    .single();
-    
-  if (!owner?.membership_active) {
+    .maybeSingle();
+
+  if (!owner?.membership_active || owner.status !== "active") {
     return new Response(
       JSON.stringify({ valid: false, reason: "inactive_membership" }), 
       { status: 200 }

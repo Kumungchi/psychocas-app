@@ -1,5 +1,7 @@
 export type MemberRole = 'member' | 'manager' | 'council' | 'technician';
 
+export type MembershipStatus = 'pending' | 'active' | 'suspended' | 'revoked';
+
 export interface BranchInfo {
   id: string;
   name: string | null;
@@ -9,34 +11,26 @@ export interface BranchInfo {
   active?: boolean | null;
 }
 
-export interface MemberRow {
+export interface MembershipRow {
   membership_active: boolean;
   membership_expires: string | null;
-  full_name: string | null;
   role: string | null;
+  status: string | null;
   branch_id: string | null;
-  email?: string | null;
-  approved?: boolean | null;
   approved_at?: string | null;
-  phone?: string | null;
   branch?: BranchInfo | BranchInfo[] | null;
 }
 
-export interface TrustedUserRow {
-  email?: string | null;
-  first_name?: string | null;
-  last_name?: string | null;
-  role?: string | null;
-  branch_id?: string | null;
-  branch?: BranchInfo | BranchInfo[] | null;
-  approved_at?: string | null;
-  access_expires_at?: string | null;
-  membership_active?: boolean | null;
+export interface MembershipProfileRow {
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
 }
 
 export interface MemberData {
   membership_active: boolean;
   membership_expires: string | null;
+  status: MembershipStatus;
   full_name: string | null;
   role: MemberRole;
   branch_id: string | null;
@@ -45,8 +39,7 @@ export interface MemberData {
   approved_at?: string | null;
   phone?: string | null;
   branch?: BranchInfo | null;
-  origin?: 'members' | 'trusted_users';
-  trusted_access_expires_at?: string | null;
+  origin?: 'memberships' | 'demo';
 }
 
 export interface TokenData {
