@@ -1,12 +1,14 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
+import clsx from 'clsx';
 import { supabase } from '@/lib/supabaseClient';
 import { logError } from '@/lib/logging';
 import { useRouter, useSearchParams } from 'next/navigation';
 import useLocale from '@/hooks/useLocale';
 import { sanitizeRedirect } from '@/lib/navigation/redirect';
 import { computeStandaloneMode } from '@/lib/pwa/displayMode';
+import { MailCheck, Sparkles, WifiOff } from 'lucide-react';
 
 type MessageState = {
   type: 'success' | 'error' | 'info';
@@ -202,221 +204,184 @@ function LoginContent() {
   const instructionsId = emailSent ? 'login-instructions' : undefined;
   const messageId = message ? 'login-status-message' : undefined;
   const describedBy = [instructionsId, messageId].filter(Boolean).join(' ') || undefined;
+  const messageToneClass = message
+    ? message.type === 'success'
+      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+      : message.type === 'error'
+        ? 'border-rose-200 bg-rose-50 text-rose-700'
+        : 'border-sky-200 bg-sky-50 text-sky-700'
+    : '';
 
   return (
     <main
-      className="psychocas-section flex min-h-screen items-center justify-center px-4 py-8 sm:px-6"
+      className="psychocas-section flex min-h-screen items-center justify-center px-4 py-10 sm:px-6"
       aria-busy={isLoading}
     >
-      <div className="psychocas-container fade-in-up w-full max-w-2xl">
-        <div className="psychocas-card auth-card text-center">
-          {/* Logo */}
-          <div className="mb-6 flex justify-center sm:mb-8">
-            <svg
-              width="100"
-              height="100"
-              viewBox="-60 -60 120 120"
-              xmlns="http://www.w3.org/2000/svg"
-              aria-hidden
-            >
-              <defs>
-                <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" style={{ stopColor: '#1d4f7d', stopOpacity: 1 }} />
-                  <stop offset="100%" style={{ stopColor: '#049edb', stopOpacity: 1 }} />
-                </linearGradient>
-              </defs>
-              <circle cx="0" cy="0" r="55" fill="url(#logoGradient)" />
-              <circle cx="0" cy="0" r="50" fill="none" stroke="white" strokeWidth={6}/>
-              <line x1="0" y1="0" x2="-15" y2="-25" stroke="white" strokeWidth={5} strokeLinecap="round"/>
-              <line x1="0" y1="0" x2="25" y2="-15" stroke="white" strokeWidth={4} strokeLinecap="round"/>
-              <circle cx="0" cy="0" r="6" fill="white"/>
-              <circle cx="0" cy="-40" r="4" fill="white"/>
-              <circle cx="40" cy="0" r="4" fill="white"/>
-              <circle cx="0" cy="40" r="4" fill="white"/>
-              <circle cx="-40" cy="0" r="4" fill="white"/>
-            </svg>
-          </div>
-          {/* Welcome Section */}
-          <div className="mb-10 space-y-3 sm:mb-12">
-            <h1 className="mb-1 text-3xl font-semibold sm:text-[2rem]" style={{ color: '#1d4f7d' }}>
-              {t('login.title')}
-            </h1>
-            <p className="auth-card__subtitle">
-              {emailSent ? t('login.subtitleSent') : t('login.subtitlePrompt')}
-            </p>
-          </div>
-
-          {isStandalone && (
-            <aside
-              className="mb-8 text-left"
-              role="status"
-              aria-live="polite"
-              aria-atomic="true"
-              style={{
-                backgroundColor: '#eef4ff',
-                borderRadius: '1rem',
-                border: '1px dashed #8ea6ff',
-                color: '#1d4f7d',
-                padding: '1.25rem',
-              }}
-            >
-              <p className="text-sm font-semibold">{t('login.pwaBanner.title')}</p>
-              <p className="mt-2 text-sm">{t('login.pwaBanner.description')}</p>
-              <p className="mt-3 text-xs" style={{ color: '#405089' }}>
-                {t('login.pwaBanner.retryHint')}
+      <div className="psychocas-container fade-in-up w-full">
+        <div className="login-grid">
+          <section className="login-hero space-y-6">
+            <span className="stat-pill stat-pill--info w-fit text-sm">
+              <Sparkles className="h-4 w-4" />
+              Psychočas
+            </span>
+            <div className="space-y-3">
+              <h1 className="text-3xl font-semibold text-slate-900 lg:text-[2.4rem]">{t('login.title')}</h1>
+              <p className="text-base text-slate-600 lg:text-lg">{t('login.subtitlePrompt')}</p>
+            </div>
+            <div className="login-illustration">🧠</div>
+            <div className="space-y-2">
+              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                {t('login.instructionsTitle')}
               </p>
-            </aside>
-          )}
+              <ul className="login-list">
+                <li>{t('login.instructionsSteps.first')}</li>
+                <li>{t('login.instructionsSteps.second')}</li>
+                <li>{t('login.instructionsSteps.third')}</li>
+                <li>{t('login.instructionsSteps.fourth')}</li>
+              </ul>
+            </div>
+          </section>
 
-          {/* Email Form - Show when email not sent yet */}
-          {!emailSent && (
-            <form
-              onSubmit={handleSendMagicLink}
-              className="space-y-8"
-              aria-describedby={instructionsId}
-              aria-busy={isLoading}
-            >
-              <div className="space-y-3 text-left">
-                <label htmlFor="email" style={{ color: '#333333' }}>
-                  {t('login.emailLabel')}
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => handleEmailChange(e.target.value)}
-                  className="psychocas-input"
-                  placeholder={t('login.emailPlaceholder')}
-                  required
-                  disabled={isLoading}
-                  autoFocus
-                  inputMode="email"
-                  autoComplete="email"
-                  autoCapitalize="none"
-                  enterKeyHint="send"
-                  spellCheck={false}
-                  aria-describedby={describedBy}
-                  aria-invalid={message?.type === 'error' ? true : undefined}
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="psychocas-button-primary"
-                disabled={isLoading || !email}
-              >
-                {isLoading ? t('login.sendLinkLoading') : t('login.sendLink')}
-              </button>
-            </form>
-          )}
-
-          {/* Success State - Show after email sent */}
-          {emailSent && (
-            <div className="space-y-6 text-left sm:text-center">
-              {/* Email Icon/Illustration */}
-              <div className="mb-6 flex justify-center">
-                <div style={{
-                  width: '80px',
-                  height: '80px',
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #1d4f7d 0%, #049edb 100%)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '40px'
-                }}>
-                  ✉️
+          <div className="psychocas-card auth-card login-card text-left" aria-live="polite">
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#1d4f7d] to-[#049edb] text-xl font-semibold text-white">
+                  Ψ
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Psychočas ID</p>
+                  <h2 className="text-2xl font-semibold text-slate-900">
+                    {emailSent ? t('login.successTitle') : t('login.title')}
+                  </h2>
                 </div>
               </div>
+              <p className="auth-card__subtitle text-slate-500">
+                {emailSent ? t('login.subtitleSent') : t('login.subtitlePrompt')}
+              </p>
+            </div>
 
-              {/* Success Message */}
-              <div className="space-y-3">
-                <h2 className="text-2xl font-bold sm:text-[1.7rem]" style={{ color: '#333333' }}>
-                  {t('login.successTitle')}
-                </h2>
-                <p className="auth-card__message">
-                  {t('login.successDescription')}
-                  <br />
-                  <strong style={{ color: '#333333' }}>{email}</strong>
-                </p>
-              </div>
-
-              {/* Instructions */}
-              <div
-                id={instructionsId}
-                className="rounded-2xl p-5 sm:p-6"
-                style={{
-                  backgroundColor: '#f0f9ff',
-                  borderLeft: '4px solid #049edb'
-                }}
+            {isStandalone && (
+              <aside
+                className="home-alert mt-4 text-left text-sm"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
               >
-                <p className="mb-3 text-sm font-semibold" style={{ color: '#333333' }}>
-                  {t('login.instructionsTitle')}
-                </p>
-                <ol className="space-y-2 text-sm" style={{ color: '#666666', paddingLeft: '20px' }}>
-                  <li>{t('login.instructionsSteps.first')}</li>
-                  <li>{t('login.instructionsSteps.second')}</li>
-                  <li>{t('login.instructionsSteps.third')}</li>
-                  <li>{t('login.instructionsSteps.fourth')}</li>
-                </ol>
-              </div>
+                <div className="home-alert__icon">
+                  <WifiOff className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="font-semibold">{t('login.pwaBanner.title')}</p>
+                  <p className="mt-1 text-sm">{t('login.pwaBanner.description')}</p>
+                  <p className="mt-2 text-xs text-slate-500">{t('login.pwaBanner.retryHint')}</p>
+                </div>
+              </aside>
+            )}
 
-              {/* Expiration Warning */}
-              <div className="rounded-xl p-4" style={{
-                backgroundColor: '#fff3cd',
-                borderLeft: '4px solid #f57c00'
-              }}>
-                <p className="text-sm" style={{ color: '#856404' }}>{t('login.expirationNotice')}</p>
-              </div>
+            {!emailSent ? (
+              <form
+                onSubmit={handleSendMagicLink}
+                className="mt-6 space-y-6"
+                aria-describedby={instructionsId}
+                aria-busy={isLoading}
+              >
+                <div className="space-y-3">
+                  <label htmlFor="email" className="text-sm font-medium text-slate-600">
+                    {t('login.emailLabel')}
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => handleEmailChange(e.target.value)}
+                    className="psychocas-input"
+                    placeholder={t('login.emailPlaceholder')}
+                    required
+                    disabled={isLoading}
+                    autoFocus
+                    inputMode="email"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    enterKeyHint="send"
+                    spellCheck={false}
+                    aria-describedby={describedBy}
+                    aria-invalid={message?.type === 'error' ? true : undefined}
+                  />
+                </div>
 
-              {/* Resend Button */}
-              <div className="pt-4">
                 <button
-                  type="button"
-                  onClick={handleResend}
-                  disabled={isLoading}
-                  className="psychocas-button-secondary"
+                  type="submit"
+                  className="psychocas-button-primary"
+                  disabled={isLoading || !email}
                 >
-                  {t('login.resendButton')}
+                  {isLoading ? t('login.sendLinkLoading') : t('login.sendLink')}
                 </button>
+              </form>
+            ) : (
+              <div className="mt-6 space-y-6 text-left sm:text-center">
+                <div className="flex justify-center">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-[#1d4f7d] to-[#049edb] text-white">
+                    <MailCheck className="h-9 w-9" />
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="auth-card__message text-center text-base text-slate-600">
+                    {t('login.successDescription')} <br />
+                    <strong className="text-slate-900">{email}</strong>
+                  </p>
+                </div>
+
+                <div
+                  id={instructionsId}
+                  className="rounded-2xl border border-sky-100 bg-sky-50/70 p-5 text-left sm:text-center"
+                >
+                  <p className="mb-3 text-sm font-semibold text-slate-700">
+                    {t('login.instructionsTitle')}
+                  </p>
+                  <ol className="list-decimal space-y-2 text-sm text-slate-600 sm:list-none sm:space-y-1 sm:px-0">
+                    <li>{t('login.instructionsSteps.first')}</li>
+                    <li>{t('login.instructionsSteps.second')}</li>
+                    <li>{t('login.instructionsSteps.third')}</li>
+                    <li>{t('login.instructionsSteps.fourth')}</li>
+                  </ol>
+                </div>
+
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-700">
+                  {t('login.expirationNotice')}
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={isLoading}
+                    className="psychocas-button-secondary"
+                  >
+                    {t('login.resendButton')}
+                  </button>
+                </div>
+
+                <p className="text-sm text-slate-500">{t('login.helpText')}</p>
               </div>
+            )}
 
-              {/* Help Text */}
-              <p className="pt-4 text-sm" style={{ color: '#999999' }}>{t('login.helpText')}</p>
-            </div>
-          )}
-
-          {/* Message Display */}
-          {message && (
-            <div
-              id={messageId}
-              className={`mt-6 rounded-xl p-4 text-sm ${
-                message.type === 'success'
-                  ? 'status-active'
-                  : message.type === 'error'
-                    ? 'status-inactive'
-                    : ''
-              }`}
-              role={message.type === 'error' ? 'alert' : 'status'}
-              aria-live={message.type === 'error' ? 'assertive' : 'polite'}
-              aria-atomic="true"
-              style={
-                message.type === 'info'
-                  ? {
-                      backgroundColor: '#e8f1ff',
-                      border: '1px solid #bcd0ff',
-                      color: '#1d4f7d',
-                    }
-                  : undefined
-              }
-            >
-              {message.translationKey
-                ? message.params
-                  ? formatMessage(message.translationKey, message.params)
-                  : t(message.translationKey)
-                : message.text}
-            </div>
-          )}
+            {message && (
+              <div
+                id={messageId}
+                className={clsx('mt-6 rounded-2xl border px-4 py-3 text-sm shadow-sm', messageToneClass)}
+                role={message.type === 'error' ? 'alert' : 'status'}
+                aria-live={message.type === 'error' ? 'assertive' : 'polite'}
+                aria-atomic="true"
+              >
+                {message.translationKey
+                  ? message.params
+                    ? formatMessage(message.translationKey, message.params)
+                    : t(message.translationKey)
+                  : message.text}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </main>

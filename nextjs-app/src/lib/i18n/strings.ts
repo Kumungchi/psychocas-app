@@ -137,11 +137,6 @@ export const dictionaries: LocaleDictionaries = {
         dismissed: 'Instalace byla zrušena. Zkuste to prosím znovu později.',
         failed: 'Instalaci se nepodařilo spustit. Zkuste to prosím znovu.',
       },
-      pendingApproval: {
-        title: 'Čeká na schválení',
-        description:
-          'Vaše přihláška je v procesu ověření. Jakmile vás tým Psychočas schválí, zpřístupní se všechny členské výhody.',
-      },
       membershipCard: {
         heading: 'Digitální členská karta',
         description: 'Prokažte se kódem u partnerských podniků Psychočas. Kód je platný 3 minuty.',
@@ -154,14 +149,11 @@ export const dictionaries: LocaleDictionaries = {
         generateRefresh: 'Obnovit kód',
         generateCreate: 'Vygenerovat kód',
         showQr: 'Zobrazit QR',
-        pendingApproval: 'Kód bude dostupný ihned po schválení členství.',
         requireActive: 'Pro generování kódu je potřeba mít aktivní členství.',
       },
       partners: {
         heading: 'Partnerské podniky',
         description: 'Vyberte si z celostátních i lokálních partnerů a čerpejte členské slevy.',
-        approvalsPending:
-          'Jakmile bude vaše členství schváleno, zobrazí se zde celostátní i lokální nabídky vašeho regionu.',
         national: 'Celorepublikové výhody',
         local: 'Lokální partneři{location}',
         branchLabel: 'Pobočka',
@@ -428,14 +420,8 @@ export const dictionaries: LocaleDictionaries = {
         demoNotice: 'Ukázkový režim: změny se neukládají.',
       },
       members: {
-        pendingTitle: 'Čekající schválení ({count})',
-        pendingEmpty: 'Žádní členové nečekají na schválení.',
-        approve: 'Schválit',
-        reject: 'Zamítnout',
-        listTitle: 'Schválení členové ({count})',
-        listEmpty: 'Žádní schválení členové.',
-        approveSuccess: 'Člen byl schválen.',
-        approveError: 'Schválení selhalo: {message}',
+        listTitle: 'Členové ({count})',
+        listEmpty: 'Žádní členové.',
       },
       trusted: {
         formTitle: 'Přidat dočasný přístup',
@@ -629,11 +615,6 @@ export const dictionaries: LocaleDictionaries = {
         dismissed: 'The installation was dismissed. Please try again later.',
         failed: 'Could not start the installation. Please try again.',
       },
-      pendingApproval: {
-        title: 'Awaiting approval',
-        description:
-          'Your application is being reviewed. Once the Psychočas team approves it, all membership benefits will unlock.',
-      },
       membershipCard: {
         heading: 'Digital membership card',
         description: 'Show this code when visiting Psychočas partners. The code remains valid for 3 minutes.',
@@ -646,14 +627,11 @@ export const dictionaries: LocaleDictionaries = {
         generateRefresh: 'Refresh code',
         generateCreate: 'Generate code',
         showQr: 'Show QR',
-        pendingApproval: 'The code will be available as soon as your membership is approved.',
         requireActive: 'You need an active membership to generate a code.',
       },
       partners: {
         heading: 'Partner businesses',
         description: 'Choose from nationwide and local partners to enjoy member discounts.',
-        approvalsPending:
-          'Once your membership is approved, nationwide and local offers for your region will appear here.',
         national: 'Nationwide offers',
         local: 'Local partners{location}',
         branchLabel: 'Branch',
@@ -918,14 +896,8 @@ export const dictionaries: LocaleDictionaries = {
         demoNotice: 'Demo mode: changes are not persisted.',
       },
       members: {
-        pendingTitle: 'Pending approvals ({count})',
-        pendingEmpty: 'No members are waiting for approval.',
-        approve: 'Approve',
-        reject: 'Reject',
-        listTitle: 'Approved members ({count})',
-        listEmpty: 'No approved members.',
-        approveSuccess: 'Member approved.',
-        approveError: 'Approval failed: {message}',
+        listTitle: 'Members ({count})',
+        listEmpty: 'No members found.',
       },
       trusted: {
         formTitle: 'Add temporary access',

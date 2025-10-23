@@ -5,18 +5,7 @@ import Navigation from '@/components/Navigation';
 import useMemberContext from '@/hooks/useMemberContext';
 import useLocale from '@/hooks/useLocale';
 import { supabase } from '@/lib/supabaseClient';
-import {
-  Users,
-  UserCheck,
-  UserX,
-  Mail,
-  Phone,
-  MapPin,
-  RefreshCcw,
-  ToggleRight,
-  Tag,
-  Trash2,
-} from 'lucide-react';
+import { Users, Mail, MapPin, RefreshCcw, ToggleRight, Tag, Trash2 } from 'lucide-react';
 import type { PartnerOfferFormErrors, PartnerOfferFormState, PartnerOfferRecord, PartnerScope } from '@/lib/partners';
 import { preparePartnerOfferPayload } from '@/lib/partners';
 import type { MemberRole } from '@/types/member';
@@ -31,7 +20,6 @@ interface AdminMember {
   membership_expires: string | null;
   approved: boolean;
   approved_at: string | null;
-  phone: string | null;
 }
 
 interface BranchRow {
@@ -54,21 +42,6 @@ const demoMembers: AdminMember[] = [
     membership_expires: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
     approved: true,
     approved_at: new Date().toISOString(),
-    phone: '+420123456789',
-  },
-];
-
-const demoPendingMembers: AdminMember[] = [
-  {
-    user_id: 'demo-2',
-    email: 'pending@psychocas.cz',
-    full_name: 'Čekající Člen',
-    role: 'member',
-    membership_active: false,
-    membership_expires: null,
-    approved: false,
-    approved_at: null,
-    phone: null,
   },
 ];
 
@@ -110,7 +83,6 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>('members');
 
   const [members, setMembers] = useState<AdminMember[]>([]);
-  const [pendingMembers, setPendingMembers] = useState<AdminMember[]>([]);
   const [branches, setBranches] = useState<BranchRow[]>([]);
   const [partnerOffers, setPartnerOffers] = useState<PartnerOfferRecord[]>([]);
 
@@ -135,13 +107,12 @@ export default function AdminPage() {
   const loadMembers = useCallback(async () => {
     if (isDemo) {
       setMembers(demoMembers);
-      setPendingMembers(demoPendingMembers);
       return;
     }
 
     const { data } = await supabase
       .from('memberships')
-      .select('user_id, email, full_name, role, membership_active, membership_expires, approved, approved_at, phone')
+      .select('user_id, email, full_name, role, membership_active, membership_expires, approved, approved_at')
       .order('created_at', { ascending: false });
 
     if (data) {
@@ -149,8 +120,7 @@ export default function AdminPage() {
         ...entry,
         role: (entry.role ?? 'member') as MemberRole,
       }));
-      setMembers(normalized.filter((item) => item.approved));
-      setPendingMembers(normalized.filter((item) => !item.approved));
+      setMembers(normalized);
     }
   }, [isDemo]);
 
@@ -196,36 +166,6 @@ export default function AdminPage() {
 
     void Promise.all([loadMembers(), loadBranches(), loadPartnerOffers()]);
   }, [canAccess, loadBranches, loadMembers, loadPartnerOffers, status]);
-
-  const approveMember = useCallback(
-    async (memberId: string) => {
-      if (isDemo) {
-        setMessage({ type: 'success', text: t('admin.members.approveSuccess') });
-        return;
-      }
-
-      if (!user) {
-        setMessage({ type: 'error', text: formatMessage('admin.messages.error', { message: 'missing-user' }) });
-        return;
-      }
-
-      const { error: approveError } = await supabase.rpc('approve_member', {
-        member_user_id: memberId,
-        approver_user_id: user.id,
-      });
-
-      if (approveError) {
-        setMessage({
-          type: 'error',
-          text: formatMessage('admin.members.approveError', { message: approveError.message }),
-        });
-      } else {
-        setMessage({ type: 'success', text: t('admin.members.approveSuccess') });
-        await loadMembers();
-      }
-    },
-    [isDemo, loadMembers, t, formatMessage, user]
-  );
 
   const handleAddBranch = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
@@ -395,7 +335,6 @@ export default function AdminPage() {
     [formatMessage, isDemo, loadPartnerOffers, t]
   );
 
-  const pendingTitle = formatMessage('admin.members.pendingTitle', { count: pendingMembers.length });
   const approvedTitle = formatMessage('admin.members.listTitle', { count: members.length });
   const branchesTitle = formatMessage('admin.branches.listTitle', { count: branches.length });
   const partnersTitle = formatMessage('admin.partners.listTitle', { count: partnerOffers.length });
@@ -492,41 +431,8 @@ export default function AdminPage() {
             <div className="psychocas-card space-y-4">
               <div className="flex items-center gap-2">
                 <Users className="h-5 w-5" style={{ color: colors.brandPrimary }} />
-                <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>{pendingTitle}</h2>
+                <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>{approvedTitle}</h2>
               </div>
-              {pendingMembers.length === 0 ? (
-                <p style={{ color: colors.textSecondary }}>{t('admin.members.pendingEmpty')}</p>
-              ) : (
-                <div className="space-y-3">
-                  {pendingMembers.map((item) => (
-                    <div key={item.user_id} className="rounded-lg border p-4" style={{ borderColor: colors.border }}>
-                      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                        <div style={{ color: colors.textPrimary }}>
-                          <div className="font-medium">{item.full_name ?? item.email}</div>
-                          <div className="text-sm" style={{ color: colors.textSecondary }}>{item.email}</div>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => void approveMember(item.user_id)}
-                            className="psychocas-button-primary flex items-center gap-2"
-                          >
-                            <UserCheck className="h-4 w-4" />
-                            {t('admin.members.approve')}
-                          </button>
-                          <button className="psychocas-button-secondary flex items-center gap-2" disabled>
-                            <UserX className="h-4 w-4" />
-                            {t('admin.members.reject')}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="psychocas-card space-y-3">
-              <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>{approvedTitle}</h2>
               {members.length === 0 ? (
                 <p style={{ color: colors.textSecondary }}>{t('admin.members.listEmpty')}</p>
               ) : (
@@ -541,12 +447,6 @@ export default function AdminPage() {
                           <Mail className="mr-1 inline h-4 w-4" />
                           {item.email}
                         </div>
-                        {item.phone && (
-                          <div className="text-sm" style={{ color: colors.textSecondary }}>
-                            <Phone className="mr-1 inline h-4 w-4" />
-                            {item.phone}
-                          </div>
-                        )}
                         {item.membership_expires && (
                           <div className="text-sm" style={{ color: colors.textSecondary }}>
                             <MapPin className="mr-1 inline h-4 w-4" />

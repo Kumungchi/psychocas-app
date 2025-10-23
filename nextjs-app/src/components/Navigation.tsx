@@ -2,6 +2,8 @@
 
 import { useRouter, usePathname } from 'next/navigation';
 import { Home, QrCode, BarChart3, Settings, LogOut, type LucideIcon } from 'lucide-react';
+import type { CSSProperties } from 'react';
+import clsx from 'clsx';
 import { supabase } from '@/lib/supabaseClient';
 import { colors, radii, spacing, typography } from '@/ui/theme';
 import useLocale from '@/hooks/useLocale';
@@ -18,27 +20,29 @@ interface MenuItem {
   roles: MemberRole[];
 }
 
-const containerStyle: React.CSSProperties = {
+const containerStyle: CSSProperties = {
   position: 'fixed',
-  bottom: 0,
-  left: 0,
-  right: 0,
-  backgroundColor: colors.background,
-  borderTop: `1px solid ${colors.border}`,
-  padding: `${spacing.sm} ${spacing.lg}`,
+  bottom: 'clamp(1rem, 3vw, 1.75rem)',
+  left: '50%',
+  transform: 'translateX(-50%)',
+  backgroundColor: 'rgba(255, 255, 255, 0.92)',
+  border: `1px solid ${colors.border}`,
+  padding: '0.65rem 1.5rem',
   maxWidth: '480px',
-  margin: '0 auto',
+  width: 'min(100%, 480px)',
   zIndex: 50,
-  boxShadow: '0 -6px 24px rgba(15, 23, 42, 0.08)',
+  borderRadius: '28px',
+  boxShadow: '0 32px 70px -38px rgba(15, 23, 42, 0.45)',
+  backdropFilter: 'blur(18px)',
 };
 
-const itemStyle: React.CSSProperties = {
+const itemStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
   gap: spacing.xs,
-  padding: spacing.sm,
-  borderRadius: radii.md,
+  padding: `${spacing.xs} ${spacing.sm}`,
+  borderRadius: radii.lg,
   transition: 'all 0.2s ease-in-out',
   fontFamily: typography.body,
 };
@@ -78,9 +82,15 @@ export default function Navigation({ userRole }: NavigationProps) {
               style={{
                 ...itemStyle,
                 color: isActive ? colors.brandPrimary : colors.textSecondary,
-                backgroundColor: isActive ? colors.brandSurface : 'transparent',
+                backgroundColor: isActive ? 'rgba(231, 240, 255, 0.9)' : 'transparent',
+                boxShadow: isActive ? '0 18px 32px -20px rgba(30, 64, 175, 0.45)' : 'none',
               }}
-              className="focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+              className={clsx(
+                'flex flex-col items-center gap-1.5 px-3 py-2 text-xs font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-sky-200',
+                isActive
+                  ? 'text-sky-800'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-white/70 hover:-translate-y-0.5',
+              )}
             >
               <Icon size={20} strokeWidth={isActive ? 2.2 : 1.9} />
               <span style={{ fontSize: '0.75rem', fontWeight: isActive ? 700 : 500 }}>{item.label}</span>
@@ -97,7 +107,7 @@ export default function Navigation({ userRole }: NavigationProps) {
             backgroundColor: 'transparent',
             boxShadow: 'none',
           }}
-          className="focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+          className="flex flex-col items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-500 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-rose-200 hover:-translate-y-0.5"
         >
           <LogOut size={20} />
           <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>{t('navigation.logout')}</span>
