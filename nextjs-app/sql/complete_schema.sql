@@ -73,6 +73,18 @@ CREATE TABLE IF NOT EXISTS public.partner_offers (
   updated_at timestamptz DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS public.member_events (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  title text NOT NULL,
+  description text,
+  link_label text,
+  link_url text,
+  created_by uuid REFERENCES public.memberships(user_id) ON DELETE SET NULL,
+  updated_by uuid REFERENCES public.memberships(user_id) ON DELETE SET NULL,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
 -- Tokens table
 CREATE TABLE IF NOT EXISTS public.tokens (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -99,6 +111,7 @@ ALTER TABLE public.redemptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.branches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.partner_offers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.membership_whitelist ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.member_events ENABLE ROW LEVEL SECURITY;
 
 -- 4. RLS POLICIES
 -- ============================================================================
@@ -216,22 +229,66 @@ WITH CHECK (EXISTS (
 
 -- Membership whitelist policies
 CREATE POLICY "staff_manage_membership_whitelist" ON public.membership_whitelist
-FOR ALL USING (EXISTS (
-  SELECT 1 FROM public.memberships me
-  WHERE me.user_id = auth.uid()
-    AND (
-      me.role IN ('technician','council','admin')
-      OR (me.role = 'manager' AND me.email LIKE '%@psychocas.cz')
-    )
-))
-WITH CHECK (EXISTS (
-  SELECT 1 FROM public.memberships me
-  WHERE me.user_id = auth.uid()
-    AND (
-      me.role IN ('technician','council','admin')
-      OR (me.role = 'manager' AND me.email LIKE '%@psychocas.cz')
-    )
-));
+  FOR ALL USING (EXISTS (
+    SELECT 1 FROM public.memberships me
+    WHERE me.user_id = auth.uid()
+      AND (
+        me.role IN ('technician','council','admin')
+        OR (me.role = 'manager' AND me.email LIKE '%@psychocas.cz')
+      )
+  ))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM public.memberships me
+    WHERE me.user_id = auth.uid()
+      AND (
+        me.role IN ('technician','council','admin')
+        OR (me.role = 'manager' AND me.email LIKE '%@psychocas.cz')
+      )
+  ));
+
+CREATE POLICY "members_read_member_events" ON public.member_events
+  FOR SELECT USING (EXISTS (
+    SELECT 1 FROM public.memberships me
+    WHERE me.user_id = auth.uid()
+  ));
+
+CREATE POLICY "staff_insert_member_events" ON public.member_events
+  FOR INSERT WITH CHECK (EXISTS (
+    SELECT 1 FROM public.memberships me
+    WHERE me.user_id = auth.uid()
+      AND (
+        me.role IN ('council','admin')
+        OR (me.role = 'manager' AND me.email LIKE '%@psychocas.cz')
+      )
+  ));
+
+CREATE POLICY "staff_update_member_events" ON public.member_events
+  FOR UPDATE USING (EXISTS (
+    SELECT 1 FROM public.memberships me
+    WHERE me.user_id = auth.uid()
+      AND (
+        me.role IN ('council','admin')
+        OR (me.role = 'manager' AND me.email LIKE '%@psychocas.cz')
+      )
+  ))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM public.memberships me
+    WHERE me.user_id = auth.uid()
+      AND (
+        me.role IN ('council','admin')
+        OR (me.role = 'manager' AND me.email LIKE '%@psychocas.cz')
+      )
+  ));
+
+CREATE POLICY "staff_delete_member_events" ON public.member_events
+  FOR DELETE USING (EXISTS (
+    SELECT 1 FROM public.memberships me
+    WHERE me.user_id = auth.uid()
+      AND (
+        me.role IN ('council','admin')
+        OR (me.role = 'manager' AND me.email LIKE '%@psychocas.cz')
+      )
+  ));
 
 -- 5. TRIGGERS
 -- ============================================================================

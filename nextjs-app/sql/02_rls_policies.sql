@@ -5,6 +5,7 @@ alter table public.redemptions enable row level security;
 alter table public.branches enable row level security;
 alter table public.partner_offers enable row level security;
 alter table public.membership_whitelist enable row level security;
+alter table public.member_events enable row level security;
 
 -- Member policies
 create policy "member_read_self" on public.memberships
@@ -130,6 +131,51 @@ with check (exists (
   where me.user_id = auth.uid()
     and (
       me.role in ('technician','council','admin')
+      or (me.role = 'manager' and me.email like '%@psychocas.cz')
+    )
+));
+
+-- Member events policies
+create policy "members_read_member_events" on public.member_events
+for select using (exists (
+  select 1 from public.memberships me
+  where me.user_id = auth.uid()
+));
+
+create policy "staff_insert_member_events" on public.member_events
+for insert with check (exists (
+  select 1 from public.memberships me
+  where me.user_id = auth.uid()
+    and (
+      me.role in ('council','admin')
+      or (me.role = 'manager' and me.email like '%@psychocas.cz')
+    )
+));
+
+create policy "staff_update_member_events" on public.member_events
+for update using (exists (
+  select 1 from public.memberships me
+  where me.user_id = auth.uid()
+    and (
+      me.role in ('council','admin')
+      or (me.role = 'manager' and me.email like '%@psychocas.cz')
+    )
+))
+with check (exists (
+  select 1 from public.memberships me
+  where me.user_id = auth.uid()
+    and (
+      me.role in ('council','admin')
+      or (me.role = 'manager' and me.email like '%@psychocas.cz')
+    )
+));
+
+create policy "staff_delete_member_events" on public.member_events
+for delete using (exists (
+  select 1 from public.memberships me
+  where me.user_id = auth.uid()
+    and (
+      me.role in ('council','admin')
       or (me.role = 'manager' and me.email like '%@psychocas.cz')
     )
 ));

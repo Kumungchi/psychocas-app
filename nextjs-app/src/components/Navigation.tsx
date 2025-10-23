@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, usePathname } from 'next/navigation';
-import { Home, QrCode, BarChart3, Settings, LogOut, type LucideIcon } from 'lucide-react';
+import { CalendarDays, Home, QrCode, BarChart3, Settings, LogOut, type LucideIcon } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import clsx from 'clsx';
 import { supabase } from '@/lib/supabaseClient';
@@ -59,6 +59,7 @@ export default function Navigation({ userRole }: NavigationProps) {
 
   const menuItems: MenuItem[] = [
     { id: '/home', label: t('navigation.home'), icon: Home, roles: ['member', 'manager', 'council', 'technician', 'admin'] },
+    { id: '/events', label: t('navigation.events'), icon: CalendarDays, roles: ['member', 'manager', 'council', 'technician', 'admin'] },
     { id: '/validate', label: t('navigation.validate'), icon: QrCode, roles: ['manager', 'council', 'admin'] },
     { id: '/stats', label: t('navigation.stats'), icon: BarChart3, roles: ['manager', 'council', 'admin'] },
     { id: '/technician', label: t('navigation.technician'), icon: Settings, roles: ['technician', 'council', 'admin'] },

@@ -62,6 +62,19 @@ create table if not exists public.partner_offers (
   updated_at timestamptz default now()
 );
 
+-- Create member events table for announcements and happenings
+create table if not exists public.member_events (
+  id uuid primary key default uuid_generate_v4(),
+  title text not null,
+  description text,
+  link_label text,
+  link_url text,
+  created_by uuid references public.memberships(user_id) on delete set null,
+  updated_by uuid references public.memberships(user_id) on delete set null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 -- Create tokens table
 create table if not exists public.tokens (
   id uuid primary key default uuid_generate_v4(),
