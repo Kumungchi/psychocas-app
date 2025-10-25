@@ -38,6 +38,19 @@ npm run test   # Vitest unit tests
 npm run build  # Production build
 ```
 
+## Verification
+
+To verify that the production bundle builds cleanly and that the Progressive Web App artifacts are generated correctly, run th
+e following commands from `nextjs-app`:
+
+```bash
+CI=1 npm run build   # Production build with non-interactive logging
+npm run test:vercel  # Rebuilds and checks for required PWA service worker assets
+```
+
+The `test:vercel` script snapshots and restores `public/sw.js` and the generated fallback scripts so that the working tree rema
+ins clean after the check.
+
 ## Deployment
 Use `deploy.sh` (macOS/Linux) or `deploy.bat` (Windows) from the repository root to verify a production build before deploying to Vercel. The scripts install dependencies, compile the app, and remind you about required Supabase environment variables.
 
