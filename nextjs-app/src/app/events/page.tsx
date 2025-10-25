@@ -42,7 +42,7 @@ const defaultFormState: MemberEventFormState = {
 type FeedbackMessage = { type: 'success' | 'error'; text: string };
 
 export default function EventsPage() {
-  const { t } = useLocale();
+  const { t, formatMessage } = useLocale();
   const { status, member, user, error, refresh } = useMemberContext({ scope: 'events-page' });
 
   const memberRole: MemberRole = member?.role ?? 'member';
@@ -124,20 +124,26 @@ export default function EventsPage() {
       const validation = prepareMemberEventPayload(formState);
       setFormErrors(validation.errors);
 
-      if (!validation.payload) {
+      const payload = validation.payload;
+
+      if (!payload) {
         setMessage({ type: 'error', text: t('events.manage.error') });
         return;
       }
 
       if (isDemo) {
-        setEvents((prev) => [
-          {
+        setEvents((prev) => {
+          const demoRecord: MemberEventRecord = {
             id: `demo-event-${prev.length + 1}`,
-            ...validation.payload,
+            title: payload.title,
+            description: payload.description ?? null,
+            link_label: payload.link_label ?? null,
+            link_url: payload.link_url ?? null,
             created_at: new Date().toISOString(),
-          },
-          ...prev,
-        ]);
+          };
+
+          return [demoRecord, ...prev];
+        });
         setFormState(defaultFormState);
         setMessage({ type: 'success', text: t('events.manage.success') });
         return;
@@ -151,7 +157,7 @@ export default function EventsPage() {
       setSaving(true);
       const { error: insertError } = await supabase.from('member_events').insert([
         {
-          ...validation.payload,
+          ...payload,
           created_by: user.id,
           updated_by: user.id,
           updated_at: new Date().toISOString(),
@@ -258,7 +264,7 @@ export default function EventsPage() {
           </div>
         )}
 
-        <Card title={t('events.listTitle', { count: events.length })}>
+        <Card title={formatMessage('events.listTitle', { count: events.length })}>
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-slate-500">
               <Loader2 className="h-4 w-4 animate-spin" />
