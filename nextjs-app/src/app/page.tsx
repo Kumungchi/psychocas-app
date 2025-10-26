@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import useLocale from '@/hooks/useLocale';
+import PsychocasLogo from '@/components/PsychocasLogo';
 
 export default function RootPage() {
   const router = useRouter();
@@ -13,37 +14,33 @@ export default function RootPage() {
   }, [router]);
 
   return (
-    <main className="psychocas-section flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
-      <div className="fade-in-up text-center">
-        <div className="mb-6 flex justify-center sm:mb-8">
-          <svg
-            width="100"
-            height="100"
-            viewBox="-60 -60 120 120"
-            xmlns="http://www.w3.org/2000/svg"
-            aria-hidden
-          >
-            <defs>
-              <linearGradient id="rootLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" style={{ stopColor: '#1d4f7d', stopOpacity: 1 }} />
-                <stop offset="100%" style={{ stopColor: '#049edb', stopOpacity: 1 }} />
-              </linearGradient>
-            </defs>
-            <circle cx="0" cy="0" r="55" fill="url(#rootLogoGradient)" />
-            <circle cx="0" cy="0" r="50" fill="none" stroke="white" strokeWidth={6}/>
-            <line x1="0" y1="0" x2="-15" y2="-25" stroke="white" strokeWidth={5} strokeLinecap="round"/>
-            <line x1="0" y1="0" x2="25" y2="-15" stroke="white" strokeWidth={4} strokeLinecap="round"/>
-            <circle cx="0" cy="0" r="6" fill="white"/>
-            <circle cx="0" cy="-40" r="4" fill="white"/>
-            <circle cx="40" cy="0" r="4" fill="white"/>
-            <circle cx="0" cy="40" r="4" fill="white"/>
-            <circle cx="-40" cy="0" r="4" fill="white"/>
-          </svg>
-        </div>
-        <h1 className="mb-2 text-3xl font-semibold sm:text-[2rem]" style={{ color: '#1d4f7d' }}>
-          Psychočas
-        </h1>
-        <p className="auth-card__subtitle">{t('root.redirecting')}</p>
+    <main className="psychocas-section flex min-h-screen items-center justify-center px-4 py-10 sm:px-6">
+      <div className="auth-shell fade-in-up">
+        <section className="psychocas-card auth-card auth-shell__card auth-shell__card--compact" aria-labelledby="root-title">
+          <div className="auth-shell__header">
+            <PsychocasLogo size={100} gradientId="rootLogoGradient" />
+            <div>
+              <h1 id="root-title" className="auth-shell__title">
+                Psychočas
+              </h1>
+              <p className="auth-shell__subtitle">{t('root.redirecting')}</p>
+            </div>
+          </div>
+
+          <p className="auth-shell__footnote">{t('login.subtitlePrompt')}</p>
+        </section>
+
+        <aside className="auth-shell__hero" aria-hidden="true">
+          <div className="space-y-6">
+            <PsychocasLogo size={140} gradientId="rootHeroGradient" />
+            <h2 className="auth-shell__hero-title">{t('login.title')}</h2>
+            <p className="auth-shell__hero-text">{t('login.subtitlePrompt')}</p>
+          </div>
+
+          <div className="auth-shell__divider" />
+
+          <p className="auth-shell__footnote">{t('login.helpText')}</p>
+        </aside>
       </div>
     </main>
   );

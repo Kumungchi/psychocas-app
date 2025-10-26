@@ -7,6 +7,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import useLocale from '@/hooks/useLocale';
 import { sanitizeRedirect } from '@/lib/navigation/redirect';
 import { computeStandaloneMode } from '@/lib/pwa/displayMode';
+import PsychocasLogo from '@/components/PsychocasLogo';
+import { MailCheck, ShieldCheck, Smartphone } from 'lucide-react';
 
 type MessageState = {
   type: 'success' | 'error' | 'info';
@@ -203,68 +205,47 @@ function LoginContent() {
   const messageId = message ? 'login-status-message' : undefined;
   const describedBy = [instructionsId, messageId].filter(Boolean).join(' ') || undefined;
 
+  const heroHighlights = [
+    { icon: MailCheck, text: t('login.instructionsSteps.first') },
+    { icon: Smartphone, text: t('login.instructionsSteps.second') },
+    { icon: ShieldCheck, text: t('login.instructionsSteps.third') },
+  ];
+
+  const statusClass = message
+    ? [
+        'auth-status',
+        message.type === 'success'
+          ? 'auth-status--success'
+          : message.type === 'error'
+            ? 'auth-status--error'
+            : 'auth-status--info',
+      ].join(' ')
+    : '';
+
   return (
     <main
-      className="psychocas-section flex min-h-screen items-center justify-center px-4 py-8 sm:px-6"
+      className="psychocas-section flex min-h-screen items-center justify-center px-4 py-10 sm:px-6"
       aria-busy={isLoading}
     >
-      <div className="psychocas-container fade-in-up w-full max-w-2xl">
-        <div className="psychocas-card auth-card text-center">
-          {/* Logo */}
-          <div className="mb-6 flex justify-center sm:mb-8">
-            <svg
-              width="100"
-              height="100"
-              viewBox="-60 -60 120 120"
-              xmlns="http://www.w3.org/2000/svg"
-              aria-hidden
-            >
-              <defs>
-                <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" style={{ stopColor: '#1d4f7d', stopOpacity: 1 }} />
-                  <stop offset="100%" style={{ stopColor: '#049edb', stopOpacity: 1 }} />
-                </linearGradient>
-              </defs>
-              <circle cx="0" cy="0" r="55" fill="url(#logoGradient)" />
-              <circle cx="0" cy="0" r="50" fill="none" stroke="white" strokeWidth={6}/>
-              <line x1="0" y1="0" x2="-15" y2="-25" stroke="white" strokeWidth={5} strokeLinecap="round"/>
-              <line x1="0" y1="0" x2="25" y2="-15" stroke="white" strokeWidth={4} strokeLinecap="round"/>
-              <circle cx="0" cy="0" r="6" fill="white"/>
-              <circle cx="0" cy="-40" r="4" fill="white"/>
-              <circle cx="40" cy="0" r="4" fill="white"/>
-              <circle cx="0" cy="40" r="4" fill="white"/>
-              <circle cx="-40" cy="0" r="4" fill="white"/>
-            </svg>
-          </div>
-          {/* Welcome Section */}
-          <div className="mb-10 space-y-3 sm:mb-12">
-            <h1 className="mb-1 text-3xl font-semibold sm:text-[2rem]" style={{ color: '#1d4f7d' }}>
-              {t('login.title')}
-            </h1>
-            <p className="auth-card__subtitle">
-              {emailSent ? t('login.subtitleSent') : t('login.subtitlePrompt')}
-            </p>
-          </div>
+      <div className="auth-shell fade-in-up">
+        <section className="psychocas-card auth-card auth-shell__card" aria-labelledby="login-title">
+          <header className="auth-shell__header">
+            <PsychocasLogo size={88} gradientId="loginLogoGradient" />
+            <div>
+              <h1 id="login-title" className="auth-shell__title">
+                {t('login.title')}
+              </h1>
+              <p className="auth-shell__subtitle">
+                {emailSent ? t('login.subtitleSent') : t('login.subtitlePrompt')}
+              </p>
+            </div>
+          </header>
 
           {isStandalone && (
-            <aside
-              className="mb-8 text-left"
-              role="status"
-              aria-live="polite"
-              aria-atomic="true"
-              style={{
-                backgroundColor: '#eef4ff',
-                borderRadius: '1rem',
-                border: '1px dashed #8ea6ff',
-                color: '#1d4f7d',
-                padding: '1.25rem',
-              }}
-            >
-              <p className="text-sm font-semibold">{t('login.pwaBanner.title')}</p>
-              <p className="mt-2 text-sm">{t('login.pwaBanner.description')}</p>
-              <p className="mt-3 text-xs" style={{ color: '#405089' }}>
-                {t('login.pwaBanner.retryHint')}
-              </p>
+            <aside className="auth-pwa" role="status" aria-live="polite" aria-atomic="true">
+              <p className="font-semibold text-sm">{t('login.pwaBanner.title')}</p>
+              <p>{t('login.pwaBanner.description')}</p>
+              <p className="auth-pwa__hint">{t('login.pwaBanner.retryHint')}</p>
             </aside>
           )}
 
@@ -272,12 +253,12 @@ function LoginContent() {
           {!emailSent && (
             <form
               onSubmit={handleSendMagicLink}
-              className="space-y-8"
+              className="auth-shell__form"
               aria-describedby={instructionsId}
               aria-busy={isLoading}
             >
-              <div className="space-y-3 text-left">
-                <label htmlFor="email" style={{ color: '#333333' }}>
+              <div className="auth-shell__field">
+                <label className="auth-shell__label" htmlFor="email">
                   {t('login.emailLabel')}
                 </label>
                 <input
@@ -300,36 +281,27 @@ function LoginContent() {
                 />
               </div>
 
-              <button
-                type="submit"
-                className="psychocas-button-primary"
-                disabled={isLoading || !email}
-              >
-                {isLoading ? t('login.sendLinkLoading') : t('login.sendLink')}
-              </button>
+              <div className="auth-shell__actions">
+                <button
+                  type="submit"
+                  className="psychocas-button-primary"
+                  disabled={isLoading || !email}
+                >
+                  {isLoading ? t('login.sendLinkLoading') : t('login.sendLink')}
+                </button>
+              </div>
             </form>
           )}
 
           {/* Success State - Show after email sent */}
           {emailSent && (
             <div className="space-y-6 text-left sm:text-center">
-              {/* Email Icon/Illustration */}
-              <div className="mb-6 flex justify-center">
-                <div style={{
-                  width: '80px',
-                  height: '80px',
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #1d4f7d 0%, #049edb 100%)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '40px'
-                }}>
-                  ✉️
+              <div className="flex justify-center">
+                <div className="auth-success-icon" aria-hidden="true">
+                  <MailCheck className="h-10 w-10" strokeWidth={1.75} />
                 </div>
               </div>
 
-              {/* Success Message */}
               <div className="space-y-3">
                 <h2 className="text-2xl font-bold sm:text-[1.7rem]" style={{ color: '#333333' }}>
                   {t('login.successTitle')}
@@ -337,23 +309,13 @@ function LoginContent() {
                 <p className="auth-card__message">
                   {t('login.successDescription')}
                   <br />
-                  <strong style={{ color: '#333333' }}>{email}</strong>
+                  <span className="auth-success-email">{email}</span>
                 </p>
               </div>
 
-              {/* Instructions */}
-              <div
-                id={instructionsId}
-                className="rounded-2xl p-5 sm:p-6"
-                style={{
-                  backgroundColor: '#f0f9ff',
-                  borderLeft: '4px solid #049edb'
-                }}
-              >
-                <p className="mb-3 text-sm font-semibold" style={{ color: '#333333' }}>
-                  {t('login.instructionsTitle')}
-                </p>
-                <ol className="space-y-2 text-sm" style={{ color: '#666666', paddingLeft: '20px' }}>
+              <div id={instructionsId} className="auth-instructions">
+                <p className="auth-instructions__title">{t('login.instructionsTitle')}</p>
+                <ol className="auth-instructions__list">
                   <li>{t('login.instructionsSteps.first')}</li>
                   <li>{t('login.instructionsSteps.second')}</li>
                   <li>{t('login.instructionsSteps.third')}</li>
@@ -361,16 +323,9 @@ function LoginContent() {
                 </ol>
               </div>
 
-              {/* Expiration Warning */}
-              <div className="rounded-xl p-4" style={{
-                backgroundColor: '#fff3cd',
-                borderLeft: '4px solid #f57c00'
-              }}>
-                <p className="text-sm" style={{ color: '#856404' }}>{t('login.expirationNotice')}</p>
-              </div>
+              <div className="auth-expiration">{t('login.expirationNotice')}</div>
 
-              {/* Resend Button */}
-              <div className="pt-4">
+              <div className="pt-2 sm:pt-4">
                 <button
                   type="button"
                   onClick={handleResend}
@@ -381,8 +336,7 @@ function LoginContent() {
                 </button>
               </div>
 
-              {/* Help Text */}
-              <p className="pt-4 text-sm" style={{ color: '#999999' }}>{t('login.helpText')}</p>
+              <p className="auth-help">{t('login.helpText')}</p>
             </div>
           )}
 
@@ -390,25 +344,10 @@ function LoginContent() {
           {message && (
             <div
               id={messageId}
-              className={`mt-6 rounded-xl p-4 text-sm ${
-                message.type === 'success'
-                  ? 'status-active'
-                  : message.type === 'error'
-                    ? 'status-inactive'
-                    : ''
-              }`}
+              className={`${statusClass} mt-2`}
               role={message.type === 'error' ? 'alert' : 'status'}
               aria-live={message.type === 'error' ? 'assertive' : 'polite'}
               aria-atomic="true"
-              style={
-                message.type === 'info'
-                  ? {
-                      backgroundColor: '#e8f1ff',
-                      border: '1px solid #bcd0ff',
-                      color: '#1d4f7d',
-                    }
-                  : undefined
-              }
             >
               {message.translationKey
                 ? message.params
@@ -417,7 +356,30 @@ function LoginContent() {
                 : message.text}
             </div>
           )}
-        </div>
+        </section>
+
+        <aside className="auth-shell__hero" aria-hidden="true">
+          <div className="space-y-6">
+            <PsychocasLogo size={120} gradientId="loginHeroGradient" />
+            <h2 className="auth-shell__hero-title">{t('login.title')}</h2>
+            <p className="auth-shell__hero-text">{t('login.subtitlePrompt')}</p>
+          </div>
+
+          <div className="auth-shell__divider" />
+
+          <ul className="auth-shell__hero-list">
+            {heroHighlights.map(({ icon: Icon, text }) => (
+              <li key={text} className="auth-shell__hero-item">
+                <span className="auth-shell__hero-icon">
+                  <Icon className="h-5 w-5" strokeWidth={1.75} />
+                </span>
+                <span>{text}</span>
+              </li>
+            ))}
+          </ul>
+
+          <p className="auth-shell__footnote">{t('login.helpText')}</p>
+        </aside>
       </div>
     </main>
   );
