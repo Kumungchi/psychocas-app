@@ -12,6 +12,7 @@
     "seed:supabase": "tsx scripts/seedSupabaseTestData.ts",
     "deploy:functions": "supabase functions deploy generate_token redeem_token",
     "deploy:all": "npm run deploy:schema && npm run seed:supabase && npm run deploy:functions",
+    "provision:users": "tsx scripts/provision-users.ts",
     "test:vercel": "tsx scripts/testVercelBuild.ts",
     "verify": "npm run lint && npm run test && npm run test:vercel"
   },
