@@ -1,0 +1,123 @@
+<!-- Psychočas Email OTP Template (English) for Supabase -->
+<!-- Use this in Supabase Dashboard > Authentication > Email Templates > Magic Link -->
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Psychočas Verification Code</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Avenir', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background-color: #f5f5f5;">
+
+  <!-- Container -->
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+
+        <!-- Card -->
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); overflow: hidden;">
+
+          <!-- Header with logo/brand -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #1d4f7d 0%, #049edb 100%); padding: 40px 30px; text-align: center;">
+              <!-- Clock Logo -->
+              <svg width="80" height="80" viewBox="-60 -60 120 120" xmlns="http://www.w3.org/2000/svg" style="margin: 0 auto 20px auto; display: block;">
+                <!-- Clock circle -->
+                <circle cx="0" cy="0" r="50" fill="none" stroke="white" stroke-width="6"/>
+                <!-- Hour hand pointing to 10 -->
+                <line x1="0" y1="0" x2="-15" y2="-25" stroke="white" stroke-width="5" stroke-linecap="round"/>
+                <!-- Minute hand pointing to 2 -->
+                <line x1="0" y1="0" x2="25" y2="-15" stroke="white" stroke-width="4" stroke-linecap="round"/>
+                <!-- Center dot -->
+                <circle cx="0" cy="0" r="6" fill="white"/>
+                <!-- Clock marks at 12, 3, 6, 9 -->
+                <circle cx="0" cy="-40" r="4" fill="white"/>
+                <circle cx="40" cy="0" r="4" fill="white"/>
+                <circle cx="0" cy="40" r="4" fill="white"/>
+                <circle cx="-40" cy="0" r="4" fill="white"/>
+              </svg>
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700;">
+                Psychočas
+              </h1>
+              <p style="margin: 10px 0 0 0; color: rgba(255, 255, 255, 0.9); font-size: 16px;">
+                Member System
+              </p>
+            </td>
+          </tr>
+
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px 30px;">
+
+              <!-- Greeting -->
+              <p style="margin: 0 0 20px 0; font-size: 16px; color: #333; line-height: 1.6;">
+                Hello! 👋
+              </p>
+
+              <!-- Message -->
+              <p style="margin: 0 0 30px 0; font-size: 16px; color: #333; line-height: 1.6;">
+                We received a request to sign in to your <strong>Psychočas</strong> account. Use this verification code:
+              </p>
+
+              <!-- OTP Code Box -->
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding: 20px 0;">
+                    <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border: 3px solid #049edb; border-radius: 16px; padding: 30px; box-shadow: 0 4px 12px rgba(4, 158, 219, 0.15);">
+                      <p style="margin: 0 0 10px 0; font-size: 14px; color: #1d4f7d; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">
+                        Your Verification Code
+                      </p>
+                      <div style="font-size: 48px; font-weight: bold; color: #1d4f7d; letter-spacing: 12px; font-family: 'Courier New', monospace; margin: 10px 0;">
+                        {{ .Token }}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Instructions -->
+              <p style="margin: 30px 0 20px 0; font-size: 15px; color: #333; line-height: 1.6; text-align: center;">
+                Enter this code in the Psychočas app to complete your sign-in.
+              </p>
+
+              <!-- Expiration warning -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff3cd; border-left: 4px solid #f57c00; border-radius: 8px; margin: 30px 0 20px 0;">
+                <tr>
+                  <td style="padding: 15px 20px;">
+                    <p style="margin: 0; font-size: 14px; color: #856404; line-height: 1.5;">
+                      ⏰ <strong>Important:</strong> This code will expire in <strong>60 seconds</strong>.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Security notice -->
+              <p style="margin: 20px 0 0 0; font-size: 13px; color: #999; line-height: 1.6;">
+                🔒 If you didn't request this code, you can safely ignore this email. No one will be able to access your account without your consent.
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f8f9fa; padding: 20px 30px; border-top: 1px solid #e9ecef;">
+              <p style="margin: 0 0 10px 0; font-size: 13px; color: #d32f2f; text-align: center; font-weight: 600;">
+                ⚠️ Do not reply to this email - responses are not monitored.
+              </p>
+              <p style="margin: 0; font-size: 12px; color: #999; text-align: center; line-height: 1.5;">
+                This is an automated message from <strong>Psychočas</strong>.<br>
+                For support contact: <a href="mailto:podpora@psychocas.cz" style="color: #049edb; text-decoration: none;">podpora@psychocas.cz</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>
