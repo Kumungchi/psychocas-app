@@ -22,8 +22,9 @@ function LoginContent() {
   const searchParams = useSearchParams();
   const { t, formatMessage } = useLocale();
   const [email, setEmail] = useState('');
+  const [otpCode, setOtpCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
   const [message, setMessage] = useState<MessageState | null>(null);
   const [isStandalone, setIsStandalone] = useState(false);
 
@@ -69,7 +70,7 @@ function LoginContent() {
     };
   }, []);
 
-  // Surface any error returned by the callback handler so users understand why they landed here
+  // Surface any error returned by the callback handler
   useEffect(() => {
     const errorParam = searchParams.get('error');
     const messageParam = searchParams.get('message');
@@ -86,7 +87,6 @@ function LoginContent() {
       setMessage({ type: 'error', translationKey: 'login.messages.errorGeneral' });
     }
 
-    // Strip handled query parameters from the URL so the message does not reappear on refresh
     const cleanedParams = new URLSearchParams(Array.from(searchParams.entries()));
     cleanedParams.delete('error');
     cleanedParams.delete('message');
@@ -137,7 +137,19 @@ function LoginContent() {
     });
   };
 
-  const handleSendMagicLink = async (e: React.FormEvent) => {
+  const handleOtpChange = (nextOtp: string) => {
+    // Only allow digits
+    const digits = nextOtp.replace(/\D/g, '');
+    setOtpCode(digits.substring(0, 6)); // Limit to 6 digits
+    setMessage((prev) => {
+      if (!prev || prev.type === 'success') {
+        return prev;
+      }
+      return null;
+    });
+  };
+
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setMessage({ type: 'info', translationKey: 'login.messages.sending' });
@@ -151,13 +163,11 @@ function LoginContent() {
         return;
       }
 
-      const callbackUrl = new URL('/auth/callback', window.location.origin);
-      callbackUrl.searchParams.set('redirectTo', sanitizedRedirect);
+      // Use email OTP authentication
       const { error } = await supabase.auth.signInWithOtp({
         email: cleanEmail,
         options: {
-          shouldCreateUser: true,
-          emailRedirectTo: callbackUrl.toString(),
+          shouldCreateUser: false, // Users must be pre-created via provisioning script
         },
       });
 
@@ -168,20 +178,71 @@ function LoginContent() {
 
         if (status === 429) {
           setMessage({ type: 'error', translationKey: 'login.messages.errorRateLimit' });
+        } else if (status === 400 && error.message?.includes('User not found')) {
+          setMessage({
+            type: 'error',
+            text: 'Email address not authorized. Contact admin to be added to the system.'
+          });
         } else if (hasMessage) {
           setMessage({ type: 'error', text: (error as { message: string }).message });
         } else {
-          setMessage({ type: 'error', translationKey: 'login.messages.errorSendLink' });
+          setMessage({ type: 'error', translationKey: 'login.messages.errorSendOtp' });
         }
       } else {
-        setEmailSent(true);
+        setOtpSent(true);
         setMessage({
           type: 'success',
-          translationKey: 'login.messages.successLinkSent',
+          translationKey: 'login.messages.successOtpSent',
         });
       }
     } catch (error) {
-      logError('login', 'Unexpected error sending magic link.', error);
+      logError('login', 'Unexpected error sending OTP.', error);
+      setMessage({
+        type: 'error',
+        translationKey: 'login.messages.errorUnexpected',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setMessage({ type: 'info', translationKey: 'login.messages.verifying' });
+
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+
+      const { error } = await supabase.auth.verifyOtp({
+        email: cleanEmail,
+        token: otpCode,
+        type: 'email',
+      });
+
+      if (error) {
+        const hasMessage =
+          typeof error === 'object' && error && 'message' in error && typeof (error as { message?: unknown }).message === 'string';
+
+        if (hasMessage && error.message.includes('expired')) {
+          setMessage({ type: 'error', translationKey: 'login.messages.errorOtpExpired' });
+        } else if (hasMessage && error.message.includes('invalid')) {
+          setMessage({ type: 'error', translationKey: 'login.messages.errorOtpInvalid' });
+        } else if (hasMessage) {
+          setMessage({ type: 'error', text: (error as { message: string }).message });
+        } else {
+          setMessage({ type: 'error', translationKey: 'login.messages.errorVerifyOtp' });
+        }
+      } else {
+        setMessage({
+          type: 'success',
+          translationKey: 'login.messages.successLogin',
+        });
+        // Redirect happens automatically via middleware
+        router.replace(sanitizedRedirect);
+      }
+    } catch (error) {
+      logError('login', 'Unexpected error verifying OTP.', error);
       setMessage({
         type: 'error',
         translationKey: 'login.messages.errorUnexpected',
@@ -192,14 +253,15 @@ function LoginContent() {
   };
 
   const handleResend = () => {
-    setEmailSent(false);
+    setOtpSent(false);
+    setOtpCode('');
     setMessage({
       type: 'info',
       translationKey: 'login.messages.infoResend',
     });
   };
 
-  const instructionsId = emailSent ? 'login-instructions' : undefined;
+  const instructionsId = otpSent ? 'login-instructions' : undefined;
   const messageId = message ? 'login-status-message' : undefined;
   const describedBy = [instructionsId, messageId].filter(Boolean).join(' ') || undefined;
 
@@ -236,13 +298,14 @@ function LoginContent() {
               <circle cx="-40" cy="0" r="4" fill="white"/>
             </svg>
           </div>
+
           {/* Welcome Section */}
           <div className="mb-10 space-y-3 sm:mb-12">
             <h1 className="mb-1 text-3xl font-semibold sm:text-[2rem]" style={{ color: '#1d4f7d' }}>
               {t('login.title')}
             </h1>
             <p className="auth-card__subtitle">
-              {emailSent ? t('login.subtitleSent') : t('login.subtitlePrompt')}
+              {otpSent ? t('login.subtitleOtpSent') : t('login.subtitlePrompt')}
             </p>
           </div>
 
@@ -268,10 +331,10 @@ function LoginContent() {
             </aside>
           )}
 
-          {/* Email Form - Show when email not sent yet */}
-          {!emailSent && (
+          {/* Email Form - Show when OTP not sent yet */}
+          {!otpSent && (
             <form
-              onSubmit={handleSendMagicLink}
+              onSubmit={handleSendOtp}
               className="space-y-8"
               aria-describedby={instructionsId}
               aria-busy={isLoading}
@@ -305,79 +368,74 @@ function LoginContent() {
                 className="psychocas-button-primary"
                 disabled={isLoading || !email}
               >
-                {isLoading ? t('login.sendLinkLoading') : t('login.sendLink')}
+                {isLoading ? t('login.sendOtpLoading') : t('login.sendOtp')}
               </button>
             </form>
           )}
 
-          {/* Success State - Show after email sent */}
-          {emailSent && (
-            <div className="space-y-6 text-left sm:text-center">
-              {/* Email Icon/Illustration */}
-              <div className="mb-6 flex justify-center">
-                <div style={{
-                  width: '80px',
-                  height: '80px',
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #1d4f7d 0%, #049edb 100%)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '40px'
-                }}>
-                  ✉️
-                </div>
-              </div>
-
-              {/* Success Message */}
-              <div className="space-y-3">
-                <h2 className="text-2xl font-bold sm:text-[1.7rem]" style={{ color: '#333333' }}>
-                  {t('login.successTitle')}
-                </h2>
-                <p className="auth-card__message">
-                  {t('login.successDescription')}
-                  <br />
-                  <strong style={{ color: '#333333' }}>{email}</strong>
-                </p>
-              </div>
-
-              {/* Instructions */}
-              <div
-                id={instructionsId}
-                className="rounded-2xl p-5 sm:p-6"
-                style={{
+          {/* OTP Verification Form - Show after OTP sent */}
+          {otpSent && (
+            <div className="space-y-6">
+              <form onSubmit={handleVerifyOtp} className="space-y-6">
+                {/* Email Display */}
+                <div className="rounded-xl p-4" style={{
                   backgroundColor: '#f0f9ff',
                   borderLeft: '4px solid #049edb'
-                }}
-              >
-                <p className="mb-3 text-sm font-semibold" style={{ color: '#333333' }}>
-                  {t('login.instructionsTitle')}
-                </p>
-                <ol className="space-y-2 text-sm" style={{ color: '#666666', paddingLeft: '20px' }}>
-                  <li>{t('login.instructionsSteps.first')}</li>
-                  <li>{t('login.instructionsSteps.second')}</li>
-                  <li>{t('login.instructionsSteps.third')}</li>
-                  <li>{t('login.instructionsSteps.fourth')}</li>
-                </ol>
-              </div>
+                }}>
+                  <p className="text-sm" style={{ color: '#666666' }}>
+                    {t('login.otpSentTo')}
+                  </p>
+                  <p className="mt-1 text-lg font-semibold" style={{ color: '#333333' }}>
+                    {email}
+                  </p>
+                </div>
 
-              {/* Expiration Warning */}
-              <div className="rounded-xl p-4" style={{
-                backgroundColor: '#fff3cd',
-                borderLeft: '4px solid #f57c00'
-              }}>
-                <p className="text-sm" style={{ color: '#856404' }}>{t('login.expirationNotice')}</p>
-              </div>
+                {/* OTP Input */}
+                <div className="space-y-3 text-left">
+                  <label htmlFor="otp" style={{ color: '#333333' }}>
+                    {t('login.otpLabel')}
+                  </label>
+                  <input
+                    id="otp"
+                    type="text"
+                    value={otpCode}
+                    onChange={(e) => handleOtpChange(e.target.value)}
+                    className="psychocas-input text-center text-2xl tracking-widest"
+                    placeholder="000000"
+                    required
+                    disabled={isLoading}
+                    autoFocus
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    pattern="[0-9]{6}"
+                    enterKeyHint="done"
+                    aria-describedby={describedBy}
+                    aria-invalid={message?.type === 'error' ? true : undefined}
+                  />
+                  <p className="text-xs" style={{ color: '#666666' }}>
+                    {t('login.otpHint')}
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  className="psychocas-button-primary"
+                  disabled={isLoading || otpCode.length !== 6}
+                >
+                  {isLoading ? t('login.verifyOtpLoading') : t('login.verifyOtp')}
+                </button>
+              </form>
 
               {/* Resend Button */}
-              <div className="pt-4">
+              <div className="pt-4 border-t" style={{ borderColor: '#e5e7eb' }}>
                 <button
                   type="button"
                   onClick={handleResend}
                   disabled={isLoading}
                   className="psychocas-button-secondary"
                 >
-                  {t('login.resendButton')}
+                  {t('login.resendOtp')}
                 </button>
               </div>
 

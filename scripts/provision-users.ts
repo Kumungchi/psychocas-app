@@ -21,8 +21,7 @@ import { createClient } from '@supabase/supabase-js';
 
 interface WhitelistRecord {
   id: string;
-  email: string | null;
-  phone: string | null;
+  email: string;
   first_name: string | null;
   last_name: string | null;
   role: string;
@@ -34,7 +33,7 @@ interface WhitelistRecord {
 // Parse command line arguments
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
-const specificPhone = args.find(arg => arg.startsWith('--phone='))?.split('=')[1];
+const specificEmail = args.find(arg => arg.startsWith('--email='))?.split('=')[1];
 
 // Validate environment variables
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -55,24 +54,9 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 });
 
 /**
- * Normalize phone number to E.164 format
+ * Check if a user already exists for a given email
  */
-function normalizePhoneNumber(phone: string): string {
-  // Remove all spaces, dashes, parentheses
-  let normalized = phone.replace(/[\s\-()]/g, '');
-
-  // If it doesn't start with +, assume Czech Republic (+420)
-  if (!normalized.startsWith('+')) {
-    normalized = '+420' + normalized;
-  }
-
-  return normalized;
-}
-
-/**
- * Check if a user already exists for a given phone number
- */
-async function userExistsForPhone(phone: string): Promise<boolean> {
+async function userExistsForEmail(email: string): Promise<boolean> {
   const { data, error } = await supabase.auth.admin.listUsers();
 
   if (error) {
@@ -80,46 +64,35 @@ async function userExistsForPhone(phone: string): Promise<boolean> {
     return false;
   }
 
-  return data.users.some(user => user.phone === phone);
+  return data.users.some(user => user.email?.toLowerCase() === email.toLowerCase());
 }
 
 /**
  * Create a Supabase auth user for a whitelist record
  */
 async function createUserFromWhitelist(record: WhitelistRecord): Promise<boolean> {
-  const phone = record.phone;
-  const email = record.email;
+  const email = record.email.trim().toLowerCase();
 
-  if (!phone) {
-    console.error(`   ❌ Skipping record ${record.id}: No phone number`);
-    return false;
-  }
-
-  const normalizedPhone = normalizePhoneNumber(phone);
-
-  console.log(`\n📱 Processing: ${normalizedPhone}`);
+  console.log(`\n📧 Processing: ${email}`);
   console.log(`   Name: ${record.first_name} ${record.last_name}`);
-  console.log(`   Email: ${email || 'N/A'}`);
   console.log(`   Role: ${record.role}`);
 
   // Check if user already exists
-  const exists = await userExistsForPhone(normalizedPhone);
+  const exists = await userExistsForEmail(email);
   if (exists) {
     console.log(`   ⏭️  User already exists, skipping`);
     return true;
   }
 
   if (dryRun) {
-    console.log(`   🔍 [DRY RUN] Would create auth user with phone: ${normalizedPhone}`);
+    console.log(`   🔍 [DRY RUN] Would create auth user with email: ${email}`);
     return true;
   }
 
   // Create the user in Supabase auth
   const { data, error } = await supabase.auth.admin.createUser({
-    phone: normalizedPhone,
-    email: email || undefined,
-    email_confirm: true, // Auto-confirm email if provided
-    phone_confirm: true, // Auto-confirm phone
+    email: email,
+    email_confirm: true, // Auto-confirm email
     user_metadata: {
       first_name: record.first_name,
       last_name: record.last_name,
@@ -134,19 +107,6 @@ async function createUserFromWhitelist(record: WhitelistRecord): Promise<boolean
   }
 
   console.log(`   ✅ Created auth user: ${data.user.id}`);
-
-  // Call ensure_membership_from_whitelist to sync to memberships table
-  // We need to impersonate the user to call this RPC
-  const { data: sessionData, error: sessionError } = await supabase.auth.admin.generateLink({
-    type: 'magiclink',
-    email: email || `user-${data.user.id}@temp.psychocas.cz`,
-  });
-
-  if (sessionError) {
-    console.warn(`   ⚠️  Could not generate session for membership sync: ${sessionError.message}`);
-    return true; // User was created, but membership sync will happen on first login
-  }
-
   return true;
 }
 
@@ -168,10 +128,9 @@ async function main() {
     .eq('active', true)
     .is('consumed_at', null);
 
-  if (specificPhone) {
-    const normalized = normalizePhoneNumber(specificPhone);
-    query = query.eq('phone', normalized);
-    console.log(`🎯 Filtering for specific phone: ${normalized}\n`);
+  if (specificEmail) {
+    query = query.eq('email', specificEmail.toLowerCase());
+    console.log(`🎯 Filtering for specific email: ${specificEmail}\n`);
   }
 
   const { data: whitelist, error } = await query;
@@ -195,7 +154,7 @@ async function main() {
   for (const record of whitelist as WhitelistRecord[]) {
     const success = await createUserFromWhitelist(record);
     if (success) {
-      if (await userExistsForPhone(normalizePhoneNumber(record.phone!))) {
+      if (await userExistsForEmail(record.email)) {
         successCount++;
       } else {
         skipCount++;
@@ -211,7 +170,7 @@ async function main() {
   console.log(`✅ Successfully provisioned: ${successCount}`);
   console.log(`⏭️  Skipped (already exist): ${skipCount}`);
   console.log(`❌ Failed: ${failCount}`);
-  console.log(`📱 Total processed: ${whitelist.length}`);
+  console.log(`📧 Total processed: ${whitelist.length}`);
 
   if (dryRun) {
     console.log('\n🔍 This was a dry run. Use without --dry-run to create users.');
