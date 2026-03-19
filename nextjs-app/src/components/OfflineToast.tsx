@@ -15,7 +15,7 @@ export default function OfflineToast() {
       return;
     }
 
-    setVisible(true);
+    setVisible(true); // eslint-disable-line react-hooks/set-state-in-effect -- sync visibility from online status
 
     if (isOnline) {
       const timeout = window.setTimeout(() => setVisible(false), 2500);

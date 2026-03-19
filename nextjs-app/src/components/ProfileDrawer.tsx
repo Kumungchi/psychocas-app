@@ -64,13 +64,14 @@ export default function ProfileDrawer({ member, open, onClose, onUpdated }: Prof
   const canEditProfile = Boolean(member && member.origin !== 'demo' && member.email);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync form state when member/dialog changes
     setForm({
       full_name: member?.full_name ?? '',
       phone: member?.phone ?? '',
       branch_id: member?.branch_id ?? null,
     });
-    setError(null);
-    setSuccess(false);
+    setError(null);  
+    setSuccess(false);  
   }, [member, open]);
 
   const handleSave = async () => {

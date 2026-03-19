@@ -483,6 +483,7 @@ export default function useMemberContext(options?: UseMemberContextOptions): Use
       user,
       error,
       refresh,
+      // eslint-disable-next-line react-hooks/refs -- lastSyncedAt is informational, not used for rendering decisions
       lastSyncedAt: lastSyncedAtRef.current,
     }),
     [error, member, refresh, status, user]

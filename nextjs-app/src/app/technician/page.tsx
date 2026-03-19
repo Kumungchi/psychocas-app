@@ -150,11 +150,12 @@ export default function Technician() {
     setPeople(normalizedMembers);
     setLoadError(null);
     setIsLoading(false);
-  }, [isDemo, supabase, t]);
+   
+  }, [isDemo, t]);
 
   useEffect(() => {
     if (status === 'ready' && canManage) {
-      void refreshRecords();
+      void refreshRecords(); // eslint-disable-line react-hooks/set-state-in-effect -- data fetch on mount
     }
   }, [canManage, refreshRecords, status]);
 

@@ -65,11 +65,13 @@ export default function TestPage() {
 
   useEffect(() => {
     const enabled = isRolePreviewEnabled();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync from external store on mount
     setPreviewEnabled(enabled);
     if (!enabled) {
       return;
     }
 
+     
     setPreviewState(readRolePreview());
     const unsubscribe = subscribeToRolePreview((state) => {
       setPreviewState(state);

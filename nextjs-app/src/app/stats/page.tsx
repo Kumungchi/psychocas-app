@@ -173,8 +173,10 @@ export default function Statistics() {
 
   useEffect(() => {
     if (isManager) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync derived state from role
       setSelectedBranchId(member?.branch?.id ?? null);
     } else if (isCouncil) {
+       
       setSelectedBranchId(null);
     }
   }, [isCouncil, isManager, member?.branch?.id]);

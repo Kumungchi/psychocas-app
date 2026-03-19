@@ -81,9 +81,7 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  turbopack: {},
   experimental: {
     optimizePackageImports: ["lucide-react", "@supabase/supabase-js"],
   },

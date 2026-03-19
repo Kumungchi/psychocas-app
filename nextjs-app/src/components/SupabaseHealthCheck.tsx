@@ -9,6 +9,50 @@ interface HealthCheckResult {
   data?: unknown;
 }
 
+function getStatusColor(status: string) {
+  switch (status) {
+    case 'loading': return 'text-blue-600';
+    case 'success': return 'text-green-600';
+    case 'error': return 'text-red-600';
+    default: return 'text-gray-600';
+  }
+}
+
+function getStatusIcon(status: string) {
+  switch (status) {
+    case 'loading': return '🔄';
+    case 'success': return '✅';
+    case 'error': return '❌';
+    default: return '❓';
+  }
+}
+
+function HealthCheckCard({ title, result }: { title: string; result: HealthCheckResult }) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+      <h3 className="font-semibold text-gray-800 mb-3">{title}</h3>
+
+      <div className={`flex items-center gap-2 mb-3 ${getStatusColor(result.status)}`}>
+        <span className="text-xl">{getStatusIcon(result.status)}</span>
+        <p className="font-medium text-sm">{result.message}</p>
+      </div>
+
+      {result.data != null && (
+        <div className="bg-gray-50 p-3 rounded border text-xs">
+          <details>
+            <summary className="cursor-pointer font-medium text-gray-700 mb-2">
+              Response Data
+            </summary>
+            <pre className="text-gray-600 overflow-auto mt-2">
+              {JSON.stringify(result.data, null, 2)}
+            </pre>
+          </details>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SupabaseHealthCheck() {
   const [authStatus, setAuthStatus] = useState<HealthCheckResult>({
     status: 'loading',
@@ -96,48 +140,6 @@ export default function SupabaseHealthCheck() {
 
     runHealthChecks();
   }, []);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'loading': return 'text-blue-600';
-      case 'success': return 'text-green-600';
-      case 'error': return 'text-red-600';
-      default: return 'text-gray-600';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'loading': return '🔄';
-      case 'success': return '✅';
-      case 'error': return '❌';
-      default: return '❓';
-    }
-  };
-
-  const HealthCheckCard = ({ title, result }: { title: string; result: HealthCheckResult }) => (
-    <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-      <h3 className="font-semibold text-gray-800 mb-3">{title}</h3>
-      
-      <div className={`flex items-center gap-2 mb-3 ${getStatusColor(result.status)}`}>
-        <span className="text-xl">{getStatusIcon(result.status)}</span>
-        <p className="font-medium text-sm">{result.message}</p>
-      </div>
-
-      {result.data != null && (
-        <div className="bg-gray-50 p-3 rounded border text-xs">
-          <details>
-            <summary className="cursor-pointer font-medium text-gray-700 mb-2">
-              Response Data
-            </summary>
-            <pre className="text-gray-600 overflow-auto mt-2">
-              {JSON.stringify(result.data, null, 2)}
-            </pre>
-          </details>
-        </div>
-      )}
-    </div>
-  );
 
   const overallStatus = authStatus.status === 'success' && dbStatus.status === 'success' ? 'success' :
                        (authStatus.status === 'error' || dbStatus.status === 'error') ? 'error' : 'loading';
