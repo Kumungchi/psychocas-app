@@ -1,19 +1,24 @@
 'use client';
 
 import { useState, useEffect, useMemo, Suspense, useCallback } from 'react';
+import clsx from 'clsx';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Navigation from '@/components/Navigation';
 import ProfileDrawer from '@/components/ProfileDrawer';
 import {
   AlertTriangle,
+  ArrowRight,
+  Building2,
   CheckCircle2,
   Clock,
   Copy,
   Download,
   MapPin,
   QrCode,
-  ShieldAlert,
+  RefreshCcw,
+  Sparkles,
+  WifiOff,
 } from 'lucide-react';
 import {
   groupPartnersForMember,
@@ -412,7 +417,7 @@ function HomeContent() {
   };
 
   const handleGenerateToken = useCallback(async () => {
-    if (!memberData || !memberData.membership_active || !(memberData.approved ?? true)) {
+    if (!memberData || !memberData.membership_active) {
       return;
     }
 
@@ -603,49 +608,33 @@ function HomeContent() {
       return (
         <div
           key={partner.id}
-          className="flex items-center justify-between gap-4 rounded-xl border px-4 py-3"
-          style={{ borderColor: '#e0e0e0', backgroundColor: '#f9fafb' }}
+          className="group flex items-start justify-between gap-4 rounded-2xl border border-slate-200/70 bg-white/70 p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-lg"
         >
           <div>
-            <p className="font-medium" style={{ color: '#333333' }}>{title}</p>
+            <p className="font-semibold text-slate-900">{title}</p>
             {locationLabel && (
-              <p className="mt-1 flex items-center gap-2 text-sm" style={{ color: '#666666' }}>
-                <MapPin className="h-4 w-4" />
+              <p className="mt-1 flex items-center gap-2 text-sm text-slate-600">
+                <MapPin className="h-4 w-4 text-slate-400" />
                 {locationLabel}
               </p>
             )}
             {branchLabel && (
-              <p className="mt-1 text-xs font-medium uppercase tracking-wide" style={{ color: '#1d4f7d' }}>
+              <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-sky-700">
                 {`${t('home.partners.branchLabel')}: ${branchLabel}`}
               </p>
             )}
             {description && (
-              <p className="mt-2 text-sm" style={{ color: '#4b5563' }}>{description}</p>
+              <p className="mt-2 text-sm text-slate-500">{description}</p>
             )}
           </div>
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-col items-end gap-2 text-right">
             {partner.discount_code && (
-              <span
-                className="px-3 py-1 text-xs font-semibold uppercase"
-                style={{
-                  backgroundColor: '#ede9fe',
-                  color: '#5b21b6',
-                  borderRadius: '9999px',
-                  letterSpacing: '0.08em',
-                }}
-              >
+              <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600">
                 {partner.discount_code}
               </span>
             )}
             {hasDiscount && (
-              <span
-                className="px-3 py-1 text-sm font-semibold"
-                style={{
-                  backgroundColor: '#e1f5fe',
-                  color: '#0277bd',
-                  borderRadius: '9999px',
-                }}
-              >
+              <span className="rounded-full bg-sky-50 px-3 py-1 text-sm font-semibold text-sky-700">
                 -{partner.discount_percentage}%
               </span>
             )}
@@ -656,14 +645,25 @@ function HomeContent() {
     [t, translate]
   );
 
-  const isApproved = memberData?.approved ?? true;
-  const canGenerateToken = Boolean(memberData?.membership_active) && isApproved;
+  const canGenerateToken = Boolean(memberData?.membership_active);
   const branchName = translate(memberData?.branch?.name);
   const branchLocation = translate(memberData?.branch?.location || memberData?.branch?.city);
   const memberEmail = memberData?.email || user?.email || '';
   const partnerSectionHasContent = partnerGroups.national.length > 0 || partnerGroups.local.length > 0;
   const showManagementShortcuts = memberData ? ['manager', 'council', 'technician'].includes(memberData.role) : false;
   const showPartnerDiagnostics = showManagementShortcuts;
+  const firstName = memberData?.full_name?.split(' ')[0] ?? null;
+  const refreshStatusMessage =
+    lastRefreshStatus !== 'idle' && lastRefreshAttemptLabel
+      ? lastRefreshStatus === 'success'
+        ? formatMessage('home.refreshStatus.success', { timestamp: lastRefreshAttemptLabel })
+        : formatMessage('home.refreshStatus.error', { timestamp: lastRefreshAttemptLabel })
+      : null;
+  const branchSummaryLabel = branchName
+    ? branchLocation
+      ? `${branchName} • ${branchLocation}`
+      : branchName
+    : null;
 
   useEffect(() => {
     if (isOnline && pendingTokenRequest && canGenerateToken && !tokenLoading) {
@@ -706,435 +706,413 @@ function HomeContent() {
   }
 
   return (
-    <main className="psychocas-section pb-24">
-      <div className="psychocas-container space-y-6 fade-in-up pt-6 pb-24">
-        {error && (
-          <Card
-            title={t('home.membership')}
-            subtitle={resolveTranslatable(error, t) ?? undefined}
-            headerSlot={<Badge tone="danger">{t('home.membershipInactive')}</Badge>}
-            padding="sm"
-          />
-        )}
-
-        {restoredFromSnapshot && offlineSnapshotLabel && (
-          <div
-            className="psychocas-card"
-            style={{ backgroundColor: '#eff6ff', borderLeft: '4px solid #1d4f7d' }}
-          >
-            <div className="flex items-start gap-3">
-              <Clock className="h-5 w-5 flex-shrink-0" style={{ color: '#1d4f7d' }} />
-              <div className="space-y-1">
-                <h3 className="text-base font-semibold" style={{ color: '#1d4f7d' }}>
-                  {t('home.offline.title')}
-                </h3>
-                <p className="text-sm" style={{ color: '#1d4f7d' }}>
-                  {formatMessage('home.offline.description', { label: offlineSnapshotLabel })}
-                </p>
-              </div>
-            </div>
+    <main className="psychocas-section pb-32">
+      <div className="psychocas-container fade-in-up space-y-6 lg:space-y-8 pt-6 pb-28">
+        <section className="surface-hero space-y-6">
+          <span className="stat-pill stat-pill--info w-fit text-sm">
+            <Sparkles className="h-4 w-4" />
+            Psychočas
+          </span>
+          <div className="space-y-2">
+            <h1 className="text-3xl font-semibold text-slate-900 lg:text-[2.5rem]">
+              {firstName ? `${t('home.welcome')} ${firstName}!` : t('home.welcome')}
+            </h1>
+            <p className="text-base text-slate-600 lg:text-lg">{memberEmail}</p>
           </div>
-        )}
-
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-          {lastRefreshStatus !== 'idle' && lastRefreshAttemptLabel && (
-            <div className="flex items-center gap-2 text-sm" style={{ color: lastRefreshStatus === 'success' ? '#047857' : '#b91c1c' }}>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={clsx(
+                'stat-pill',
+                memberData.membership_active ? 'stat-pill--success' : 'stat-pill--warning',
+              )}
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              {memberData.membership_active
+                ? t('home.membershipStatusBadgeActive')
+                : t('home.membershipStatusBadgeInactive')}
+            </span>
+            {branchSummaryLabel && (
+              <span className="stat-pill">
+                <Building2 className="h-4 w-4 text-sky-600" />
+                {branchSummaryLabel}
+              </span>
+            )}
+            {lastSyncedLabel && (
+              <span className="stat-pill stat-pill--info">
+                <Clock className="h-4 w-4" />
+                {formatMessage('home.lastSyncedPrefix', { timestamp: lastSyncedLabel })}
+              </span>
+            )}
+          </div>
+          {refreshStatusMessage && (
+            <p
+              className={clsx(
+                'flex items-center gap-2 text-sm',
+                lastRefreshStatus === 'success' ? 'text-emerald-600' : 'text-rose-600',
+              )}
+            >
               {lastRefreshStatus === 'success' ? (
                 <CheckCircle2 className="h-4 w-4" />
               ) : (
                 <AlertTriangle className="h-4 w-4" />
               )}
-              <span>
-                {lastRefreshStatus === 'success'
-                  ? formatMessage('home.refreshStatus.success', { timestamp: lastRefreshAttemptLabel })
-                  : formatMessage('home.refreshStatus.error', { timestamp: lastRefreshAttemptLabel })}
-              </span>
-          </div>
-        )}
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={handleRefresh}
-            disabled={isRefreshing || !isOnline}
-          >
-            {isRefreshing ? t('home.refreshing') : t('home.refresh')}
-          </Button>
-        </div>
-
-        <div className="text-center">
-          <div className="mb-6 flex justify-center">
-            <svg width="80" height="80" viewBox="-60 -60 120 120" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <linearGradient id="homeLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" style={{ stopColor: '#1d4f7d', stopOpacity: 1 }} />
-                  <stop offset="100%" style={{ stopColor: '#049edb', stopOpacity: 1 }} />
-                </linearGradient>
-              </defs>
-              <circle cx="0" cy="0" r="55" fill="url(#homeLogoGradient)" />
-              <circle cx="0" cy="0" r="50" fill="none" stroke="white" strokeWidth={6} />
-              <line x1="0" y1="0" x2="-15" y2="-25" stroke="white" strokeWidth={5} strokeLinecap="round" />
-              <line x1="0" y1="0" x2="25" y2="-15" stroke="white" strokeWidth={4} strokeLinecap="round" />
-              <circle cx="0" cy="0" r="6" fill="white" />
-              <circle cx="0" cy="-40" r="4" fill="white" />
-              <circle cx="40" cy="0" r="4" fill="white" />
-              <circle cx="0" cy="40" r="4" fill="white" />
-              <circle cx="-40" cy="0" r="4" fill="white" />
-            </svg>
-          </div>
-          <h1 className="mb-2">{t('home.welcome')}!</h1>
-          <p style={{ color: '#666666' }}>{memberData.full_name || memberEmail}</p>
-        </div>
-
-        <div className="psychocas-card">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-2">
-              <h2 style={{ color: '#333333' }}>{t('home.install.heading')}</h2>
-              <p className="text-sm" style={{ color: '#666666' }}>
-                {t('home.install.description')}
-              </p>
-              {!canInstall && !installed && (
-                <p className="text-xs" style={{ color: '#1d4f7d' }}>
-                  {t('home.install.instructions')}
-                </p>
-              )}
-              {installed && (
-                <p className="text-xs" style={{ color: '#047857' }}>
-                  {t('home.install.installed')}
-                </p>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={handleInstallClick}
-              disabled={!canInstall || installed}
-              className="flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
-              style={{
-                backgroundColor: !canInstall || installed ? '#e5e7eb' : '#1d4f7d',
-                color: !canInstall || installed ? '#9ca3af' : '#ffffff',
-                cursor: !canInstall || installed ? 'not-allowed' : 'pointer',
-                minWidth: '12rem',
-              }}
-            >
-              <Download className="h-4 w-4" />
-              {t('home.install.button')}
-            </button>
-          </div>
-          {canInstall && !installed && (
-            <p className="mt-3 text-xs" style={{ color: '#666666' }}>
-              {t('home.install.confirm')}
+              {refreshStatusMessage}
             </p>
           )}
-          {installError && (
-            <p className="mt-3 text-sm" style={{ color: '#b91c1c' }}>{resolveTranslatable(installError, t)}</p>
+          {!isOnline && (
+            <div className="stat-pill stat-pill--warning">
+              <WifiOff className="h-4 w-4" />
+              {t('home.offline.cardHint')}
+            </div>
           )}
-        </div>
+          <div className="flex flex-wrap gap-3 pt-2">
+            <Button
+              type="button"
+              variant="primary"
+              size="lg"
+              onClick={handleRefresh}
+              disabled={isRefreshing || !isOnline}
+            >
+              <RefreshCcw className={clsx('h-5 w-5', { 'animate-spin': isRefreshing })} />
+              {isRefreshing ? t('home.refreshing') : t('home.refresh')}
+            </Button>
+          </div>
+        </section>
 
-        {memberData.approved === false && (
-          <div className="psychocas-card" style={{ backgroundColor: '#fff7ed', border: '1px solid #fdba74' }}>
-            <div className="flex items-start gap-3">
-              <ShieldAlert className="h-5 w-5 flex-shrink-0" style={{ color: '#c2410c' }} />
-              <div className="space-y-1">
-                <h3 className="text-base font-semibold" style={{ color: '#c2410c' }}>{t('home.pendingApproval.title')}</h3>
-                <p className="text-sm" style={{ color: '#9a3412' }}>
-                  {t('home.pendingApproval.description')}
-                </p>
-              </div>
+        {error && (
+          <Card
+            className="border-rose-200/70 bg-rose-50/70"
+            title={t('home.membership')}
+            subtitle={resolveTranslatable(error, t) ?? undefined}
+            headerSlot={<Badge tone="danger">{t('home.membershipInactive')}</Badge>}
+            padding="sm"
+            style={{ boxShadow: '0 22px 48px -32px rgba(244, 63, 94, 0.45)' }}
+          />
+        )}
+
+        {restoredFromSnapshot && offlineSnapshotLabel && (
+          <div className="home-alert">
+            <div className="home-alert__icon">
+              <Clock className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-semibold">{t('home.offline.title')}</p>
+              <p className="text-sm">
+                {formatMessage('home.offline.description', { label: offlineSnapshotLabel })}
+              </p>
             </div>
           </div>
         )}
 
-        <div className="psychocas-card">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1">
-              <h2 style={{ color: '#333333' }}>{t('home.membership')}</h2>
-              <p className="text-sm" style={{ color: '#666666' }}>{memberEmail}</p>
-              {lastSyncedLabel && (
-                <p className="text-xs" style={{ color: '#9ca3af' }}>
-                  {formatMessage('home.lastSyncedPrefix', { timestamp: lastSyncedLabel })}
-                </p>
-              )}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-              <Badge tone={memberData.membership_active ? 'success' : 'warning'}>
-                {memberData.membership_active ? t('home.membershipActive') : t('home.membershipInactive')}
-              </Badge>
-              <Button variant="ghost" size="sm" onClick={() => setIsProfileOpen(true)}>
-                {t('home.manageProfile')}
-              </Button>
-            </div>
-          </div>
-
-          <div className="mt-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <span style={{ color: '#666666' }}>{t('home.membershipStatus')}</span>
-              <span
-                className={`flex items-center gap-2 px-3 py-1 rounded-full ${
-                  memberData.membership_active ? 'status-active' : 'status-inactive'
-                }`}
-              >
-                {memberData.membership_active
-                  ? t('home.membershipStatusBadgeActive')
-                  : t('home.membershipStatusBadgeInactive')}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span style={{ color: '#666666' }}>{t('home.membershipValidity')}</span>
-              <span style={{ color: '#333333', fontWeight: 500 }}>{formatExpiryDate(memberData.membership_expires)}</span>
-            </div>
-            {branchName && (
-              <div className="rounded-xl px-4 py-3" style={{ backgroundColor: '#f8fafc' }}>
-                <p className="text-xs uppercase tracking-wide" style={{ color: '#1d4f7d', fontWeight: 600 }}>
-                  {t('home.membershipLocalBranch')}
-                </p>
-                <p className="mt-1 text-sm" style={{ color: '#333333' }}>
-                  {branchName}
-                  {branchLocation ? ` • ${branchLocation}` : ''}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="psychocas-card">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1">
-              <h2 style={{ color: '#333333' }}>{t('home.membershipCard.heading')}</h2>
-              <p className="text-sm" style={{ color: '#666666' }}>
-                {t('home.membershipCard.description')}
-              </p>
-            </div>
-            {token && timeLeft > 0 && (
-              <span className="flex items-center gap-1 text-sm font-medium" style={{ color: '#2e7d32' }}>
-                <CheckCircle2 className="h-5 w-5" />
-                {t('home.membershipCard.statusValid')}
-              </span>
-            )}
-          </div>
-
-          <div className="mt-6 space-y-4">
-            {!isOnline && (
-              <div
-                className="rounded-lg border px-3 py-2 text-sm"
-                style={{ borderColor: '#f97316', backgroundColor: '#fff7ed', color: '#9a3412' }}
-              >
-                {t('home.offline.cardHint')}
-              </div>
-            )}
-            {pendingTokenRequest && !isOnline && (
-              <p className="text-sm" style={{ color: '#1d4f7d' }}>{t('home.offline.queueMessage')}</p>
-            )}
-            {token ? (
-              <div className="rounded-2xl border px-4 py-5" style={{ borderColor: '#bbdefb', backgroundColor: '#e3f2fd' }}>
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide" style={{ color: '#1d4f7d', fontWeight: 600 }}>
-                      {t('home.membershipCard.hashLabel')}
+        <div className="grid gap-6 lg:grid-cols-12">
+          <Card className="lg:col-span-5">
+            <div className="flex flex-col gap-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900">{t('home.membership')}</h2>
+                  <p className="text-sm text-slate-600">{memberEmail}</p>
+                  {lastSyncedLabel && (
+                    <p className="text-xs text-slate-400">
+                      {formatMessage('home.lastSyncedPrefix', { timestamp: lastSyncedLabel })}
                     </p>
-                    <p className="mt-2 font-mono text-2xl" style={{ color: '#1d4f7d', letterSpacing: '0.2rem' }}>{token.code}</p>
-                  </div>
-                  <CheckCircle2 className="h-10 w-10" style={{ color: '#2e7d32' }} />
+                  )}
                 </div>
-                <div className="mt-4 flex items-center justify-between text-sm" style={{ color: '#1d4f7d' }}>
-                  <span className="flex items-center gap-2">
-                    <Clock className="h-4 w-4" />
-                    {formatRemainingTime(timeLeft)}
+                <Badge tone={memberData.membership_active ? 'success' : 'warning'}>
+                  {memberData.membership_active ? t('home.membershipActive') : t('home.membershipInactive')}
+                </Badge>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between text-sm text-slate-600">
+                  <span>{t('home.membershipStatus')}</span>
+                  <span
+                    className={clsx(
+                      'stat-pill',
+                      memberData.membership_active ? 'stat-pill--success' : 'stat-pill--warning',
+                    )}
+                  >
+                    {memberData.membership_active
+                      ? t('home.membershipStatusBadgeActive')
+                      : t('home.membershipStatusBadgeInactive')}
                   </span>
-                  <button
-                    type="button"
-                    onClick={handleCopyCode}
-                    disabled={timeLeft <= 0}
-                    className="flex items-center gap-2"
-                    style={{
-                      color: timeLeft <= 0 ? '#94a3b8' : '#1d4f7d',
-                      cursor: timeLeft <= 0 ? 'not-allowed' : 'pointer',
-                      fontWeight: 500,
-                    }}
-                  >
-                    <Copy className="h-4 w-4" />
-                    {t('home.membershipCard.copy')}
-                  </button>
                 </div>
-              </div>
-            ) : (
-              <div
-                className="rounded-2xl border border-dashed px-4 py-5 text-sm"
-                style={{ borderColor: '#cbd5f5', backgroundColor: '#f8fafc', color: '#666666' }}
-              >
-                {t('home.membershipCard.noToken')}
-              </div>
-            )}
-
-            {tokenError && (
-              <p className="text-sm" style={{ color: '#c62828' }}>{resolveTranslatable(tokenError, t)}</p>
-            )}
-            {copied && (
-              <p className="text-xs" style={{ color: '#2e7d32' }}>{t('home.membershipCard.copied')}</p>
-            )}
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <button
-                onClick={handleGenerateToken}
-                disabled={!canGenerateToken || tokenLoading}
-                className="psychocas-button-primary"
-              >
-                {tokenLoading
-                  ? t('home.membershipCard.generateLoading')
-                  : token
-                    ? t('home.membershipCard.generateRefresh')
-                    : t('home.membershipCard.generateCreate')}
-              </button>
-              <button
-                onClick={() => router.push('/redeem')}
-                className="psychocas-button-secondary"
-              >
-                <QrCode className="h-5 w-5" />
-                {t('home.membershipCard.showQr')}
-              </button>
-            </div>
-
-            {!canGenerateToken && (
-              <p className="text-sm" style={{ color: '#c62828' }}>
-                {memberData.approved === false
-                  ? t('home.membershipCard.pendingApproval')
-                  : t('home.membershipCard.requireActive')}
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="psychocas-card">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1">
-              <h2 style={{ color: '#333333' }}>{t('home.partners.heading')}</h2>
-              <p className="text-sm" style={{ color: '#666666' }}>
-                {t('home.partners.description')}
-              </p>
-            </div>
-            <MapPin className="h-6 w-6" style={{ color: '#1d4f7d' }} />
-          </div>
-
-          {partnersLoading ? (
-            <div className="flex justify-center py-6">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2" style={{ borderColor: '#1d4f7d' }}></div>
-            </div>
-          ) : !isApproved ? (
-            <p className="text-sm" style={{ color: '#c2410c' }}>{t('home.partners.approvalsPending')}</p>
-          ) : (
-            <div className="space-y-5">
-              {partnerGroups.national.length > 0 && (
-                <div className="space-y-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#1d4f7d' }}>
-                    {t('home.partners.national')}
-                  </h3>
-                  {partnerGroups.national.map(renderPartnerCard)}
+                <div className="flex items-center justify-between text-sm text-slate-600">
+                  <span>{t('home.membershipValidity')}</span>
+                  <span className="font-semibold text-slate-900">
+                    {formatExpiryDate(memberData.membership_expires)}
+                  </span>
                 </div>
-              )}
-              {partnerGroups.local.length > 0 && (
-                <div className="space-y-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#1d4f7d' }}>
-                    {formatMessage('home.partners.local', { location: branchLocation ? ` – ${branchLocation}` : '' })}
-                  </h3>
-                  {partnerGroups.local.map(renderPartnerCard)}
-                </div>
-              )}
-              {!partnerSectionHasContent && !partnersError && (
-                <p className="text-sm" style={{ color: '#666666' }}>{t('home.partners.empty')}</p>
-              )}
-              {partnersError && (
-                <p className="text-sm" style={{ color: '#c62828' }}>{resolveTranslatable(partnersError, t)}</p>
-              )}
-              {showPartnerDiagnostics && (
-                <div
-                  className={`rounded-lg border px-4 py-3 ${
-                    partnerDiagnostics.hasIssues ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50'
-                  }`}
-                >
-                  <p
-                    className="text-sm font-semibold"
-                    style={{ color: partnerDiagnostics.hasIssues ? '#b91c1c' : '#047857' }}
-                  >
-                    {t('home.partners.diagnosticsTitle')}{' '}
-                    {partnerDiagnostics.hasIssues
-                      ? t('home.partners.diagnosticsNeedsAttention')
-                      : t('home.partners.diagnosticsOk')}
-                  </p>
-                  {partnerDiagnostics.hasIssues ? (
-                    <ul className="mt-2 list-disc space-y-1 pl-4 text-xs" style={{ color: '#991b1b' }}>
-                      {partnerDiagnostics.hiddenEligible.length > 0 && (
-                        <li>
-                          {formatMessage('home.partners.diagnosticsHiddenEligible', {
-                            count: partnerDiagnostics.hiddenEligible.length,
-                          })}
-                        </li>
-                      )}
-                      {partnerDiagnostics.extraneousLocal.length > 0 && (
-                        <li>
-                          {formatMessage('home.partners.diagnosticsExtraneousLocal', {
-                            count: partnerDiagnostics.extraneousLocal.length,
-                          })}
-                        </li>
-                      )}
-                      {partnerDiagnostics.extraneousNational.length > 0 && (
-                        <li>
-                          {formatMessage('home.partners.diagnosticsExtraneousNational', {
-                            count: partnerDiagnostics.extraneousNational.length,
-                          })}
-                        </li>
-                      )}
-                    </ul>
-                  ) : (
-                    <p className="mt-2 text-xs" style={{ color: '#047857' }}>{t('home.partners.diagnosticsAllMatched')}</p>
-                  )}
-                  {partnerGroups.excluded.length > 0 && !partnerDiagnostics.hasIssues && (
-                    <p className="mt-2 text-xs" style={{ color: '#4b5563' }}>
-                      {formatMessage('home.partners.diagnosticsExcluded', {
-                        count: partnerGroups.excluded.length,
-                      })}
+                {branchSummaryLabel && (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                      {t('home.membershipLocalBranch')}
                     </p>
+                    <p className="mt-1 text-sm text-slate-700">{branchSummaryLabel}</p>
+                  </div>
+                )}
+                <Button variant="ghost" size="sm" onClick={() => setIsProfileOpen(true)}>
+                  {t('home.manageProfile')}
+                </Button>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="lg:col-span-7">
+            <div className="space-y-5">
+              <div className="flex flex-col gap-2">
+                <h2 className="text-xl font-semibold text-slate-900">{t('home.membershipCard.heading')}</h2>
+                <p className="text-sm text-slate-600">{t('home.membershipCard.description')}</p>
+              </div>
+
+              {!isOnline && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-700">
+                  {t('home.offline.cardHint')}
+                </div>
+              )}
+              {pendingTokenRequest && !isOnline && (
+                <p className="text-sm text-sky-700">{t('home.offline.queueMessage')}</p>
+              )}
+
+              {token ? (
+                <div className="rounded-3xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-white p-6 shadow-inner">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-sky-600">
+                        {t('home.membershipCard.hashLabel')}
+                      </p>
+                      <p className="mt-2 font-mono text-2xl tracking-[0.28em] text-slate-900">{token.code}</p>
+                    </div>
+                    {timeLeft > 0 && (
+                      <span className="stat-pill stat-pill--success">
+                        <CheckCircle2 className="h-4 w-4" />
+                        {t('home.membershipCard.statusValid')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-sky-700">
+                    <span className="flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      {formatRemainingTime(timeLeft)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleCopyCode}
+                      disabled={timeLeft <= 0}
+                      className={clsx(
+                        'inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium transition-colors',
+                        timeLeft <= 0
+                          ? 'cursor-not-allowed text-slate-400'
+                          : 'text-sky-700 hover:text-sky-900',
+                      )}
+                    >
+                      <Copy className="h-4 w-4" />
+                      {t('home.membershipCard.copy')}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-6 text-sm text-slate-500">
+                  {t('home.membershipCard.noToken')}
+                </div>
+              )}
+
+              {tokenError && <p className="text-sm text-rose-600">{resolveTranslatable(tokenError, t)}</p>}
+              {copied && <p className="text-xs text-emerald-600">{t('home.membershipCard.copied')}</p>}
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={handleGenerateToken}
+                  disabled={!canGenerateToken || tokenLoading}
+                  block
+                >
+                  <RefreshCcw className={clsx('h-5 w-5', { 'animate-spin': tokenLoading })} />
+                  {tokenLoading
+                    ? t('home.membershipCard.generateLoading')
+                    : token
+                      ? t('home.membershipCard.generateRefresh')
+                      : t('home.membershipCard.generateCreate')}
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => router.push('/redeem')} block>
+                  <QrCode className="h-5 w-5" />
+                  {t('home.membershipCard.showQr')}
+                </Button>
+              </div>
+
+              {!canGenerateToken && (
+                <p className="text-sm text-rose-600">{t('home.membershipCard.requireActive')}</p>
+              )}
+            </div>
+          </Card>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-12">
+          <Card className="lg:col-span-7">
+            <div className="space-y-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900">{t('home.partners.heading')}</h2>
+                  <p className="text-sm text-slate-600">{t('home.partners.description')}</p>
+                </div>
+                <MapPin className="h-6 w-6 text-sky-600" />
+              </div>
+
+              {partnersLoading ? (
+                <div className="flex justify-center py-10">
+                  <div className="h-10 w-10 animate-spin rounded-full border-2 border-sky-200 border-t-sky-500" />
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  {partnerGroups.national.length > 0 && (
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                        {t('home.partners.national')}
+                      </h3>
+                      <div className="space-y-3">{partnerGroups.national.map(renderPartnerCard)}</div>
+                    </div>
+                  )}
+                  {partnerGroups.local.length > 0 && (
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                        {formatMessage('home.partners.local', { location: branchLocation ? ` – ${branchLocation}` : '' })}
+                      </h3>
+                      <div className="space-y-3">{partnerGroups.local.map(renderPartnerCard)}</div>
+                    </div>
+                  )}
+                  {!partnerSectionHasContent && !partnersError && (
+                    <p className="text-sm text-slate-500">{t('home.partners.empty')}</p>
+                  )}
+                  {partnersError && (
+                    <p className="text-sm text-rose-600">{resolveTranslatable(partnersError, t)}</p>
+                  )}
+                  {showPartnerDiagnostics && (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3">
+                      <p className="text-sm font-semibold text-slate-700">
+                        {t('home.partners.diagnosticsTitle')}{' '}
+                        <span className={partnerDiagnostics.hasIssues ? 'text-rose-600' : 'text-emerald-600'}>
+                          {partnerDiagnostics.hasIssues
+                            ? t('home.partners.diagnosticsNeedsAttention')
+                            : t('home.partners.diagnosticsOk')}
+                        </span>
+                      </p>
+                      {partnerDiagnostics.hasIssues ? (
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-rose-600">
+                          {partnerDiagnostics.hiddenEligible.length > 0 && (
+                            <li>
+                              {formatMessage('home.partners.diagnosticsHiddenEligible', {
+                                count: partnerDiagnostics.hiddenEligible.length,
+                              })}
+                            </li>
+                          )}
+                          {partnerDiagnostics.extraneousLocal.length > 0 && (
+                            <li>
+                              {formatMessage('home.partners.diagnosticsExtraneousLocal', {
+                                count: partnerDiagnostics.extraneousLocal.length,
+                              })}
+                            </li>
+                          )}
+                          {partnerDiagnostics.extraneousNational.length > 0 && (
+                            <li>
+                              {formatMessage('home.partners.diagnosticsExtraneousNational', {
+                                count: partnerDiagnostics.extraneousNational.length,
+                              })}
+                            </li>
+                          )}
+                        </ul>
+                      ) : (
+                        <p className="mt-2 text-xs text-emerald-600">
+                          {t('home.partners.diagnosticsAllMatched')}
+                        </p>
+                      )}
+                      {partnerGroups.excluded.length > 0 && !partnerDiagnostics.hasIssues && (
+                        <p className="mt-2 text-xs text-slate-500">
+                          {formatMessage('home.partners.diagnosticsExcluded', {
+                            count: partnerGroups.excluded.length,
+                          })}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
             </div>
-          )}
-        </div>
+          </Card>
 
-        {showManagementShortcuts && (
-          <div className="psychocas-card">
-            <h2 className="mb-4" style={{ color: '#333333' }}>{t('home.management.heading')}</h2>
-            <div className="space-y-3">
-              {(memberData.role === 'manager' || memberData.role === 'council') && (
-                <>
-                  <button
-                    onClick={() => router.push('/validate')}
-                    className="w-full flex items-center justify-between gap-4 rounded-xl border px-4 py-3 transition-colors duration-300 hover:bg-gray-50"
-                    style={{ borderColor: '#e0e0e0', color: '#333333' }}
-                  >
-                    <span>{t('home.management.validate')}</span>
-                    <span style={{ color: '#1d4f7d' }}>→</span>
-                  </button>
-                  <button
-                    onClick={() => router.push('/stats')}
-                    className="w-full flex items-center justify-between gap-4 rounded-xl border px-4 py-3 transition-colors duration-300 hover:bg-gray-50"
-                    style={{ borderColor: '#e0e0e0', color: '#333333' }}
-                  >
-                    <span>{t('home.management.stats')}</span>
-                    <span style={{ color: '#1d4f7d' }}>→</span>
-                  </button>
-                </>
-              )}
-              {memberData.role === 'technician' && (
-                <button
-                  onClick={() => router.push('/technician')}
-                  className="w-full flex items-center justify-between gap-4 rounded-xl border px-4 py-3 transition-colors duration-300 hover:bg-gray-50"
-                  style={{ borderColor: '#e0e0e0', color: '#333333' }}
+          <div className="grid gap-6 lg:col-span-5">
+            <Card>
+              <div className="space-y-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-900">{t('home.install.heading')}</h2>
+                    <p className="text-sm text-slate-600">{t('home.install.description')}</p>
+                  </div>
+                  <Download className="h-6 w-6 text-sky-600" />
+                </div>
+                <div className="rounded-2xl border border-dashed border-sky-200 bg-sky-50/70 px-4 py-3 text-sm text-slate-600">
+                  <p>{t('home.install.instructions')}</p>
+                  {installed && (
+                    <p className="mt-2 text-xs text-emerald-600">{t('home.install.installed')}</p>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={handleInstallClick}
+                  disabled={!canInstall || installed}
+                  block
                 >
-                  <span>{t('home.management.technician')}</span>
-                  <span style={{ color: '#1d4f7d' }}>→</span>
-                </button>
-              )}
-            </div>
+                  <Download className="h-5 w-5" />
+                  {t('home.install.button')}
+                </Button>
+                {canInstall && !installed && (
+                  <p className="text-xs text-slate-500">{t('home.install.confirm')}</p>
+                )}
+                {!canInstall && !installed && (
+                  <p className="text-xs text-slate-500">{t('home.install.unavailable')}</p>
+                )}
+                {installError && (
+                  <p className="text-sm text-rose-600">{resolveTranslatable(installError, t)}</p>
+                )}
+              </div>
+            </Card>
+
+            {showManagementShortcuts && (
+              <Card>
+                <div className="space-y-3">
+                  <h2 className="text-xl font-semibold text-slate-900">{t('home.management.heading')}</h2>
+                  {(memberData.role === 'manager' || memberData.role === 'council') && (
+                    <>
+                      <button
+                        onClick={() => router.push('/validate')}
+                        className="flex w-full items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 text-sm font-medium text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-white"
+                      >
+                        <span>{t('home.management.validate')}</span>
+                        <ArrowRight className="h-4 w-4 text-sky-600" />
+                      </button>
+                      <button
+                        onClick={() => router.push('/stats')}
+                        className="flex w-full items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 text-sm font-medium text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-white"
+                      >
+                        <span>{t('home.management.stats')}</span>
+                        <ArrowRight className="h-4 w-4 text-sky-600" />
+                      </button>
+                    </>
+                  )}
+                  {memberData.role === 'technician' && (
+                    <button
+                      onClick={() => router.push('/technician')}
+                      className="flex w-full items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 text-sm font-medium text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-200 hover:bg-white"
+                    >
+                      <span>{t('home.management.technician')}</span>
+                      <ArrowRight className="h-4 w-4 text-sky-600" />
+                    </button>
+                  )}
+                </div>
+              </Card>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       {memberData && <Navigation userRole={memberData.role} />}

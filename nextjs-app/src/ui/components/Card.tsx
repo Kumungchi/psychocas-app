@@ -1,11 +1,14 @@
-import type { PropsWithChildren, ReactNode } from 'react';
-import { colors, radii, spacing, shadows, typography } from '@/ui/theme';
+import type { CSSProperties, PropsWithChildren, ReactNode } from 'react';
+import clsx from 'clsx';
+import { colors, radii, shadows, spacing, typography } from '@/ui/theme';
 
 export interface CardProps {
   title?: string;
   subtitle?: string;
   headerSlot?: ReactNode;
   padding?: 'sm' | 'md' | 'lg';
+  className?: string;
+  style?: CSSProperties;
 }
 
 export default function Card({
@@ -13,18 +16,30 @@ export default function Card({
   subtitle,
   headerSlot,
   padding = 'md',
+  className,
+  style,
   children,
 }: PropsWithChildren<CardProps>) {
+  const paddingMap: Record<NonNullable<CardProps['padding']>, string> = {
+    sm: '1.5rem',
+    md: '2.1rem',
+    lg: '2.6rem',
+  };
+
   return (
     <section
+      className={clsx('card-surface', className)}
       style={{
-        backgroundColor: colors.background,
-        borderRadius: radii.lg,
-        boxShadow: shadows.sm,
-        padding: padding === 'sm' ? spacing.sm : padding === 'md' ? spacing.lg : spacing.xl,
+        background: 'linear-gradient(180deg, rgba(255,255,255,0.97) 0%, rgba(244,248,255,0.98) 100%)',
+        borderRadius: `calc(${radii.lg} * 1.15)`,
+        boxShadow: shadows.md,
+        padding: paddingMap[padding],
         display: 'flex',
         flexDirection: 'column',
-        gap: spacing.md,
+        gap: '1.25rem',
+        border: `1px solid ${colors.border}`,
+        backdropFilter: 'blur(18px)',
+        ...style,
       }}
     >
       {(title || subtitle || headerSlot) && (
@@ -33,7 +48,7 @@ export default function Card({
             display: 'flex',
             alignItems: subtitle ? 'flex-start' : 'center',
             justifyContent: 'space-between',
-            gap: spacing.md,
+            gap: '1rem',
           }}
         >
           <div style={{ flex: 1 }}>
@@ -42,7 +57,7 @@ export default function Card({
                 style={{
                   margin: 0,
                   fontFamily: typography.heading,
-                  fontSize: '1.1rem',
+                  fontSize: '1.15rem',
                   color: colors.textPrimary,
                 }}
               >
@@ -65,7 +80,7 @@ export default function Card({
           {headerSlot}
         </header>
       )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>{children}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>{children}</div>
     </section>
   );
 }

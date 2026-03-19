@@ -150,7 +150,7 @@ export default function Technician() {
     setPeople(normalizedMembers);
     setLoadError(null);
     setIsLoading(false);
-  }, [isDemo, supabase, t]);
+  }, [isDemo, t]);
 
   useEffect(() => {
     if (status === 'ready' && canManage) {

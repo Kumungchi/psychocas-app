@@ -1,29 +1,29 @@
 export const colors = {
-  brandPrimary: '#7C3AED',
-  brandPrimaryHover: '#6D28D9',
-  brandSurface: '#F3E8FF',
-  brandSurfaceAlt: '#EDE9FE',
-  brandOnSurface: '#240046',
-  accent: '#10B981',
-  accentMuted: '#D1FAE5',
+  brandPrimary: '#1D4F7D',
+  brandPrimaryHover: '#153A5C',
+  brandSurface: '#E7F0FF',
+  brandSurfaceAlt: '#F4F8FF',
+  brandOnSurface: '#0F2740',
+  accent: '#22C55E',
+  accentMuted: '#DCFCE7',
   success: '#047857',
   successSurface: '#ECFDF5',
-  textPrimary: '#111827',
-  textSecondary: '#4B5563',
-  border: '#E5E7EB',
+  textPrimary: '#0F172A',
+  textSecondary: '#475569',
+  border: '#D8E3F8',
   background: '#FFFFFF',
-  backgroundMuted: '#F9FAFB',
+  backgroundMuted: '#F1F5FF',
   danger: '#DC2626',
   dangerStrong: '#B91C1C',
   dangerSurface: '#FEE2E2',
-  info: '#0284C7',
-  infoStrong: '#0EA5E9',
-  infoSurface: '#E0F2FE',
-  infoSurfaceAlt: '#E0F7FA',
+  info: '#2563EB',
+  infoStrong: '#1D4ED8',
+  infoSurface: '#E0EDFF',
+  infoSurfaceAlt: '#F0F6FF',
   warning: '#F59E0B',
   warningSurface: '#FEF3C7',
   warningSurfaceAlt: '#FFF7ED',
-  neutralSurface: '#F3F4F6',
+  neutralSurface: '#F8FAFC',
 };
 
 export const radii = {
@@ -48,8 +48,8 @@ export const typography = {
 };
 
 export const shadows = {
-  sm: '0 2px 8px rgba(15, 23, 42, 0.08)',
-  md: '0 8px 24px rgba(15, 23, 42, 0.12)',
+  sm: '0 18px 32px -24px rgba(15, 23, 42, 0.55)',
+  md: '0 28px 60px -32px rgba(15, 23, 42, 0.35)',
 };
 
 export const transitions = {

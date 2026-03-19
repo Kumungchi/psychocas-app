@@ -29,6 +29,21 @@ ON CONFLICT (title) DO UPDATE SET
   discount_percentage = EXCLUDED.discount_percentage,
   active = EXCLUDED.active;
 
+-- Member events -------------------------------------------------
+INSERT INTO public.member_events (id, title, description, link_label, link_url)
+VALUES (
+  '6c9f512d-4f64-4d7b-9f2a-1d2e3f4a5b6c',
+  'Ukázková událost Psychočas',
+  'Tato ukázková událost demonstruje, kde se budou zobrazovat aktuální novinky a odkazy pro členy.',
+  'Více informací',
+  'https://psychocas.cz'
+)
+ON CONFLICT (id) DO UPDATE SET
+  title = EXCLUDED.title,
+  description = EXCLUDED.description,
+  link_label = EXCLUDED.link_label,
+  link_url = EXCLUDED.link_url;
+
 -- Local partner offers -----------------------------------------
 INSERT INTO public.partner_offers (title, description, discount_percentage, scope, branch_id, city, active)
 VALUES
