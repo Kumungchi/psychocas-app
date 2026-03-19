@@ -1,5 +1,5 @@
+@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700;900&display=swap');
-
 @custom-variant dark (&:is(.dark *));
 
 :root {
@@ -60,42 +60,7 @@
   --sidebar-ring: var(--psychocas-accent);
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
-}
+/* Dark mode has been intentionally removed to lock the PWA MVP into Light Mode */
 
 @theme inline {
   --color-background: var(--background);
@@ -145,6 +110,14 @@
 
   body {
     @apply bg-background text-foreground;
+    overscroll-behavior-y: none; /* Zatrhne pull-to-refresh na mobilech pro PWA feel */
+    -webkit-user-select: none; /* Zamezí nechtěnému označování textu */
+    user-select: none;
+  }
+
+  input, textarea {
+    -webkit-user-select: auto; /* Povoli oznacovani jen uvnitr inputu */
+    user-select: auto;
   }
 }
 
@@ -213,7 +186,7 @@ html {
   background: var(--psychocas-white);
   border-radius: var(--radius-card);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.06);
-  padding: 2rem;
+  padding: clamp(1.5rem, 6vw, 2.5rem);
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid rgba(0, 0, 0, 0.02);
 }
@@ -228,13 +201,21 @@ html {
   background: var(--psychocas-primary);
   color: var(--psychocas-white);
   border-radius: var(--radius-button);
-  height: 3.5rem;
-  padding: 0 2.5rem;
+  height: 3.5rem;     /* 56px — comfortable touch target */
+  min-height: 3.5rem;
+  padding: 0 1.5rem;
   border: none;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   font-weight: 500;
+  font-size: clamp(0.9rem, 2.5vw, 1rem);
   letter-spacing: 0.025em;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  white-space: nowrap;
 }
 
 .psychocas-button-primary:hover {
@@ -267,10 +248,13 @@ html {
   background: var(--psychocas-light-gray);
   border: 2px solid transparent;
   border-radius: 0.75rem;
-  padding: 1rem 1.25rem;
+  padding: 0.875rem 1.25rem;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  font-size: 1rem;
+  font-size: 1rem; /* must stay 1rem+ on iOS to prevent auto-zoom */
   line-height: 1.5;
+  width: 100%;
+  min-height: 3rem; /* 48px touch target */
+
 }
 
 .psychocas-input:focus {
@@ -311,13 +295,16 @@ html {
 
 /* Enhanced spacing system for seamless design */
 .psychocas-section {
-  padding: 2rem 0;
+  background-color: var(--psychocas-light-gray);
+  min-height: 100dvh; /* dynamic viewport height — handles iOS Safari address bar */
+  padding-block: clamp(1.5rem, 6vw, 3rem);
+  padding-inline: clamp(1rem, 4vw, 1.5rem);
 }
 
 .psychocas-container {
-  max-width: 28rem;
-  margin: 0 auto;
-  padding: 0 1rem;
+  width: min(100%, 28rem);
+  margin-inline: auto;
+  padding-inline: 0;
 }
 
 /* Seamless page transitions */

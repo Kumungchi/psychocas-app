@@ -1,13 +1,38 @@
 
   <!DOCTYPE html>
-  <html lang="en">
+  <html lang="cs">
     <head>
       <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>Psychočas Member App Design</title>
+      <!-- ⚠️ user-scalable=no was REMOVED — it violates WCAG 1.4.4 (Resize Text, AA).
+           Users with low vision need to be able to pinch-zoom. -->
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+      <meta name="theme-color" content="#1d4f7d" />
+      <meta name="color-scheme" content="light" />
+      <meta name="description" content="Psychočas — digitální členská aplikace pro uplatňování slev." />
+      <!-- Apple PWA -->
+      <meta name="apple-mobile-web-app-capable" content="yes" />
+      <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+      <meta name="apple-mobile-web-app-title" content="Psychočas" />
+      <title>Psychočas App</title>
+      <style>
+        /* Safe-area padding for notched iPhones (iOS safe area) */
+        :root {
+          --safe-area-inset-top: env(safe-area-inset-top, 0px);
+          --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+        }
+      </style>
     </head>
 
     <body>
+      <!-- skip navigation link — first focusable element on page, helps keyboard/screen reader users -->
+      <a
+        href="#main-content"
+        style="position:absolute;top:-999px;left:-999px;padding:0.5rem 1rem;background:#1d4f7d;color:#fff;border-radius:0 0 0.5rem 0.5rem;z-index:9999;font-size:0.875rem"
+        onfocus="this.style.top='0';this.style.left='0'"
+        onblur="this.style.top='-999px';this.style.left='-999px'"
+      >
+        Přeskočit na obsah / Skip to content
+      </a>
       <div id="root"></div>
       <script type="module" src="/src/main.tsx"></script>
     </body>
