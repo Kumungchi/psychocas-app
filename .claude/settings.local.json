@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(SUPABASE_ACCESS_TOKEN='sbp_ebbd721912e0f7b5051572584107265e9274eecf' npx supabase db query --linked \"SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = ''public'' ORDER BY table_name;\")",
+      "Bash(SUPABASE_ACCESS_TOKEN='sbp_ebbd721912e0f7b5051572584107265e9274eecf' npx supabase db query --linked \"SELECT ''branches'' as t, count\\(*\\) FROM branches UNION ALL SELECT ''members_legacy'', count\\(*\\) FROM members_legacy UNION ALL SELECT ''membership_whitelist'', count\\(*\\) FROM membership_whitelist UNION ALL SELECT ''memberships'', count\\(*\\) FROM memberships UNION ALL SELECT ''profiles'', count\\(*\\) FROM profiles UNION ALL SELECT ''redemptions'', count\\(*\\) FROM redemptions UNION ALL SELECT ''tokens'', count\\(*\\) FROM tokens;\")",
+      "Bash(SUPABASE_ACCESS_TOKEN='sbp_ebbd721912e0f7b5051572584107265e9274eecf' npx supabase db query --linked \":*)",
+      "Bash(SUPABASE_ACCESS_TOKEN='sbp_ebbd721912e0f7b5051572584107265e9274eecf' npx supabase db query --linked \"DROP VIEW IF EXISTS public.members CASCADE; DROP VIEW IF EXISTS public.redemptions_daily CASCADE; DROP TABLE IF EXISTS public.redemptions CASCADE; DROP TABLE IF EXISTS public.tokens CASCADE; DROP TABLE IF EXISTS public.memberships CASCADE; DROP TABLE IF EXISTS public.membership_whitelist CASCADE; DROP TABLE IF EXISTS public.members_legacy CASCADE; DROP TABLE IF EXISTS public.profiles CASCADE; DROP TABLE IF EXISTS public.branches CASCADE; DROP TABLE IF EXISTS public.member_whitelist CASCADE; DROP TABLE IF EXISTS public.partners CASCADE; DROP TABLE IF EXISTS public.discounts CASCADE;\")",
+      "Bash(SUPABASE_ACCESS_TOKEN='sbp_ebbd721912e0f7b5051572584107265e9274eecf' npx supabase db query --linked -f sql/01_schema.sql,)",
+      "Bash(SUPABASE_ACCESS_TOKEN='sbp_ebbd721912e0f7b5051572584107265e9274eecf' npx supabase gen types typescript --project-id wsgmbtcsyccnzfenfucl)",
+      "Bash(ls *.tsx)",
+      "Bash(grep -r from.*/utils /c/Users/bunni/Documents/psyhocas-app/desing/src/components/ui/)",
+      "Bash(grep -n card /c/Users/bunni/Documents/psyhocas-app/desing/src/components/ui/*.tsx)",
+      "Bash(wc -l /c/Users/bunni/Documents/psyhocas-app/desing/src/pages/*.tsx)",
+      "Bash(git -C /c/Users/bunni/Documents/psyhocas-app/desing log --oneline)",
+      "Bash(git -C /c/Users/bunni/Documents/psyhocas-app/desing diff --stat)",
+      "Bash(npm run:*)",
+      "Bash(npx vitest:*)",
+      "Bash(npx eslint:*)",
+      "Bash(git branch:*)",
+      "Bash(git:*)",
+      "Bash(npx vercel:*)",
+      "WebFetch(domain:github.com)"
+    ]
+  }
+}
