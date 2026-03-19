@@ -1,156 +1,190 @@
+// =============================================================================
+// EDGE FUNCTION: redeem_token
+// =============================================================================
+// Called when a shop scans a QR code or a member's short code is entered.
+// This is a PUBLIC endpoint — no login required (shops don't have accounts).
+//
+// Two lookup methods:
+//   1. By token_hash (UUID from QR code URL) — preferred, used by QR scan
+//   2. By code ("PSYCH-XXXXXX") — fallback for manual entry
+//
+// REQUEST:
+//   POST /functions/v1/redeem_token
+//   Body: { "token_hash": "<uuid>" }   OR   { "code": "PSYCH-XXXXXX" }
+//
+// RESPONSE:
+//   {
+//     "status": "valid" | "expired" | "redeemed" | "invalid",
+//     "member_name": "Jan Novák",
+//     "discount_title": "15 % na všechny nápoje",
+//     "discount_value": "15 %",
+//     "partner_name": "Café Molo",
+//     "membership_expires_at": "2027-06-15",
+//     "redeemed_at": null | "2026-03-17T14:30:00Z"
+//   }
+//
+// The function:
+//   1. Looks up the token
+//   2. Checks if valid (not expired, not already redeemed)
+//   3. If valid → marks it as redeemed + creates a redemption row for analytics
+//   4. Returns token status + member/discount info for the validation page
+// =============================================================================
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-Deno.serve(async (req) => {
-  const body = await req.json();
-  const code = (body?.code || "").toString().trim().toUpperCase();
+// CORS headers — needed for browser requests
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
 
-  if (!code) {
-    return new Response(
-      JSON.stringify({ error: "missing_code" }),
-      { status: 400 }
-    );
-  }
-
-  const url = Deno.env.get("SUPABASE_URL")!;
-  const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
-  const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-  const svc = createClient(url, service);
-  const userClient = createClient(url, anon, {
-    global: {
-      headers: {
-        Authorization: req.headers.get("Authorization")!
-      }
-    }
+function jsonResponse(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
 
-  const {
-    data: { session },
-    error: sessionError,
-  } = await userClient.auth.getSession();
-
-  if (sessionError) {
-    return new Response("Unable to verify session", { status: 401 });
+Deno.serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
   }
 
-  const user = session?.user ?? null;
-  if (!user) {
-    return new Response("Unauthorized", { status: 401 });
-  }
+  try {
+    const body = await req.json();
+    const tokenHash = body?.token_hash?.toString().trim() || null;
+    const code = body?.code?.toString().trim().toUpperCase() || null;
 
-  const { error: ensureError } = await userClient.rpc("ensure_membership_from_whitelist");
-  if (ensureError) {
-    console.warn("ensure_membership_from_whitelist RPC failed", ensureError);
-  }
+    if (!tokenHash && !code) {
+      return jsonResponse({ error: "missing_token_hash_or_code" }, 400);
+    }
 
-  const {
-    data: membership,
-    error: membershipError,
-  } = await userClient
-    .from("memberships")
-    .select("role, branch_id, membership_active, membership_expires")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (membershipError) {
-    console.error("Failed to resolve membership for redeemer", membershipError);
-    return new Response(
-      JSON.stringify({ error: "membership_lookup_failed" }),
-      { status: 500 }
+    // Service role client — this is a public endpoint, no user auth needed.
+    // We use service_role to bypass RLS since shops don't have accounts.
+    const svc = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
-  }
 
-  const membershipExpires = membership?.membership_expires
-    ? new Date(membership.membership_expires)
-    : null;
-  const membershipActive =
-    Boolean(membership?.membership_active) && (!membershipExpires || membershipExpires.getTime() > Date.now());
+    // 1. Look up the token (by hash or code)
+    let query = svc
+      .from("tokens")
+      .select("id, member_id, discount_id, token_hash, code, expires_at, redeemed_at");
 
-  if (!membershipActive) {
-    return new Response(
-      JSON.stringify({ error: "membership_inactive" }),
-      { status: 403 }
-    );
-  }
+    if (tokenHash) {
+      query = query.eq("token_hash", tokenHash);
+    } else {
+      query = query.eq("code", code!);
+    }
 
-  if (!membership || membership.role !== "manager") {
-    return new Response(
-      JSON.stringify({ error: "forbidden" }),
-      { status: 403 }
-    );
-  }
+    const { data: token } = await query.maybeSingle();
 
-  const branchId = membership.branch_id ?? null;
-  if (!branchId) {
-    return new Response(
-      JSON.stringify({ error: "missing_branch" }),
-      { status: 400 }
-    );
-  }
+    if (!token) {
+      return jsonResponse({
+        status: "invalid",
+        member_name: null,
+        discount_title: null,
+        discount_value: null,
+        partner_name: null,
+        membership_expires_at: null,
+        redeemed_at: null,
+      });
+    }
 
-  const { data: tok } = await svc
-    .from("tokens")
-    .select("id, code, user_id, expires_at, consumed_at")
-    .eq("code", code)
-    .maybeSingle();
+    // 2. Get member info + whitelist for membership check
+    const { data: member } = await svc
+      .from("members")
+      .select("id, full_name, branch_id, whitelist_id")
+      .eq("id", token.member_id)
+      .single();
 
-  if (!tok || tok.consumed_at) {
-    return new Response(
-      JSON.stringify({ valid: false, reason: "used_or_not_found" }),
-      { status: 200 }
-    );
-  }
+    if (!member) {
+      return jsonResponse({
+        status: "invalid",
+        member_name: null,
+        discount_title: null,
+        discount_value: null,
+        partner_name: null,
+        membership_expires_at: null,
+        redeemed_at: null,
+      });
+    }
 
-  if (new Date(tok.expires_at).getTime() < Date.now()) {
-    return new Response(
-      JSON.stringify({ valid: false, reason: "expired" }),
-      { status: 200 }
-    );
-  }
+    const { data: whitelist } = await svc
+      .from("member_whitelist")
+      .select("membership_expires_at, is_active")
+      .eq("id", member.whitelist_id)
+      .single();
 
-  const { data: owner, error: ownerError } = await svc
-    .from("memberships")
-    .select("membership_active, membership_expires")
-    .eq("user_id", tok.user_id)
-    .maybeSingle();
+    // 3. Get discount + partner info
+    const { data: discount } = await svc
+      .from("discounts")
+      .select("id, title, discount_value, partner_id, partner:partners(id, name)")
+      .eq("id", token.discount_id)
+      .single();
 
-  if (ownerError) {
-    console.error("Failed to load membership for token owner", ownerError);
-    return new Response(
-      JSON.stringify({ valid: false, reason: "owner_lookup_failed" }),
-      { status: 200 }
-    );
-  }
+    const partner = discount?.partner as { id: string; name: string } | null;
 
-  const ownerExpires = owner?.membership_expires
-    ? new Date(owner.membership_expires)
-    : null;
-  const ownerActive =
-    Boolean(owner?.membership_active) && (!ownerExpires || ownerExpires.getTime() > Date.now());
+    // 4. Determine token status
+    let status: "valid" | "expired" | "redeemed" | "invalid";
 
-  if (!ownerActive) {
-    return new Response(
-      JSON.stringify({ valid: false, reason: "inactive_membership" }),
-      { status: 200 }
-    );
-  }
+    if (token.redeemed_at) {
+      status = "redeemed";
+    } else if (new Date(token.expires_at) < new Date()) {
+      status = "expired";
+    } else if (!whitelist?.is_active || new Date(whitelist.membership_expires_at) < new Date()) {
+      status = "invalid"; // membership no longer active
+    } else {
+      status = "valid";
+    }
 
-  await svc
-    .from("tokens")
-    .update({ consumed_at: new Date().toISOString() })
-    .eq("id", tok.id);
+    // 5. If valid → redeem it (mark token + create redemption row)
+    if (status === "valid") {
+      const now = new Date().toISOString();
 
-  await svc
-    .from("redemptions")
-    .insert({
-      token_id: tok.id,
-      branch_id: branchId
+      // Mark token as redeemed
+      await svc
+        .from("tokens")
+        .update({ redeemed_at: now })
+        .eq("id", token.id);
+
+      // Create redemption record for analytics (denormalized for fast queries)
+      await svc
+        .from("redemptions")
+        .insert({
+          token_id: token.id,
+          discount_id: token.discount_id,
+          partner_id: discount?.partner_id ?? partner?.id,
+          member_id: member.id,
+          branch_id: member.branch_id,
+          redeemed_at: now,
+        });
+
+      // Return with the redeemed_at timestamp
+      return jsonResponse({
+        status: "valid",
+        member_name: member.full_name,
+        discount_title: discount?.title ?? null,
+        discount_value: discount?.discount_value ?? null,
+        partner_name: partner?.name ?? null,
+        membership_expires_at: whitelist?.membership_expires_at ?? null,
+        redeemed_at: now,
+      });
+    }
+
+    // 6. Not valid — return status + info (for display purposes)
+    return jsonResponse({
+      status,
+      member_name: member.full_name,
+      discount_title: discount?.title ?? null,
+      discount_value: discount?.discount_value ?? null,
+      partner_name: partner?.name ?? null,
+      membership_expires_at: whitelist?.membership_expires_at ?? null,
+      redeemed_at: token.redeemed_at,
     });
 
-  return new Response(
-    JSON.stringify({ valid: true }),
-    {
-      headers: { "Content-Type": "application/json" }
-    }
-  );
+  } catch (err) {
+    return jsonResponse({ error: "internal_error" }, 500);
+  }
 });
