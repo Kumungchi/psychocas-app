@@ -27,6 +27,7 @@
   "exclude": [
     "node_modules",
     "supabase/functions/generate_token/**",
-    "supabase/functions/redeem_token/**"
+    "supabase/functions/redeem_token/**",
+    "scripts/**"
   ]
 }
