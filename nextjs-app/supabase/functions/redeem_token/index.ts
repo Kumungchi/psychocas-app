@@ -184,7 +184,7 @@ Deno.serve(async (req) => {
       redeemed_at: token.redeemed_at,
     });
 
-  } catch (err) {
+  } catch {
     return jsonResponse({ error: "internal_error" }, 500);
   }
 });
