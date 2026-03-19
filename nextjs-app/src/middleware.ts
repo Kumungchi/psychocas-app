@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PROTECTED_PATHS = ['/home', '/redeem', '/validate', '/stats', '/technician'];
+const PROTECTED_PATHS = ['/home', '/redeem', '/validate', '/stats', '/technician', '/discounts', '/token', '/manage'];
 
 function getProjectRef(supabaseUrl: string | undefined): string | null {
   if (!supabaseUrl) {
