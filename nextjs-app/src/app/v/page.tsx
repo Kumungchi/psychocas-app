@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Clock3, Loader2, QrCode, ShieldCheck, XCircle } from 'lucide-react';
 import PsychocasLogo from '@/components/PsychocasLogo';
 import useLocale from '@/hooks/useLocale';
+import { convexSiteUrl } from '@/lib/convex/config';
 import { getDateLocale } from '@/lib/i18n/utils';
 import { colors, radii, shadows } from '@/ui/theme';
 
@@ -16,27 +17,13 @@ type ValidationResult = {
   partnerName?: string;
 };
 
-function convexSiteUrl(): string | null {
-  const configured = process.env.NEXT_PUBLIC_CONVEX_SITE_URL?.trim();
-  if (configured) return configured.replace(/\/$/, '');
-  const cloud = process.env.NEXT_PUBLIC_CONVEX_URL?.trim();
-  return cloud ? cloud.replace(/\.convex\.cloud\/?$/, '.convex.site') : null;
-}
-
 export default function PublicValidationPage() {
   const { locale, tr } = useLocale();
-  const endpoint = useMemo(() => {
-    const site = convexSiteUrl();
-    return site ? `${site}/qr/validate` : null;
-  }, []);
+  const endpoint = useMemo(() => `${convexSiteUrl}/qr/validate`, []);
   const [shortCode, setShortCode] = useState('');
   const [result, setResult] = useState<ValidationResult>({ status: 'idle' });
 
   const validate = async (payload: { secret?: string; shortCode?: string }) => {
-    if (!endpoint) {
-      setResult({ status: 'error' });
-      return;
-    }
     setResult({ status: 'loading' });
     try {
       const response = await fetch(endpoint, {

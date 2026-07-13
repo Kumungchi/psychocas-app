@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import {
   existsSync,
+  readdirSync,
   readFileSync,
   rmSync,
 } from 'node:fs';
@@ -32,14 +33,25 @@ function assertPwaArtifacts(publicDir: string): void {
   }
 }
 
+function assertProductionConvexFallback(buildDir: string): void {
+  const expectedDeployment = 'opulent-fly-2.eu-west-1.convex.cloud';
+  const files = readdirSync(buildDir, { recursive: true })
+    .map((entry) => path.join(buildDir, String(entry)))
+    .filter((entry) => entry.endsWith('.js'));
+
+  if (!files.some((file) => readFileSync(file, 'utf8').includes(expectedDeployment))) {
+    throw new Error('Vercel build verification failed: production Convex fallback is missing');
+  }
+}
+
 function ensureEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return {
     ...env,
     NODE_ENV: 'production',
     VERCEL: env.VERCEL ?? '1',
     CI: env.CI ?? '1',
-    NEXT_PUBLIC_CONVEX_URL:
-      env.NEXT_PUBLIC_CONVEX_URL ?? 'https://example.convex.cloud',
+    NEXT_PUBLIC_CONVEX_URL: '',
+    NEXT_PUBLIC_CONVEX_SITE_URL: '',
     NEXT_PUBLIC_DEBUG_LOGGING: env.NEXT_PUBLIC_DEBUG_LOGGING ?? 'false',
   };
 }
@@ -80,6 +92,7 @@ function run(): void {
     }
 
     assertPwaArtifacts(publicDir);
+    assertProductionConvexFallback(buildDir);
   } finally {
     if (!keepBuildOutput) {
       rmSync(buildDir, { recursive: true, force: true });

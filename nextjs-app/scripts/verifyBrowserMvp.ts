@@ -41,12 +41,19 @@ async function run() {
   });
 
   try {
+    process.stdout.write('Loading root and waiting for the service worker.\n');
     await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
-    await page.evaluate(async () => {
-      await navigator.serviceWorker.ready;
+    const initialServiceWorkerReady = await page.evaluate(async () => {
+      const registration = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 15_000)),
+      ]);
+      return registration !== null;
     });
+    if (!initialServiceWorkerReady) throw new Error('Initial service worker registration timed out');
+    process.stdout.write('Initial service worker is ready.\n');
     try {
-      await page.reload({ waitUntil: 'networkidle' });
+      await page.reload({ waitUntil: 'domcontentloaded' });
     } catch (error) {
       if (!(error instanceof Error) || !error.message.includes('ERR_ABORTED')) throw error;
       await page.waitForLoadState('domcontentloaded');
@@ -57,7 +64,7 @@ async function run() {
       const response = await page.goto(`${baseUrl}${route.path}`, { waitUntil: 'domcontentloaded' });
       if (!response?.ok()) throw new Error(`${route.path} returned ${response?.status() ?? 'no response'}`);
       await page.getByText(route.text, { exact: false }).first().waitFor({ state: 'visible' });
-      await page.waitForLoadState('networkidle');
+      await page.waitForTimeout(250);
       const layout = await page.evaluate(() => ({
         clientWidth: document.documentElement.clientWidth,
         scrollWidth: document.documentElement.scrollWidth,
@@ -67,6 +74,7 @@ async function run() {
         throw new Error(`${route.path} overflows horizontally at ${route.width}px`);
       }
       results.push({ route: route.path, viewport: `${route.width}x${route.height}`, ...layout });
+      process.stdout.write(`Checked ${route.path} at ${route.width}x${route.height}.\n`);
     }
 
     await page.setViewportSize({ width: 390, height: 844 });

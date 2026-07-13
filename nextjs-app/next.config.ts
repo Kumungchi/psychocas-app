@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 import path from "node:path";
 
 const projectRoot = path.resolve();
+const productionConvexUrl = "https://opulent-fly-2.eu-west-1.convex.cloud";
+const productionConvexSiteUrl = "https://opulent-fly-2.eu-west-1.convex.site";
 
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -40,6 +42,13 @@ const noStoreHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  env: {
+    NEXT_PUBLIC_CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL?.trim() || productionConvexUrl,
+    NEXT_PUBLIC_CONVEX_SITE_URL:
+      process.env.NEXT_PUBLIC_CONVEX_SITE_URL?.trim() || productionConvexSiteUrl,
+    NEXT_PUBLIC_PRIVACY_CONTACT:
+      process.env.NEXT_PUBLIC_PRIVACY_CONTACT?.trim() || "info@psychocas.cz",
+  },
   typescript: {
     ignoreBuildErrors: false,
   },
