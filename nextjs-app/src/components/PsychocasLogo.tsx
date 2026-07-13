@@ -3,30 +3,33 @@ interface PsychocasLogoProps {
   gradientId?: string;
 }
 
-export default function PsychocasLogo({ size = 100, gradientId = 'logoGradient' }: PsychocasLogoProps) {
+export default function PsychocasLogo({ size = 100 }: PsychocasLogoProps) {
   return (
-    <svg width={size} height={size} viewBox="-60 -60 120 120" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style={{ stopColor: '#1d4f7d', stopOpacity: 1 }} />
-          <stop offset="100%" style={{ stopColor: '#049edb', stopOpacity: 1 }} />
-        </linearGradient>
-      </defs>
-      {/* Background circle with gradient */}
-      <circle cx="0" cy="0" r="55" fill={`url(#${gradientId})`} />
-      {/* Clock circle */}
-      <circle cx="0" cy="0" r="50" fill="none" stroke="white" strokeWidth="6"/>
-      {/* Hour hand pointing to 10 */}
-      <line x1="0" y1="0" x2="-15" y2="-25" stroke="white" strokeWidth="5" strokeLinecap="round"/>
-      {/* Minute hand pointing to 2 */}
-      <line x1="0" y1="0" x2="25" y2="-15" stroke="white" strokeWidth="4" strokeLinecap="round"/>
-      {/* Center dot */}
-      <circle cx="0" cy="0" r="6" fill="white"/>
-      {/* Clock marks at 12, 3, 6, 9 */}
-      <circle cx="0" cy="-40" r="4" fill="white"/>
-      <circle cx="40" cy="0" r="4" fill="white"/>
-      <circle cx="0" cy="40" r="4" fill="white"/>
-      <circle cx="-40" cy="0" r="4" fill="white"/>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 128 128"
+      xmlns="http://www.w3.org/2000/svg"
+      role="img"
+      aria-label="Psychočas"
+    >
+      <circle cx="64" cy="64" r="38" fill="white" />
+      <circle cx="64" cy="64" r="36" fill="none" stroke="#049EDB" strokeWidth="7" />
+      <path
+        d="M44 58.5L58.5 73L85 38"
+        fill="none"
+        stroke="#049EDB"
+        strokeWidth="7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M78 31L83 20" stroke="#049EDB" strokeWidth="6" strokeLinecap="round" />
+      <path
+        d="M64 25V32M64 96V103M25 64H32M96 64H103M37.5 36.5L42.5 41.5M85.5 86.5L90.5 91.5M90.5 36.5L85.5 41.5M42.5 86.5L37.5 91.5"
+        stroke="#049EDB"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }

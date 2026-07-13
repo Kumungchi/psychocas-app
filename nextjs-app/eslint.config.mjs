@@ -14,6 +14,7 @@ const eslintConfig = [
       "public/sw.js",
       "public/workbox-*.js",
       "public/precache-manifest.*.js",
+      "convex/_generated/**",
       "scripts/**",
       "supabase/functions/**",
     ],

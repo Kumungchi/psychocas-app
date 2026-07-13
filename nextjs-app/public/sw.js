@@ -1,1 +1,173 @@
-if(!self.define){let e,s={};const a=(a,c)=>(a=new URL(a+".js",c).href,s[a]||new Promise(s=>{if("document"in self){const e=document.createElement("script");e.src=a,e.onload=s,document.head.appendChild(e)}else e=a,importScripts(a),s()}).then(()=>{let e=s[a];if(!e)throw new Error(`Module ${a} didn’t register its module`);return e}));self.define=(c,n)=>{const i=e||("document"in self?document.currentScript.src:"")||location.href;if(s[i])return;let t={};const r=e=>a(e,i),f={module:{uri:i},exports:t,require:r};s[i]=Promise.all(c.map(e=>f[e]||r(e))).then(e=>(n(...e),t))}}define(["./workbox-00a24876"],function(e){"use strict";importScripts("fallback-fex_o1XHMJMgRjRUGz3Bo.js"),self.skipWaiting(),e.clientsClaim(),e.precacheAndRoute([{url:"/_next/app-build-manifest.json",revision:"cc6475b1fcfe1e6495a9a198c6778aee"},{url:"/_next/static/chunks/139.7a5a8e93a21948c1.js",revision:"7a5a8e93a21948c1"},{url:"/_next/static/chunks/179-650837d43bbf93ca.js",revision:"650837d43bbf93ca"},{url:"/_next/static/chunks/255-6aeb90110ab23a23.js",revision:"6aeb90110ab23a23"},{url:"/_next/static/chunks/391-59f86c96a65b3992.js",revision:"59f86c96a65b3992"},{url:"/_next/static/chunks/4bd1b696-c023c6e3521b1417.js",revision:"c023c6e3521b1417"},{url:"/_next/static/chunks/646.f342b7cffc01feb0.js",revision:"f342b7cffc01feb0"},{url:"/_next/static/chunks/917-5812f8a3f119189a.js",revision:"5812f8a3f119189a"},{url:"/_next/static/chunks/945-dcfdbb05358dab2a.js",revision:"dcfdbb05358dab2a"},{url:"/_next/static/chunks/app/_not-found/page-1b90ce09a3f7d5ff.js",revision:"1b90ce09a3f7d5ff"},{url:"/_next/static/chunks/app/admin/page-b55a6ab6f6a48525.js",revision:"b55a6ab6f6a48525"},{url:"/_next/static/chunks/app/auth/callback/route-ff9477f870ae5ee6.js",revision:"ff9477f870ae5ee6"},{url:"/_next/static/chunks/app/dashboard/page-bb2cccb284a180e6.js",revision:"bb2cccb284a180e6"},{url:"/_next/static/chunks/app/home/page-0596b06f3361645f.js",revision:"0596b06f3361645f"},{url:"/_next/static/chunks/app/layout-cb7dbecf9a2e6ccc.js",revision:"cb7dbecf9a2e6ccc"},{url:"/_next/static/chunks/app/login/page-347e0d684b1117f8.js",revision:"347e0d684b1117f8"},{url:"/_next/static/chunks/app/page-cf07f6181e7e624b.js",revision:"cf07f6181e7e624b"},{url:"/_next/static/chunks/app/passport/page-9910006d379c027a.js",revision:"9910006d379c027a"},{url:"/_next/static/chunks/app/redeem/page-55ff81ccbf12c24c.js",revision:"55ff81ccbf12c24c"},{url:"/_next/static/chunks/app/stats/page-5bc2abaf36c63ecf.js",revision:"5bc2abaf36c63ecf"},{url:"/_next/static/chunks/app/technician/page-0f0e393a6ffb509f.js",revision:"0f0e393a6ffb509f"},{url:"/_next/static/chunks/app/test/page-1ac4b6ca6499ceda.js",revision:"1ac4b6ca6499ceda"},{url:"/_next/static/chunks/app/validate/page-6f2c8298e4b974a2.js",revision:"6f2c8298e4b974a2"},{url:"/_next/static/chunks/framework-acd67e14855de5a2.js",revision:"acd67e14855de5a2"},{url:"/_next/static/chunks/main-436f8c6290d72e29.js",revision:"436f8c6290d72e29"},{url:"/_next/static/chunks/main-app-59673146ab76eeaf.js",revision:"59673146ab76eeaf"},{url:"/_next/static/chunks/pages/_app-82835f42865034fa.js",revision:"82835f42865034fa"},{url:"/_next/static/chunks/pages/_error-013f4188946cdd04.js",revision:"013f4188946cdd04"},{url:"/_next/static/chunks/polyfills-42372ed130431b0a.js",revision:"846118c33b2c0e922d7b3a7676f81f6f"},{url:"/_next/static/chunks/webpack-f730f3442971980f.js",revision:"f730f3442971980f"},{url:"/_next/static/css/cc081e8f8e800a7e.css",revision:"cc081e8f8e800a7e"},{url:"/_next/static/fex_o1XHMJMgRjRUGz3Bo/_buildManifest.js",revision:"68f30ba6e7cde51128f5dcc41c8d8d69"},{url:"/_next/static/fex_o1XHMJMgRjRUGz3Bo/_ssgManifest.js",revision:"b6652df95db52feb4daf4eca35380933"},{url:"/favicon.svg",revision:"58d2db5fe17ece132b3c26a27e1b6f0d"},{url:"/faviconV1.png",revision:"cd338dcae72c590931f4de248e55d2e7"},{url:"/faviconV2.png",revision:"8d1498e3e999a4c7d70f5fa5107e87b1"},{url:"/file.svg",revision:"d09f95206c3fa0bb9bd9fefabfd0ea71"},{url:"/globe.svg",revision:"2aaafa6a49b6563925fe440891e32717"},{url:"/icon.svg",revision:"3f5ccf9714e46cfbda17ab0b99fdef31"},{url:"/manifest.json",revision:"5c2182a0d7e073a7625cc96e240fbe5d"},{url:"/next.svg",revision:"8e061864f388b47f33a1c3780831193e"},{url:"/offline.html",revision:"d668262282e8cb969d5c0b4a96a78df2"},{url:"/vercel.svg",revision:"c0af2f507b369b085b35ef4bbe3bcf1e"},{url:"/window.svg",revision:"a2760511c65806022ad20adf74370ff3"}],{ignoreURLParametersMatching:[]}),e.cleanupOutdatedCaches(),e.registerRoute("/",new e.NetworkFirst({cacheName:"start-url",plugins:[{cacheWillUpdate:async({request:e,response:s,event:a,state:c})=>s&&"opaqueredirect"===s.type?new Response(s.body,{status:200,statusText:"OK",headers:s.headers}):s},{handlerDidError:async({request:e})=>self.fallback(e)}]}),"GET"),e.registerRoute(/^https:\/\/fonts\.(?:gstatic|googleapis)\.com\/.*/i,new e.CacheFirst({cacheName:"google-fonts",plugins:[new e.ExpirationPlugin({maxEntries:16,maxAgeSeconds:31536e3}),{handlerDidError:async({request:e})=>self.fallback(e)}]}),"GET"),e.registerRoute(/^https:\/\/[^/]+\/_next\/image\?url=.+$/i,new e.StaleWhileRevalidate({cacheName:"next-image",plugins:[new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:604800}),{handlerDidError:async({request:e})=>self.fallback(e)}]}),"GET"),e.registerRoute(function(e){var s=e.request;return"style"===s.destination||"script"===s.destination||"worker"===s.destination},new e.StaleWhileRevalidate({cacheName:"static-resources",plugins:[new e.ExpirationPlugin({maxEntries:64,maxAgeSeconds:604800}),{handlerDidError:async({request:e})=>self.fallback(e)}]}),"GET"),e.registerRoute(function(e){return"document"===e.request.destination},new e.NetworkFirst({cacheName:"html-cache",networkTimeoutSeconds:10,plugins:[new e.ExpirationPlugin({maxEntries:16}),{handlerDidError:async({request:e})=>self.fallback(e)}]}),"GET"),e.registerRoute(/^https:\/\/psychocas\.(supabase\.co|supabase\.in)\/storage\/v1\/object\/.*/i,new e.StaleWhileRevalidate({cacheName:"supabase-assets",plugins:[new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:604800}),{handlerDidError:async({request:e})=>self.fallback(e)}]}),"GET")});
+/* Psychočas service worker. Keep personalized and security-sensitive data network-only. */
+
+const CACHE_VERSION = 'psychocas-shell-v2';
+const STATIC_CACHE = `${CACHE_VERSION}-static`;
+const SHELL_CACHE = `${CACHE_VERSION}-shell`;
+const OFFLINE_URL = '/offline.html';
+const SHELL_ASSETS = [
+  OFFLINE_URL,
+  '/favicon.svg',
+  '/faviconV1.png',
+  '/faviconV2.png',
+  '/apple-touch-icon.png',
+  '/icon-maskable-512.png',
+  '/brand/psychocas-symbol.svg',
+  '/brand/psychocas-wordmark.svg',
+];
+
+const NETWORK_ONLY_PREFIXES = [
+  '/api/auth',
+  '/v',
+  '/login',
+  '/home',
+  '/admin',
+  '/workspace',
+  '/privacy',
+];
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(caches.open(SHELL_CACHE).then((cache) => cache.addAll(SHELL_ASSETS)));
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    Promise.all([
+      caches
+        .keys()
+        .then((keys) => Promise.all(keys.filter((key) => !key.startsWith(CACHE_VERSION)).map((key) => caches.delete(key)))),
+      self.clients.claim(),
+    ]),
+  );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    void self.skipWaiting();
+  }
+
+  if (event.data?.type === 'CLEAR_PRIVATE_CACHES') {
+    event.waitUntil(clearPrivateCaches());
+  }
+});
+
+self.addEventListener('fetch', (event) => {
+  const request = event.request;
+
+  if (request.method !== 'GET') return;
+
+  const url = new URL(request.url);
+
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  if (isNetworkOnly(url.pathname)) {
+    event.respondWith(networkOnly(request));
+    return;
+  }
+
+  if (request.mode === 'navigate') {
+    event.respondWith(navigationNetworkOnly(request));
+    return;
+  }
+
+  if (url.pathname.startsWith('/_next/static/')) {
+    event.respondWith(cacheFirst(request));
+    return;
+  }
+
+  if (isSafeStaticAsset(request, url.pathname)) {
+    event.respondWith(staleWhileRevalidate(request));
+  }
+});
+
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+  let payload;
+  try {
+    payload = event.data.json();
+  } catch {
+    return;
+  }
+  event.waitUntil(
+    self.registration.showNotification(payload.title || 'Psychočas', {
+      body: payload.body || 'Novinka v členské aplikaci.',
+      icon: payload.icon || '/faviconV1.png',
+      badge: payload.badge || '/faviconV1.png',
+      data: { url: payload.url || '/home' },
+      tag: 'psychocas-update',
+    }),
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = new URL(event.notification.data?.url || '/home', self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      const existing = clients.find((client) => client.url.startsWith(self.location.origin));
+      if (existing) {
+        existing.navigate(targetUrl);
+        return existing.focus();
+      }
+      return self.clients.openWindow(targetUrl);
+    }),
+  );
+});
+
+function isNetworkOnly(pathname) {
+  return NETWORK_ONLY_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+function isSafeStaticAsset(request, pathname) {
+  return (
+    pathname.startsWith('/brand/') ||
+    pathname === '/manifest.webmanifest' ||
+    request.destination === 'image' ||
+    request.destination === 'font'
+  );
+}
+
+async function networkOnly(request) {
+  return fetch(request, { cache: 'no-store' });
+}
+
+async function navigationNetworkOnly(request) {
+  try {
+    return await fetch(request, { cache: 'no-store' });
+  } catch {
+    return (await caches.match(OFFLINE_URL)) || Response.error();
+  }
+}
+
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+
+  const response = await fetch(request);
+  if (response.ok) {
+    const cache = await caches.open(STATIC_CACHE);
+    await cache.put(request, response.clone());
+  }
+  return response;
+}
+
+async function staleWhileRevalidate(request) {
+  const cache = await caches.open(STATIC_CACHE);
+  const cached = await cache.match(request);
+  const network = fetch(request)
+    .then(async (response) => {
+      if (response.ok) await cache.put(request, response.clone());
+      return response;
+    })
+    .catch(() => null);
+
+  return cached || (await network) || Response.error();
+}
+
+async function clearPrivateCaches() {
+  const keys = await caches.keys();
+  await Promise.all(keys.filter((key) => key !== SHELL_CACHE && key !== STATIC_CACHE).map((key) => caches.delete(key)));
+}

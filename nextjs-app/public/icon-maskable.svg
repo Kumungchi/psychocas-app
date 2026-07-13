@@ -1,0 +1,7 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Psychočas">
+  <rect width="512" height="512" fill="#FFFFFF"/>
+  <circle cx="256" cy="256" r="112" stroke="#049EDB" stroke-width="24"/>
+  <path d="M194 241L239 286L323 177" stroke="#049EDB" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M300 154L318 112" stroke="#049EDB" stroke-width="22" stroke-linecap="round"/>
+  <path d="M256 137V161M256 351V375M137 256H161M351 256H375M176 176L193 193M319 319L336 336M336 176L319 193M193 319L176 336" stroke="#049EDB" stroke-width="14" stroke-linecap="round"/>
+</svg>

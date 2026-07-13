@@ -43,9 +43,13 @@ export const dictionaries: LocaleDictionaries = {
       emailLabel: 'Email',
       emailPlaceholder: 'Zadejte váš email',
       sendLink: 'Odeslat přihlašovací odkaz',
+      sendOtp: 'Odeslat přihlašovací kód',
       sendLinkLoading: 'Odesílám...',
-      successTitle: 'Email byl odeslán!',
-      successDescription: 'Přihlašovací odkaz jsme odeslali na adresu:',
+      successTitle: 'Kód byl odeslán!',
+      successDescription: 'Přihlašovací kód jsme odeslali na adresu:',
+      otpDescription: 'Zadejte 6místný kód, který jsme odeslali na adresu:',
+      otpLabel: 'Přihlašovací kód',
+      verifyOtp: 'Ověřit kód',
       instructionsTitle: '📋 Jak se přihlásit:',
       instructionsSteps: {
         first: 'Otevřete svou emailovou schránku',
@@ -75,7 +79,9 @@ export const dictionaries: LocaleDictionaries = {
         errorRateLimit: 'Překročili jste limit pro odesílání odkazů. Počkejte prosím minutu a zkuste to znovu.',
         errorUnexpected: 'Nastala neočekávaná chyba.',
         successLinkSent: 'Přihlašovací odkaz byl odeslán na váš email.',
-        infoResend: 'Zadejte svůj email pro odeslání nového odkazu.',
+        successCodeSent: 'Přihlašovací kód byl odeslán na váš email.',
+        errorInvalidCode: 'Zadejte prosím platný 6místný kód.',
+        infoResend: 'Zadejte svůj email pro odeslání nového kódu.',
       },
     },
     home: {
@@ -281,7 +287,7 @@ export const dictionaries: LocaleDictionaries = {
       },
       demo: {
         disabledAction: 'Generování kódu není v demo režimu dostupné.',
-        notice: 'Ukázkový režim neodesílá požadavky na Supabase – funkce je pouze pro náhled.',
+        notice: 'Ukázkový režim neodesílá požadavky na produkční data – funkce je pouze pro náhled.',
       },
     },
     stats: {
@@ -380,7 +386,7 @@ export const dictionaries: LocaleDictionaries = {
       roleLabels: {
         member: 'Člen',
         manager: 'Manažer',
-        council: 'Rada',
+        board: 'Výbor',
         technician: 'Technik',
       },
       originLabels: {
@@ -406,9 +412,9 @@ export const dictionaries: LocaleDictionaries = {
       },
       info: {
         title: 'ℹ️ Doporučení pro techniky',
-        item1: 'Spravujte stav členství přímo v této tabulce bez nutnosti přechodu do Supabase.',
+        item1: 'Spravujte stav členství přímo v této tabulce.',
         item2: 'Dočasně povolené účty sledujte v samostatném filtru a nastavte jim datum vypršení.',
-        item3: 'Potřebujete-li upravit osobní údaje, využijte administrátorský přístup v Supabase.',
+        item3: 'Potřebujete-li upravit osobní údaje, využijte administrátorské nástroje aplikace.',
       },
     },
     admin: {
@@ -457,7 +463,7 @@ export const dictionaries: LocaleDictionaries = {
           roleOptions: {
             member: 'Člen',
             manager: 'Manažer',
-            council: 'Rada',
+            board: 'Výbor',
             technician: 'Technik',
           },
           branchNone: 'Bez pobočky / celostátní',
@@ -668,9 +674,13 @@ export const dictionaries: LocaleDictionaries = {
       emailLabel: 'Email',
       emailPlaceholder: 'Enter your email',
       sendLink: 'Send sign-in link',
+      sendOtp: 'Send sign-in code',
       sendLinkLoading: 'Sending...',
-      successTitle: 'Email sent!',
-      successDescription: 'We sent a sign-in link to:',
+      successTitle: 'Code sent!',
+      successDescription: 'We sent a sign-in code to:',
+      otpDescription: 'Enter the 6-digit code we sent to:',
+      otpLabel: 'Sign-in code',
+      verifyOtp: 'Verify code',
       instructionsTitle: '📋 How to sign in:',
       instructionsSteps: {
         first: 'Open your inbox',
@@ -700,7 +710,9 @@ export const dictionaries: LocaleDictionaries = {
         errorRateLimit: 'You reached the link request limit. Wait a minute and try again.',
         errorUnexpected: 'An unexpected error occurred.',
         successLinkSent: 'We sent a sign-in link to your email.',
-        infoResend: 'Enter your email to receive a new link.',
+        successCodeSent: 'We sent a sign-in code to your email.',
+        errorInvalidCode: 'Please enter a valid 6-digit code.',
+        infoResend: 'Enter your email to receive a new code.',
       },
     },
     home: {
@@ -904,7 +916,7 @@ export const dictionaries: LocaleDictionaries = {
       },
       demo: {
         disabledAction: 'Token generation is disabled in the demo preview.',
-        notice: 'Demo mode does not contact Supabase – the feature is for visual preview only.',
+        notice: 'Demo mode does not contact production data – the feature is for visual preview only.',
       },
     },
     stats: {
@@ -951,7 +963,7 @@ export const dictionaries: LocaleDictionaries = {
         memberErrorDescription: 'Please refresh the page.',
         refresh: 'Refresh',
         accessDeniedTitle: 'Access denied',
-        accessDeniedDescription: 'Statistics are available only to managers and council members.',
+        accessDeniedDescription: 'Statistics are available only to managers and board members.',
         branchError: 'We could not load the list of branches.',
         branchLoading: 'Loading branches…',
         branchEmpty: 'Choose a branch to see detailed statistics.',
@@ -1003,7 +1015,7 @@ export const dictionaries: LocaleDictionaries = {
       roleLabels: {
         member: 'Member',
         manager: 'Manager',
-        council: 'Council',
+        board: 'Board',
         technician: 'Technician',
       },
       originLabels: {
@@ -1021,7 +1033,7 @@ export const dictionaries: LocaleDictionaries = {
         memberErrorDescription: 'Please refresh the page.',
         refresh: 'Refresh',
         accessDeniedTitle: 'Access denied',
-        accessDeniedDescription: 'The technician console is available only to technicians and council members.',
+        accessDeniedDescription: 'The technician console is available only to technicians and board members.',
         loadErrorGeneral: 'We could not load any data. Please try again.',
         loadErrorMembers: 'We could not load members. Only temporary access holders are shown.',
         loadErrorTrusted: 'We could not load temporary access holders. Only members are shown.',
@@ -1029,9 +1041,9 @@ export const dictionaries: LocaleDictionaries = {
       },
       info: {
         title: 'ℹ️ Tips for technicians',
-        item1: 'Manage membership status directly in this table without switching to Supabase.',
+        item1: 'Manage membership status directly in this table.',
         item2: 'Track temporary accounts with the dedicated filter and set an expiration date.',
-        item3: 'To update personal details, use the administrator tools in Supabase.',
+        item3: 'To update personal details, use the application administrator tools.',
       },
     },
     admin: {
@@ -1046,7 +1058,7 @@ export const dictionaries: LocaleDictionaries = {
       states: {
         loading: 'Loading administration…',
         unauthorizedTitle: 'Access denied',
-        unauthorizedDescription: 'Only council members or managers with an @psychocas.cz email can open this section.',
+        unauthorizedDescription: 'Only board members or managers with an @psychocas.cz email can open this section.',
         refresh: 'Refresh',
         demoNotice: 'Demo mode: changes are not persisted.',
       },
@@ -1080,7 +1092,7 @@ export const dictionaries: LocaleDictionaries = {
           roleOptions: {
             member: 'Member',
             manager: 'Manager',
-            council: 'Council',
+            board: 'Board',
             technician: 'Technician',
           },
           branchNone: 'No branch / nationwide',

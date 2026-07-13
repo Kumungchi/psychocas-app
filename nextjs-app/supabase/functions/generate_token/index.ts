@@ -45,13 +45,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { discount_id } = await req.json();
-    if (!discount_id) {
-      return new Response(
-        JSON.stringify({ error: "missing_discount_id" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    // discount_id is optional — tokens can represent general membership proof
+    // (no specific discount) OR a specific discount redemption.
+    const body = await req.json().catch(() => ({}));
+    const discount_id: string | null = body?.discount_id ?? null;
 
     // Create a client that acts as the logged-in user (respects RLS)
     const supabase = createClient(
@@ -103,19 +100,21 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 4. Verify the discount exists and is active
-    const { data: discount } = await svc
-      .from("discounts")
-      .select("id")
-      .eq("id", discount_id)
-      .eq("is_active", true)
-      .single();
+    // 4. Verify the discount exists and is active (only if a discount_id was provided)
+    if (discount_id) {
+      const { data: discount } = await svc
+        .from("discounts")
+        .select("id")
+        .eq("id", discount_id)
+        .eq("is_active", true)
+        .single();
 
-    if (!discount) {
-      return new Response(
-        JSON.stringify({ error: "discount_not_found" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      if (!discount) {
+        return new Response(
+          JSON.stringify({ error: "discount_not_found" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // 5. Create the token (anti-spam trigger will reject if one is already active)
@@ -126,7 +125,7 @@ Deno.serve(async (req) => {
       .from("tokens")
       .insert({
         member_id: member.id,
-        discount_id: discount_id,
+        discount_id: discount_id,   // null for general membership tokens
         code: code,
         expires_at: expiresAt,
       })

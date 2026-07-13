@@ -1,50 +1,237 @@
 'use client';
 
-import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import useLocale from '@/hooks/useLocale';
+import {
+  ArrowRight,
+  BadgeCheck,
+  BarChart3,
+  MessageSquareText,
+  QrCode,
+  Smartphone,
+  Store,
+} from 'lucide-react';
+import PsychocasLogo from '@/components/PsychocasLogo';
+import Button from '@/ui/components/Button';
+import Badge from '@/ui/components/Badge';
+import type { MemberRole } from '@/types/member';
+
+interface DemoOption {
+  role: MemberRole;
+  label: string;
+  description: string;
+}
+
+const demoOptions: DemoOption[] = [
+  {
+    role: 'member',
+    label: 'Členský pohled',
+    description: 'Členství, QR, výhody, události a profil.',
+  },
+  {
+    role: 'manager',
+    label: 'Statistiky',
+    description: 'Lokální správa, události a anonymní metriky.',
+  },
+  {
+    role: 'board',
+    label: 'Správa',
+    description: 'Schválení, členství, přístupy a privacy fronta.',
+  },
+];
+
+const features = [
+  {
+    icon: BadgeCheck,
+    title: 'Digitální členství',
+    text: 'Jasný stav členství, platnost a lokální pobočka v mobilu.',
+  },
+  {
+    icon: QrCode,
+    title: 'Krátkodobý kód',
+    text: 'Člen u partnera ukáže kód nebo QR, který je platný jen omezenou dobu.',
+  },
+  {
+    icon: Store,
+    title: 'Partner bez zmatku',
+    text: 'Obsluha rychle ověří nárok a nemusí řešit ruční seznamy.',
+  },
+  {
+    icon: BarChart3,
+    title: 'Data pro rozvoj',
+    text: 'Tým vidí, které benefity fungují a kde má smysl shánět partnery.',
+  },
+];
+
+const roadmap = [
+  'stabilní PWA instalace a offline náhled posledních dat',
+  'správa partnerů, slev a dočasných přístupů přímo v aplikaci',
+  'sběr zpětné vazby od členů: co chtějí používat a kde chybí partneři',
+];
 
 export default function RootPage() {
   const router = useRouter();
-  const { t } = useLocale();
 
-  useEffect(() => {
-    router.push('/login');
-  }, [router]);
+  const openDemo = (option: DemoOption) => {
+    router.push(`/demo/${option.role}`);
+  };
 
   return (
-    <main className="psychocas-section flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
-      <div className="fade-in-up text-center">
-        <div className="mb-6 flex justify-center sm:mb-8">
-          <svg
-            width="100"
-            height="100"
-            viewBox="-60 -60 120 120"
-            xmlns="http://www.w3.org/2000/svg"
-            aria-hidden
+    <main className="min-h-screen bg-[#f6f8fb] text-[#172033]">
+      <section className="mx-auto grid min-h-[92vh] w-full max-w-6xl grid-rows-[auto_1fr] px-4 pb-8 pt-5 sm:px-6 lg:px-8">
+        <header className="flex items-center justify-between gap-4 py-2">
+          <button
+            type="button"
+            onClick={() => router.push('/')}
+            className="flex items-center gap-3 rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#049edb]"
+            aria-label="Psychočas úvod"
           >
-            <defs>
-              <linearGradient id="rootLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" style={{ stopColor: '#1d4f7d', stopOpacity: 1 }} />
-                <stop offset="100%" style={{ stopColor: '#049edb', stopOpacity: 1 }} />
-              </linearGradient>
-            </defs>
-            <circle cx="0" cy="0" r="55" fill="url(#rootLogoGradient)" />
-            <circle cx="0" cy="0" r="50" fill="none" stroke="white" strokeWidth={6}/>
-            <line x1="0" y1="0" x2="-15" y2="-25" stroke="white" strokeWidth={5} strokeLinecap="round"/>
-            <line x1="0" y1="0" x2="25" y2="-15" stroke="white" strokeWidth={4} strokeLinecap="round"/>
-            <circle cx="0" cy="0" r="6" fill="white"/>
-            <circle cx="0" cy="-40" r="4" fill="white"/>
-            <circle cx="40" cy="0" r="4" fill="white"/>
-            <circle cx="0" cy="40" r="4" fill="white"/>
-            <circle cx="-40" cy="0" r="4" fill="white"/>
-          </svg>
+            <PsychocasLogo size={46} gradientId="landingLogo" />
+            <div>
+              <p className="text-sm font-semibold text-[#1d4f7d]">Psychočas</p>
+              <p className="text-xs text-[#607086]">členská aplikace</p>
+            </div>
+          </button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push('/login')}
+          >
+            Přihlášení
+          </Button>
+        </header>
+
+        <div className="grid items-center gap-8 py-8 lg:grid-cols-[1fr_0.82fr] lg:py-10">
+          <div className="max-w-2xl space-y-6">
+            <div className="flex flex-wrap gap-2">
+              <Badge tone="info">MVP pro ukázku</Badge>
+              <Badge tone="neutral">feedback vítán</Badge>
+            </div>
+            <div className="space-y-4">
+              <h1 className="max-w-2xl text-[2.35rem] font-semibold leading-tight text-[#12385b] sm:text-5xl">
+                Členství, slevy a zpětná vazba v jedné mobilní aplikaci.
+              </h1>
+              <p className="max-w-xl text-base leading-7 text-[#536273] sm:text-lg">
+                Psychočas dává členům jednoduchý digitální průkaz, partnerům
+                rychlé ověření a týmu data, podle kterých půjde rozvíjet
+                benefity, které lidé opravdu využijí.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              {demoOptions.map((option) => (
+                <button
+                  key={option.role}
+                  type="button"
+                  onClick={() => openDemo(option)}
+                  className="group rounded-lg border border-[#d8e5ef] bg-white p-4 text-left shadow-sm transition hover:border-[#9bc7e3] hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#049edb]"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-semibold text-[#12385b]">{option.label}</span>
+                    <ArrowRight className="h-4 w-4 text-[#1d4f7d] transition group-hover:translate-x-0.5" />
+                  </div>
+                  <p className="mt-2 text-sm leading-5 text-[#607086]">{option.description}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mx-auto w-full max-w-sm">
+            <div className="rounded-[1.8rem] border border-[#d9e4ef] bg-[#172033] p-3 shadow-2xl">
+              <div className="rounded-[1.25rem] bg-white p-4">
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <PsychocasLogo size={38} gradientId="phoneLogo" />
+                    <div>
+                      <p className="text-sm font-semibold text-[#12385b]">Demo Člen</p>
+                      <p className="text-xs text-[#738094]">Praha</p>
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-[#DFF4FF] px-2.5 py-1 text-xs font-bold uppercase text-[#1d4f7d]">
+                    aktivní
+                  </span>
+                </div>
+                <div className="rounded-lg border border-[#c8dff5] bg-[#eaf5ff] p-4">
+                  <p className="text-xs font-semibold uppercase text-[#1d4f7d]">
+                    Digitální karta
+                  </p>
+                  <p className="mt-3 font-mono text-2xl font-semibold tracking-[0.14em] text-[#12385b]">
+                    PSYCH-D3M0X7
+                  </p>
+                  <div className="mt-4 flex items-center justify-between text-sm text-[#1d4f7d]">
+                    <span>02:48</span>
+                    <span>QR připraven</span>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-3">
+                  <div className="rounded-lg border border-[#e5eaf0] p-3">
+                    <p className="text-xs font-semibold uppercase text-[#607086]">
+                      Partnerství
+                    </p>
+                    <p className="mt-1 text-sm text-[#172033]">
+                      Celostátní i lokální výhody podle pobočky.
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-[#e5eaf0] p-3">
+                    <p className="text-xs font-semibold uppercase text-[#607086]">
+                      Offline režim
+                    </p>
+                    <p className="mt-1 text-sm text-[#172033]">
+                      Poslední stav zůstane dostupný i bez připojení.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <h1 className="mb-2 text-3xl font-semibold sm:text-[2rem]" style={{ color: '#1d4f7d' }}>
-          Psychočas
-        </h1>
-        <p className="auth-card__subtitle">{t('root.redirecting')}</p>
-      </div>
+      </section>
+
+      <section className="border-y border-[#dde7f0] bg-white px-4 py-8 sm:px-6">
+        <div className="mx-auto grid max-w-6xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {features.map((feature) => {
+            const Icon = feature.icon;
+            return (
+              <article key={feature.title} className="rounded-lg border border-[#e4ebf2] p-4">
+                <Icon className="h-5 w-5 text-[#1d4f7d]" aria-hidden />
+                <h2 className="mt-3 text-base font-semibold text-[#172033]">{feature.title}</h2>
+                <p className="mt-2 text-sm leading-6 text-[#536273]">{feature.text}</p>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="mx-auto grid max-w-6xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[0.9fr_1fr] lg:px-8">
+        <div>
+          <h2 className="text-2xl font-semibold text-[#12385b]">Proč aplikace existuje</h2>
+          <p className="mt-3 leading-7 text-[#536273]">
+            Chceme, aby členství mělo viditelnou hodnotu každý týden, ne jen v
+            registračním e-mailu. MVP má ukázat základní tok a otevřít debatu o
+            tom, co členové i pobočky reálně potřebují.
+          </p>
+        </div>
+        <div className="rounded-lg border border-[#e4ebf2] bg-white p-5">
+          <div className="flex items-start gap-3">
+            <MessageSquareText className="mt-1 h-5 w-5 text-[#1d4f7d]" aria-hidden />
+            <div>
+              <h3 className="text-lg font-semibold text-[#172033]">Co chceme zjistit feedbackem</h3>
+              <p className="mt-2 text-sm leading-6 text-[#536273]">
+                Které funkce mají největší smysl, jaké slevy lidé opravdu
+                využijí, kde chybí partneři a jak má vypadat správa pro pobočky.
+              </p>
+            </div>
+          </div>
+          <ul className="mt-4 space-y-2 text-sm text-[#536273]">
+            {roadmap.map((item) => (
+              <li key={item} className="flex gap-2">
+                <Smartphone className="mt-0.5 h-4 w-4 shrink-0 text-[#049edb]" aria-hidden />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
     </main>
   );
 }

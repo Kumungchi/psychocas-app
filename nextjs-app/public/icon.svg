@@ -1,37 +1,8 @@
-<!-- Psychočas App Icon - PWA (Clock/Time icon) -->
-<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Gradient Definition - Psychočas brand -->
-  <defs>
-    <linearGradient id="psychocasIconGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1d4f7d;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#049edb;stop-opacity:1" />
-    </linearGradient>
-  </defs>
-  
-  <!-- Background with gradient -->
-  <rect width="192" height="192" rx="40" fill="url(#psychocasIconGradient)"/>
-  
-  <!-- Clock/Time icon - PSYCHOČAS = PSYCHO + ČAS (time) -->
-  <g transform="translate(96, 96)">
-    <!-- Clock circle -->
-    <circle cx="0" cy="0" r="50" fill="none" stroke="white" stroke-width="8" opacity="0.95"/>
-    
-    <!-- Hour hand (pointing to 10 o'clock) -->
-    <line x1="0" y1="0" x2="0" y2="-28" stroke="white" stroke-width="7" stroke-linecap="round" opacity="0.95"/>
-    
-    <!-- Minute hand (pointing to 2 o'clock) -->
-    <line x1="0" y1="0" x2="22" y2="-16" stroke="white" stroke-width="5" stroke-linecap="round" opacity="0.95"/>
-    
-    <!-- Center dot -->
-    <circle cx="0" cy="0" r="6" fill="white" opacity="0.95"/>
-    
-    <!-- Clock marks (12, 3, 6, 9 positions) -->
-    <circle cx="0" cy="-45" r="3" fill="white" opacity="0.7"/>
-    <circle cx="45" cy="0" r="3" fill="white" opacity="0.7"/>
-    <circle cx="0" cy="45" r="3" fill="white" opacity="0.7"/>
-    <circle cx="-45" cy="0" r="3" fill="white" opacity="0.7"/>
-  </g>
-  
-  <!-- App name -->
-  <text x="96" y="168" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="600" fill="white" text-anchor="middle" opacity="0.95">Psychočas</text>
+<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Psychočas">
+  <rect width="192" height="192" rx="42" fill="#FFFFFF"/>
+  <rect x="4" y="4" width="184" height="184" rx="38" stroke="#DDE7F0" stroke-width="8"/>
+  <circle cx="96" cy="96" r="54" stroke="#049EDB" stroke-width="10"/>
+  <path d="M66 88L88 110L128 58" stroke="#049EDB" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M117 47L124 31" stroke="#049EDB" stroke-width="9" stroke-linecap="round"/>
+  <path d="M96 40V51M96 141V152M40 96H51M141 96H152M58 58L66 66M126 126L134 134M134 58L126 66M66 126L58 134" stroke="#049EDB" stroke-width="6" stroke-linecap="round"/>
 </svg>

@@ -1,13 +1,15 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
+import { ConvexAuthNextjsServerProvider } from '@convex-dev/auth/nextjs/server';
 import AppProviders from '@/components/AppProviders';
+import ConvexClientProvider from '@/components/ConvexClientProvider';
 
 export const metadata: Metadata = {
   title: "Psychočas - Členská aplikace",
   description: "Členská aplikace pro studenty psychologie - generování a validace slev",
   keywords: ["psychologie", "studenti", "slevy", "členi"],
   authors: [{ name: "Psychočas" }],
-  manifest: "/manifest.json",
+  manifest: "/manifest.webmanifest",
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },
@@ -15,8 +17,7 @@ export const metadata: Metadata = {
       { url: "/faviconV2.png", sizes: "512x512", type: "image/png" }
     ],
     apple: [
-      { url: "/faviconV1.png", sizes: "192x192", type: "image/png" },
-      { url: "/faviconV2.png", sizes: "512x512", type: "image/png" }
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }
     ],
     shortcut: "/favicon.svg"
   }
@@ -28,7 +29,7 @@ export const viewport: Viewport = {
   themeColor: "#1d4f7d"
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="cs">
       <head>
@@ -44,7 +45,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="msapplication-tap-highlight" content="no" />
       </head>
       <body>
-        <AppProviders>{children}</AppProviders>
+        <ConvexAuthNextjsServerProvider
+          apiRoute="/api/auth"
+          storage="localStorage"
+          storageNamespace="psychocas-convex-auth"
+          shouldHandleCode={false}
+        >
+          <ConvexClientProvider><AppProviders>{children}</AppProviders></ConvexClientProvider>
+        </ConvexAuthNextjsServerProvider>
       </body>
     </html>
   );

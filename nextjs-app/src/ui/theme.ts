@@ -1,18 +1,18 @@
 export const colors = {
-  brandPrimary: '#7C3AED',
-  brandPrimaryHover: '#6D28D9',
-  brandSurface: '#F3E8FF',
-  brandSurfaceAlt: '#EDE9FE',
-  brandOnSurface: '#240046',
-  accent: '#10B981',
-  accentMuted: '#D1FAE5',
+  brandPrimary: '#1D4F7D',
+  brandPrimaryHover: '#164166',
+  brandSurface: '#EAF5FF',
+  brandSurfaceAlt: '#D8ECFA',
+  brandOnSurface: '#12385B',
+  accent: '#049EDB',
+  accentMuted: '#DFF4FF',
   success: '#047857',
   successSurface: '#ECFDF5',
-  textPrimary: '#111827',
-  textSecondary: '#4B5563',
-  border: '#E5E7EB',
+  textPrimary: '#172033',
+  textSecondary: '#536273',
+  border: '#DDE7F0',
   background: '#FFFFFF',
-  backgroundMuted: '#F9FAFB',
+  backgroundMuted: '#F6F8FB',
   danger: '#DC2626',
   dangerStrong: '#B91C1C',
   dangerSurface: '#FEE2E2',
@@ -27,9 +27,9 @@ export const colors = {
 };
 
 export const radii = {
-  sm: '8px',
-  md: '12px',
-  lg: '16px',
+  sm: '6px',
+  md: '8px',
+  lg: '8px',
   full: '9999px',
 };
 
@@ -48,8 +48,8 @@ export const typography = {
 };
 
 export const shadows = {
-  sm: '0 2px 8px rgba(15, 23, 42, 0.08)',
-  md: '0 8px 24px rgba(15, 23, 42, 0.12)',
+  sm: '0 1px 3px rgba(23, 32, 51, 0.08)',
+  md: '0 10px 24px rgba(23, 32, 51, 0.10)',
 };
 
 export const transitions = {

@@ -36,7 +36,10 @@
       "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\" https://psychocas.vercel.app/login)",
       "WebFetch(domain:psychocas.vercel.app)",
       "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" https://psychocas.vercel.app/)",
-      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" https://psychocas.vercel.app/home)"
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" https://psychocas.vercel.app/home)",
+      "Bash(rm -f C:/Users/bunni/Documents/psyhocas-app/nextjs-app/sql/*.sql)",
+      "Bash(cp C:/Users/bunni/Documents/psyhocas-app/desing/sql/*.sql C:/Users/bunni/Documents/psyhocas-app/nextjs-app/sql/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)"
     ]
   }
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { WifiOff, Wifi } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 import useNetworkStatus from '@/hooks/useNetworkStatus';
 import useLocale from '@/hooks/useLocale';
 
@@ -9,13 +10,17 @@ export default function OfflineToast() {
   const isOnline = useNetworkStatus();
   const [visible, setVisible] = useState<boolean>(false);
   const { t } = useLocale();
+  const pathname = usePathname();
+  const quietRoute = pathname === '/' || pathname === '/login' || pathname.startsWith('/demo') || pathname.startsWith('/auth');
 
   useEffect(() => {
     if (typeof window === 'undefined') {
       return;
     }
 
-    setVisible(true); // eslint-disable-line react-hooks/set-state-in-effect -- sync visibility from online status
+    if (quietRoute) return;
+
+    setVisible(true); // eslint-disable-line react-hooks/set-state-in-effect -- sync toast visibility from network status
 
     if (isOnline) {
       const timeout = window.setTimeout(() => setVisible(false), 2500);
@@ -25,9 +30,9 @@ export default function OfflineToast() {
     return () => {
       // keep toast visible while offline
     };
-  }, [isOnline]);
+  }, [isOnline, quietRoute]);
 
-  if (!visible) {
+  if (quietRoute || !visible) {
     return null;
   }
 
@@ -42,7 +47,7 @@ export default function OfflineToast() {
       style={{ pointerEvents: 'none' }}
     >
       <div
-        className="flex items-center gap-3 rounded-2xl px-4 py-3 text-white shadow-lg"
+        className="flex items-center gap-3 rounded-lg px-4 py-3 text-white shadow-lg"
         style={{ backgroundColor, pointerEvents: 'auto' }}
       >
         <Icon className="h-5 w-5" />

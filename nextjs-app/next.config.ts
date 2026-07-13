@@ -1,91 +1,54 @@
 import type { NextConfig } from "next";
-import withPWAInit, { type RuntimeCaching } from "next-pwa";
+import path from "node:path";
 
-const isDev = process.env.NODE_ENV === "development";
+const projectRoot = path.resolve();
 
-const runtimeCaching: RuntimeCaching[] = [
+const securityHeaders = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
+  { key: "Referrer-Policy", value: "no-referrer" },
+  { key: "X-DNS-Prefetch-Control", value: "off" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+  { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
   {
-    urlPattern: /^https:\/\/fonts\.(?:gstatic|googleapis)\.com\/.*/i,
-    handler: "CacheFirst",
-    options: {
-      cacheName: "google-fonts",
-      expiration: {
-        maxEntries: 16,
-        maxAgeSeconds: 365 * 24 * 60 * 60,
-      },
-    },
-  },
-  {
-    urlPattern: /^https:\/\/[^/]+\/_next\/image\?url=.+$/i,
-    handler: "StaleWhileRevalidate",
-    options: {
-      cacheName: "next-image",
-      expiration: {
-        maxEntries: 32,
-        maxAgeSeconds: 7 * 24 * 60 * 60,
-      },
-    },
-  },
-  {
-    urlPattern: ({ request }) =>
-      request.destination === "style" ||
-      request.destination === "script" ||
-      request.destination === "worker",
-    handler: "StaleWhileRevalidate",
-    options: {
-      cacheName: "static-resources",
-      expiration: {
-        maxEntries: 64,
-        maxAgeSeconds: 7 * 24 * 60 * 60,
-      },
-    },
-  },
-  {
-    urlPattern: ({ request }) => request.destination === "document",
-    handler: "NetworkFirst",
-    options: {
-      cacheName: "html-cache",
-      networkTimeoutSeconds: 10,
-      expiration: {
-        maxEntries: 16,
-      },
-    },
-  },
-  {
-    urlPattern: /^https:\/\/psychocas\.(supabase\.co|supabase\.in)\/storage\/v1\/object\/.*/i,
-    handler: "StaleWhileRevalidate",
-    options: {
-      cacheName: "supabase-assets",
-      expiration: {
-        maxEntries: 32,
-        maxAgeSeconds: 7 * 24 * 60 * 60,
-      },
-    },
+    key: "Content-Security-Policy",
+    value: [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+      "object-src 'none'",
+      "img-src 'self' data: blob:",
+      "font-src 'self' data:",
+      "style-src 'self' 'unsafe-inline'",
+      `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
+      "connect-src 'self' https://*.convex.cloud wss://*.convex.cloud https://*.convex.site",
+      "worker-src 'self' blob:",
+      "manifest-src 'self'",
+      "upgrade-insecure-requests",
+    ].join("; "),
   },
 ];
 
-const withPWA = withPWAInit({
-  dest: "public",
-  disable: isDev,
-  register: true,
-  skipWaiting: true,
-  cacheStartUrl: true,
-  runtimeCaching,
-  fallbacks: {
-    document: "/offline.html",
-  },
-});
+const noStoreHeaders = [
+  { key: "Cache-Control", value: "private, no-cache, no-store, max-age=0, must-revalidate" },
+  { key: "Pragma", value: "no-cache" },
+];
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   typescript: {
     ignoreBuildErrors: false,
   },
-  turbopack: {},
-  experimental: {
-    optimizePackageImports: ["lucide-react", "@supabase/supabase-js"],
+  turbopack: {
+    root: projectRoot,
   },
-  output: "standalone",
+  experimental: {
+    optimizePackageImports: ["lucide-react"],
+  },
   compiler: {
     removeConsole: process.env.NODE_ENV === "production"
       ? {
@@ -93,7 +56,35 @@ const nextConfig: NextConfig = {
         }
       : false,
   },
-  outputFileTracingRoot: undefined,
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: securityHeaders,
+      },
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Service-Worker-Allowed", value: "/" },
+          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self'" },
+        ],
+      },
+      {
+        source: "/api/auth/:path*",
+        headers: noStoreHeaders,
+      },
+      {
+        source: "/v/:path*",
+        headers: noStoreHeaders,
+      },
+      ...["login", "home", "admin", "workspace", "profile", "privacy"].map((route) => ({
+        source: `/${route}/:path*`,
+        headers: noStoreHeaders,
+      })),
+    ];
+  },
 };
 
-export default withPWA(nextConfig);
+export default nextConfig;

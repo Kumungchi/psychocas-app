@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700;900&display=swap');
-
 @import "tailwindcss";
 @import "../styles/utilities.css";
 
@@ -12,7 +10,7 @@
   --psychocas-primary: #1d4f7d;
   --psychocas-accent: #049edb;
   --psychocas-white: #ffffff;
-  --psychocas-light-gray: #f5f5f5;
+  --psychocas-light-gray: #f6f8fb;
   --psychocas-text-gray: #333333;
   --psychocas-status-green: #2e7d32;
   --psychocas-status-red: #c62828;
@@ -21,7 +19,7 @@
   --foreground: var(--psychocas-text-gray);
   --muted: var(--psychocas-light-gray);
   --muted-foreground: #666666;
-  --border: #e0e0e0;
+  --border: #dde7f0;
   --input: transparent;
   --input-background: var(--psychocas-light-gray);
   --card: var(--psychocas-white);
@@ -39,9 +37,9 @@
   --warning: #f59e0b;
   --warning-foreground: #ffffff;
   --ring: var(--psychocas-accent);
-  --radius: 1rem;
-  --radius-card: 1rem;
-  --radius-button: 1.5rem;
+  --radius: 0.5rem;
+  --radius-card: 0.5rem;
+  --radius-button: 0.5rem;
   
   /* Legacy compatibility */
   --brand-blue: var(--psychocas-primary);
@@ -72,28 +70,6 @@ body {
   font-feature-settings: "rlig" 1, "calt" 1;
 }
 
-/* Typography */
-h1 {
-  font-size: 1.5rem;
-  font-weight: 500;
-  line-height: 1.5;
-  color: var(--psychocas-primary);
-}
-
-h2 {
-  font-size: 1.25rem;
-  font-weight: 500;
-  line-height: 1.5;
-  color: var(--psychocas-text-gray);
-}
-
-h3 {
-  font-size: 1.125rem;
-  font-weight: 500;
-  line-height: 1.5;
-  color: var(--psychocas-text-gray);
-}
-
 /* Custom Psychočas component styles */
 .psychocas-section {
   min-height: 100vh;
@@ -112,7 +88,7 @@ h3 {
 .psychocas-card {
   background: var(--psychocas-white);
   border-radius: var(--radius-card);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 3px rgba(23, 32, 51, 0.06);
   padding: clamp(1.75rem, 5vw, 2.5rem);
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid rgba(0, 0, 0, 0.02);
@@ -144,31 +120,31 @@ h3 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #f3eaff 0%, #e5d4ff 100%);
-  color: #2b0a5c;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--psychocas-primary);
   border-radius: 9999px;
-  border: none;
-  padding: clamp(0.55rem, 2.3vw, 0.7rem) clamp(1rem, 4vw, 1.4rem);
-  min-width: clamp(3.75rem, 14vw, 5.5rem);
+  border: 1px solid rgba(29, 79, 125, 0.16);
+  padding: 0.48rem 0.8rem;
+  min-width: 3.5rem;
   font-weight: 700;
-  font-size: clamp(0.9rem, 2.4vw, 1.05rem);
-  letter-spacing: 0.12em;
+  font-size: 0.78rem;
+  letter-spacing: 0;
   text-transform: uppercase;
-  box-shadow: 0 10px 28px rgba(43, 10, 92, 0.25);
-  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 20px rgba(23, 32, 51, 0.08);
+  backdrop-filter: blur(10px);
   transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
   cursor: pointer;
 }
 
 .locale-toggle:hover {
   transform: translateY(-1px);
-  box-shadow: 0 14px 32px rgba(43, 10, 92, 0.3);
+  box-shadow: 0 12px 28px rgba(23, 32, 51, 0.12);
   filter: brightness(1.05);
 }
 
 .locale-toggle:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 4px rgba(117, 80, 180, 0.35), 0 14px 32px rgba(43, 10, 92, 0.3);
+  box-shadow: 0 0 0 4px rgba(4, 158, 219, 0.18), 0 12px 28px rgba(23, 32, 51, 0.12);
 }
 
 .locale-toggle__label {
@@ -253,7 +229,7 @@ h3 {
 .psychocas-input {
   background: var(--input-background);
   border: 2px solid transparent;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-card);
   padding: 1rem 1.25rem;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   font-size: 1rem;
@@ -285,7 +261,7 @@ h3 {
   }
 
   .psychocas-card {
-    border-radius: 1.25rem;
+    border-radius: var(--radius-card);
     padding: clamp(1.5rem, 7vw, 2.25rem);
   }
 
@@ -295,32 +271,24 @@ h3 {
 
   .locale-toggle {
     top: auto;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + clamp(0.75rem, 4vw, 1.5rem));
-    right: 50%;
-    left: 50%;
-    transform: translate(-50%, 0);
-    padding: 0.6rem 1.35rem;
-    font-size: 0.8rem;
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 5rem);
+    right: 0.75rem;
+    left: auto;
+    transform: none;
+    padding: 0.45rem 0.7rem;
+    font-size: 0.72rem;
+    box-shadow: 0 6px 18px rgba(23, 32, 51, 0.12);
   }
 }
 
 @media (max-width: 480px) {
-  h1 {
-    font-size: clamp(1.35rem, 8vw, 1.6rem);
-  }
-
-  h2 {
-    font-size: clamp(1.125rem, 6vw, 1.35rem);
-  }
-
   .psychocas-card {
     padding: clamp(1.25rem, 9vw, 1.9rem);
   }
 
   .locale-toggle {
-    font-size: 0.75rem;
-    padding: 0.5rem 1.15rem;
+    font-size: 0.7rem;
+    padding: 0.42rem 0.64rem;
   }
 }
 
@@ -416,7 +384,7 @@ h3 {
   width: 100%;
   padding: 1rem 1.25rem;
   border: 2px solid transparent;
-  border-radius: 0.75rem;
+  border-radius: var(--radius-card);
   outline: none;
   background: var(--input-background);
   transition: border-color 0.3s, box-shadow 0.3s;
