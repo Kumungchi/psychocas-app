@@ -1,0 +1,570 @@
+import type { Locale } from './config';
+import { dictionaries } from './strings';
+
+// The current MVP was built in Czech first. This map keeps the retrofit explicit
+// while preserving one central source for the English pilot copy.
+const explicitEnglishPhrases: Record<string, string> = {
+  'Jazyk aplikace': 'Application language',
+  'Přepnout aplikaci do češtiny': 'Switch the app to Czech',
+  'Přepnout aplikaci do angličtiny': 'Switch the app to English',
+  'Psychočas úvod': 'Psychočas home',
+  'členská aplikace': 'member app',
+  'MVP pro ukázku': 'MVP preview',
+  'feedback vítán': 'feedback welcome',
+  'Členství, slevy a zpětná vazba v jedné mobilní aplikaci.':
+    'Membership, benefits, and feedback in one mobile app.',
+  'Psychočas dává členům jednoduchý digitální průkaz, partnerům rychlé ověření a týmu data, podle kterých půjde rozvíjet benefity, které lidé opravdu využijí.':
+    'Psychočas gives members a simple digital card, partners a fast verification flow, and the team data for building benefits people actually use.',
+  'Členský pohled': 'Member view',
+  'Členství, QR, výhody, události a profil.': 'Membership, QR, benefits, events, and profile.',
+  'Lokální správa, události a anonymní metriky.': 'Local management, events, and anonymous metrics.',
+  'Schválení, členství, přístupy a privacy fronta.': 'Approvals, memberships, access, and privacy queue.',
+  'Digitální členství': 'Digital membership',
+  'Jasný stav členství, platnost a lokální pobočka v mobilu.':
+    'Clear membership status, validity, and local branch on mobile.',
+  'Krátkodobý kód': 'Short-lived code',
+  'Člen u partnera ukáže kód nebo QR, který je platný jen omezenou dobu.':
+    'A member shows a code or QR that is valid only for a short time.',
+  'Partner bez zmatku': 'Simple partner verification',
+  'Obsluha rychle ověří nárok a nemusí řešit ruční seznamy.':
+    'Staff can verify eligibility quickly without manual lists.',
+  'Data pro rozvoj': 'Data for improvement',
+  'Tým vidí, které benefity fungují a kde má smysl shánět partnery.':
+    'The team can see which benefits work and where new partners are needed.',
+  'stabilní PWA instalace a offline náhled posledních dat':
+    'stable PWA installation and an offline view of the latest data',
+  'správa partnerů, slev a dočasných přístupů přímo v aplikaci':
+    'partner, benefit, and temporary access management inside the app',
+  'sběr zpětné vazby od členů: co chtějí používat a kde chybí partneři':
+    'member feedback on what they want to use and where partners are missing',
+  'Demo Člen': 'Demo Member',
+  'aktivní': 'active',
+  'Digitální karta': 'Digital card',
+  'QR připraven': 'QR ready',
+  'Partnerství': 'Partnerships',
+  'Celostátní i lokální výhody podle pobočky.': 'Nationwide and local benefits based on branch.',
+  'Offline režim': 'Offline mode',
+  'Poslední stav zůstane dostupný i bez připojení.':
+    'The latest state remains available without a connection.',
+  'Proč aplikace existuje': 'Why the app exists',
+  'Chceme, aby členství mělo viditelnou hodnotu každý týden, ne jen v registračním e-mailu. MVP má ukázat základní tok a otevřít debatu o tom, co členové i pobočky reálně potřebují.':
+    'We want membership to deliver visible value every week, not only in a registration email. The MVP demonstrates the core flow and opens a discussion about what members and branches actually need.',
+  'Co chceme zjistit feedbackem': 'What we want to learn from feedback',
+  'Které funkce mají největší smysl, jaké slevy lidé opravdu využijí, kde chybí partneři a jak má vypadat správa pro pobočky.':
+    'Which features matter most, which benefits people actually use, where partners are missing, and how branch management should work.',
+  'Použij email, pod kterým tě eviduje Psychočas.':
+    'Use the email address registered with Psychočas.',
+  'Členství pro tento email není aktivní. Obrať se prosím na Psychočas.':
+    'Membership for this email is not active. Please contact Psychočas.',
+  'Ověřuji členství…': 'Checking membership…',
+  'Členství se teď nepodařilo ověřit. Zkus to prosím znovu.':
+    'We could not check the membership right now. Please try again.',
+  'Odesílám kód…': 'Sending code…',
+  'Email se teď nepodařilo odeslat. Zkus to prosím za chvíli, nebo kontaktuj Psychočas.':
+    'The email could not be sent right now. Please try again shortly or contact Psychočas.',
+  'Pokud je email evidovaný jako aktivní, dorazí na něj přihlašovací kód.':
+    'If the email is registered as active, a sign-in code will be delivered to it.',
+  'Zadej prosím platný email.': 'Enter a valid email address.',
+  'Doplň celý osmimístný kód.': 'Enter the complete eight-digit code.',
+  'Ověřuji kód a členství…': 'Checking the code and membership…',
+  'Přihlášení proběhlo. Otevírám aplikaci…': 'Signed in. Opening the app…',
+  'Kód není platný nebo už vypršel. Zkontroluj ho, případně si pošli nový.':
+    'The code is invalid or has expired. Check it or request a new one.',
+  'Přihlášení členů': 'Member sign-in',
+  'Informace k přihlášení': 'Sign-in information',
+  'Jak se přihlásit': 'How to sign in',
+  'Zavřít informace': 'Close information',
+  'Zadej svůj členský email. Přijde ti jednorázový kód platný 10 minut. Pokud email nedorazí, zkontroluj také složku Hromadné nebo Spam.':
+    'Enter your membership email. You will receive a one-time code valid for 10 minutes. If it does not arrive, also check your bulk mail or spam folder.',
+  'Členský email': 'Membership email',
+  'Poslat přihlašovací kód': 'Send sign-in code',
+  'Kód z emailu': 'Code from email',
+  'Odesláno na': 'Sent to',
+  'Osmimístný přihlašovací kód': 'Eight-digit sign-in code',
+  'Ověřit a přihlásit': 'Verify and sign in',
+  'Změnit email': 'Change email',
+  'Poslat znovu': 'Send again',
+  'Znovu za {seconds} s': 'Again in {seconds} s',
+  'Člen': 'Member',
+  'Manažer': 'Manager',
+  'Připomenutí členství': 'Membership reminders',
+  'Nové výhody': 'New benefits',
+  'Události Psychočasu': 'Psychočas events',
+  'Obsluha naskenuje QR běžným fotoaparátem telefonu. Zobrazí se pouze platnost členství a nabídky.':
+    'Staff scan the QR with a regular phone camera. Only membership and offer validity are shown.',
+  'Kód vypršel': 'Code expired',
+  'Vytvoř si nový kód pro další ověření.': 'Create a new code for another verification.',
+  'Vytvořit nový kód': 'Create new code',
+  'Organizační data se nepodařilo připravit. Zkus stránku obnovit.':
+    'The organisation data could not be prepared. Refresh the page.',
+  'QR kód se nepodařilo vytvořit. Ověř připojení a platnost nabídky.':
+    'The QR code could not be created. Check your connection and offer validity.',
+  'Tento prohlížeč push oznámení nepodporuje.': 'This browser does not support push notifications.',
+  'Push oznámení se nepodařilo nastavit. Zkontroluj oprávnění prohlížeče.':
+    'Push notifications could not be configured. Check browser permissions.',
+  'Export osobních údajů se nepodařilo připravit.':
+    'The personal data export could not be prepared.',
+  'Načítám členskou aplikaci…': 'Loading the member app…',
+  'Členská aplikace': 'Member app',
+  'Otevřít profil': 'Open profile',
+  'Ahoj,': 'Hello,',
+  'Aktivní do': 'Active until',
+  'Celostátní členství': 'Nationwide membership',
+  'dostupných': 'available',
+  'Vybrat členskou výhodu': 'Choose a member benefit',
+  'Aktuální výhody': 'Current benefits',
+  'Podle tvého členství a pobočky': 'Based on your membership and branch',
+  'Uloženo {date}': 'Saved {date}',
+  'Všechny': 'All',
+  'Zatím nejsou publikované žádné výhody.': 'No benefits have been published yet.',
+  'Nadcházející události': 'Upcoming events',
+  'Akce dostupné pro tvoje členství': 'Events available for your membership',
+  'Pracovní prostor': 'Workspace',
+  'Členové a přístupy': 'Members and access',
+  'Členské výhody': 'Member benefits',
+  'Národní nabídky a lokální partneři pro tvoji pobočku.':
+    'Nationwide offers and local partners for your branch.',
+  'Hledat partnera nebo výhodu': 'Search partner or benefit',
+  'Vše': 'All',
+  'Národní': 'Nationwide',
+  'Lokální': 'Local',
+  'Žádná výhoda neodpovídá výběru.': 'No benefit matches the selection.',
+  'Jednorázové bezpečné ověření konkrétní výhody.':
+    'Secure one-time verification of a specific benefit.',
+  'Vybraná výhoda': 'Selected benefit',
+  'Předchozí kód je aktivní na jiném zobrazení. Nový kód ho bezpečně nahradí.':
+    'The previous code is active in another view. A new code will replace it securely.',
+  'Vytvořit QR kód': 'Create QR code',
+  'QR vyžaduje připojení': 'QR requires a connection',
+  'Nejdřív musí být publikovaná alespoň jedna nabídka.':
+    'At least one offer must be published first.',
+  'Profil a soukromí': 'Profile and privacy',
+  'Členství, preference a kontakt s Psychočasem.':
+    'Membership, preferences, and contact with Psychočas.',
+  'Bez pobočky': 'No branch',
+  'Platnost do': 'Valid until',
+  'Preference oznámení': 'Notification preferences',
+  'Vypnout push na tomto zařízení': 'Disable push on this device',
+  'Zapnout push na tomto zařízení': 'Enable push on this device',
+  'Push bude dostupný po nasazení': 'Push will be available after deployment',
+  'Ochrana osobních údajů': 'Privacy',
+  'Veřejné QR neukazuje jméno ani email. Metriky jsou dostupné pouze agregovaně.':
+    'Public QR verification does not show a name or email. Metrics are available only in aggregate.',
+  'Exportovat moje údaje': 'Export my data',
+  'Přístup k údajům': 'Access request',
+  'Oprava údajů': 'Data correction',
+  'Žádost o výmaz': 'Deletion request',
+  'Omezení zpracování': 'Restriction of processing',
+  'Námitka': 'Objection',
+  'Žádost už je otevřená nebo ji nyní nelze odeslat.':
+    'A request is already open or cannot be submitted right now.',
+  'Odeslat žádost': 'Submit request',
+  'Poslední žádost:': 'Latest request:',
+  'Odesláno': 'Submitted',
+  'V posouzení': 'Under review',
+  'Dokončeno': 'Completed',
+  'Zamítnuto': 'Rejected',
+  'Zpětná vazba': 'Feedback',
+  'Co by ti v aplikaci pomohlo? Nevkládej citlivé osobní údaje.':
+    'What would help you in the app? Do not include sensitive personal data.',
+  'Feedback se nepodařilo odeslat.': 'Feedback could not be submitted.',
+  'Odeslat feedback': 'Submit feedback',
+  'Navrhnout partnera': 'Suggest a partner',
+  'Název podniku nebo organizace': 'Business or organisation name',
+  'Návrh se nepodařilo odeslat.': 'The suggestion could not be submitted.',
+  'Odeslat návrh': 'Submit suggestion',
+  'Přidat Psychočas na plochu': 'Add Psychočas to home screen',
+  'Informace o zpracování údajů': 'Data processing information',
+  'Odhlásit se': 'Sign out',
+  'Hlavní navigace': 'Main navigation',
+  'Pracovní prostor se nepodařilo připravit.': 'The workspace could not be prepared.',
+  'Partner byl uložen.': 'Partner saved.',
+  'Partnera se nepodařilo uložit. Zkontroluj scope a údaje.':
+    'The partner could not be saved. Check the scope and details.',
+  'Draft nabídky byl uložen.': 'Offer draft saved.',
+  'Nabídku se nepodařilo uložit. Zkontroluj partnera, termín a scope.':
+    'The offer could not be saved. Check the partner, dates, and scope.',
+  'Draft kampaně byl uložen.': 'Campaign draft saved.',
+  'Kampaň se nepodařilo uložit. Zkontroluj termíny a scope.':
+    'The campaign could not be saved. Check the dates and scope.',
+  'Draft události byl uložen.': 'Event draft saved.',
+  'Událost se nepodařilo uložit. Zkontroluj termín, kapacitu a scope.':
+    'The event could not be saved. Check the date, capacity, and scope.',
+  'Načítám pracovní prostor…': 'Loading workspace…',
+  'Partneři': 'Partners',
+  'Nabídky': 'Offers',
+  'Kampaně': 'Campaigns',
+  'Události': 'Events',
+  'Schválení': 'Approvals',
+  'Metriky': 'Metrics',
+  'Soukromí': 'Privacy',
+  'Pracovní prostor není dostupný': 'Workspace unavailable',
+  'Účet nemá assignment pro správu partnerů, nabídek nebo metrik.':
+    'This account has no assignment for managing partners, offers, or metrics.',
+  'Zpět do aplikace': 'Back to app',
+  'Obnovit': 'Refresh',
+  'Pobočka': 'Branch',
+  'Vyber pobočku': 'Select branch',
+  'Pracovní moduly': 'Workspace modules',
+  'Omezená členská diagnostika': 'Limited member diagnostics',
+  'Vyhledávání ukazuje stav přístupu a poslední přihlášení. Neobsahuje historii nabídek ani QR použití.':
+    'Search shows access status and the latest sign-in. It does not include offer history or QR usage.',
+  'Jméno nebo celý email': 'Name or full email',
+  'Členství do': 'Membership until',
+  'Poslední login': 'Last sign-in',
+  'Zatím ne': 'Not yet',
+  'Zadej alespoň dva znaky.': 'Enter at least two characters.',
+  'Nebyl nalezen odpovídající člen v povoleném scope.':
+    'No matching member was found in the permitted scope.',
+  'Stav partnera se nepodařilo změnit.': 'The partner status could not be changed.',
+  'V tomto scope zatím není partner.': 'There is no partner in this scope yet.',
+  'Nový partner': 'New partner',
+  'Název partnera': 'Partner name',
+  'Krátký popis': 'Short description',
+  'Uložit partnera': 'Save partner',
+  'národní': 'nationwide',
+  'lokální': 'local',
+  'Aktivní': 'Active',
+  'Neaktivní': 'Inactive',
+  'Archiv': 'Archive',
+  'Archivovat partnera': 'Archive partner',
+  'Obnovit partnera': 'Restore partner',
+  'Archivovat': 'Archive',
+  'Čeká na schválení': 'Pending approval',
+  'Publikováno': 'Published',
+  'Pozastaveno': 'Paused',
+  'Archivováno': 'Archived',
+  'Nabídka čeká na schválení.': 'The offer is pending approval.',
+  'Nabídku nelze odeslat ke schválení.': 'The offer could not be submitted for approval.',
+  'Ke schválení': 'Submit for approval',
+  'Pozastavit': 'Pause',
+  'V tomto scope zatím není nabídka.': 'There is no offer in this scope yet.',
+  'Nový draft': 'New draft',
+  'Vyber partnera': 'Select partner',
+  'Název nabídky': 'Offer name',
+  '15 %, 2+1, zdarma…': '15%, 2-for-1, free…',
+  'Podmínky nabídky': 'Offer terms',
+  'Platí od': 'Valid from',
+  'Platí do': 'Valid until',
+  'Uložit draft': 'Save draft',
+  '{count} záznamů': '{count} records',
+  'Načítám…': 'Loading…',
+  'Kampaně a oznámení': 'Campaigns and notifications',
+  'Kampaň byla publikována.': 'Campaign published.',
+  'Kampaň se nepodařilo publikovat.': 'The campaign could not be published.',
+  'Publikovat': 'Publish',
+  'Push není nakonfigurovaný nebo už byla kampaň zařazena.':
+    'Push is not configured or the campaign has already been queued.',
+  'Zařadit push': 'Queue push',
+  'Do fronty bylo zařazeno {count} oznámení.': '{count} notifications were queued.',
+  'V tomto scope zatím není kampaň.': 'There is no campaign in this scope yet.',
+  'Nová kampaň': 'New campaign',
+  'Název kampaně': 'Campaign name',
+  'Text oznámení': 'Notification text',
+  'Začátek': 'Start',
+  'Konec': 'End',
+  'Naplánováno': 'Scheduled',
+  'Dokončená': 'Completed',
+  'Zrušená': 'Cancelled',
+  'Událost byla publikována.': 'Event published.',
+  'Událost se nepodařilo publikovat.': 'The event could not be published.',
+  'V tomto scope zatím není událost.': 'There is no event in this scope yet.',
+  'Nová událost': 'New event',
+  'Název události': 'Event name',
+  'Popis': 'Description',
+  'Místo': 'Location',
+  'Kapacita (volitelné)': 'Capacity (optional)',
+  'Check-in člena': 'Member check-in',
+  'Vyhledej člena jménem nebo celým emailem. Zobrazují se jen údaje nutné pro odbavení.':
+    'Search by member name or full email. Only data needed for check-in is shown.',
+  'Člen už byl odbaven.': 'The member has already checked in.',
+  'Check-in byl uložen.': 'Check-in saved.',
+  'Check-in se nepodařilo uložit.': 'Check-in could not be saved.',
+  'Odbavit': 'Check in',
+  'Nebyl nalezen aktivní člen v tomto scope.': 'No active member was found in this scope.',
+  '{count} požadavků': '{count} requests',
+  'připravil/a': 'prepared by',
+  'Nabídka byla vrácena do draftu.': 'The offer was returned to draft.',
+  'Nabídka byla publikována.': 'The offer was published.',
+  'Vrátit': 'Return',
+  'Fronta je prázdná.': 'The queue is empty.',
+  'Vydané kódy': 'Issued codes',
+  'Validní použití': 'Valid uses',
+  'Skeny': 'Scans',
+  'Úspěšnost': 'Success rate',
+  'Nejpoužívanější nabídky': 'Most used offers',
+  'Pouze agregovaná data, bez historie členů.': 'Aggregate data only, with no member history.',
+  'použití': 'uses',
+  'Metriky vzniknou po prvních QR ověřeních.':
+    'Metrics will appear after the first QR verifications.',
+  'Privacy požadavky': 'Privacy requests',
+  'Neaktivní účet': 'Inactive account',
+  'Řeší se': 'In review',
+  'Dokončit': 'Complete',
+  'Žádný privacy požadavek.': 'No privacy requests.',
+  'Požadavek byl zpracován odpovědnou osobou.':
+    'The request was processed by the responsible person.',
+  'HR koordinátor': 'HR coordinator',
+  'PR koordinátor': 'PR coordinator',
+  'Koordinátor partnerství': 'Partnerships coordinator',
+  'Event koordinátor': 'Events coordinator',
+  'Lokální manager': 'Local manager',
+  'Vypršelo': 'Expired',
+  'Zrušeno': 'Revoked',
+  'Oprávnění se nepodařilo připravit.': 'Permissions could not be prepared.',
+  'Člen je připravený k úpravě ve formuláři.': 'The member is ready to edit in the form.',
+  'Doplň email, jméno a platnost členství.': 'Enter email, name, and membership validity.',
+  'Člen byl přidán.': 'Member added.',
+  'Člen byl aktualizován.': 'Member updated.',
+  'Uložení se nepodařilo. Zkontroluj údaje a oprávnění.':
+    'Saving failed. Check the details and permissions.',
+  'Nejdřív vyber alespoň jednoho člena.': 'Select at least one member first.',
+  'Vyber, co se má u označených členů změnit.':
+    'Choose what should change for the selected members.',
+  'Aktualizováno: {count} členů.': 'Updated members: {count}.',
+  'Hromadná úprava se nepodařila.': 'Bulk update failed.',
+  'Doplň název pobočky a město.': 'Enter the branch name and city.',
+  'Pobočka byla přidána.': 'Branch added.',
+  'Pobočku se nepodařilo uložit.': 'The branch could not be saved.',
+  'Pobočka byla vypnuta.': 'Branch disabled.',
+  'Pobočka byla obnovena.': 'Branch restored.',
+  'Stav pobočky se nepodařilo změnit.': 'The branch status could not be changed.',
+  'Pro lokální assignment vyber pobočku.': 'Select a branch for a local assignment.',
+  'Oprávnění bylo uloženo.': 'Permission saved.',
+  'Oprávnění se nepodařilo uložit. Zkontroluj preset a scope.':
+    'Permission could not be saved. Check the preset and scope.',
+  'Načítám administraci.': 'Loading administration.',
+  'Administrace': 'Administration',
+  'Tato část je dostupná pouze pro aktivní board a admin účet.':
+    'This section is available only to active board and admin accounts.',
+  'Správa členství': 'Membership management',
+  'Přidávání členů, filtrování a hromadné změny přístupů pro pilotní provoz.':
+    'Add members, filter records, and apply bulk access changes for the pilot.',
+  'Odhlásit': 'Sign out',
+  'Členové': 'Members',
+  'Role': 'Roles',
+  'Filtry': 'Filters',
+  'Hledat': 'Search',
+  'Jméno nebo email': 'Name or email',
+  'Stav': 'Status',
+  'Všechny stavy': 'All statuses',
+  'Všechny role': 'All roles',
+  'Všechny pobočky': 'All branches',
+  'Hromadná úprava': 'Bulk edit',
+  'Označeno:': 'Selected:',
+  'Zrušit výběr': 'Clear selection',
+  'Stav beze změny': 'Keep status',
+  'Nastavit:': 'Set:',
+  'Role beze změny': 'Keep role',
+  'Pobočka beze změny': 'Keep branch',
+  'Nová platnost členství': 'New membership validity',
+  'Poznámka ke změně': 'Change note',
+  'Uložit změny': 'Save changes',
+  'Přehled členů': 'Member overview',
+  'Odznačit vše': 'Deselect all',
+  'Označit zobrazené': 'Select visible',
+  'Načítám členy.': 'Loading members.',
+  'Žádní členové neodpovídají filtrům.': 'No members match the filters.',
+  'Označit': 'Select',
+  'Upravit': 'Edit',
+  'Přidat nebo upravit člena': 'Add or edit member',
+  'Jméno': 'Name',
+  'Jméno člena': 'Member name',
+  'Platnost členství': 'Membership validity',
+  'Poznámka': 'Note',
+  'Vyčistit': 'Clear',
+  'Uložit': 'Save',
+  'Nová pobočka': 'New branch',
+  'Název pobočky': 'Branch name',
+  'Město': 'City',
+  'Přidat pobočku': 'Add branch',
+  'Načítám pobočky.': 'Loading branches.',
+  'Zatím není přidaná žádná pobočka.': 'No branch has been added yet.',
+  'Vypnout': 'Disable',
+  'Přiřadit oprávnění': 'Assign permission',
+  'Preset a národní nebo lokální scope.': 'Preset with nationwide or local scope.',
+  'Členský přístup': 'Member access',
+  'Vyber účet': 'Select account',
+  'Preset': 'Preset',
+  'Rozsah': 'Scope',
+  'Celostátní': 'Nationwide',
+  'Jedna pobočka': 'One branch',
+  'Platnost do (volitelné)': 'Valid until (optional)',
+  'Důvod': 'Reason',
+  'Např. PR koordinace 2026': 'For example, PR coordination 2026',
+  'Uložit oprávnění': 'Save permission',
+  'Přiřazené role': 'Assigned roles',
+  'Člen bez přihlášení': 'Member without sign-in',
+  'celostátní': 'nationwide',
+  'Odebráno': 'Removed',
+  'Odebráno v administraci Psychočasu.': 'Removed in Psychočas administration.',
+  'Oprávnění bylo odebráno.': 'Permission removed.',
+  'Oprávnění nelze odebrat. Poslední board/admin musí zůstat aktivní.':
+    'Permission cannot be removed. The final board/admin assignment must remain active.',
+  'Odebrat': 'Remove',
+  'Odebrat oprávnění {preset}?': 'Remove {preset} permission?',
+  'Zatím není přiřazené žádné scoped oprávnění.': 'No scoped permission has been assigned yet.',
+  'Zpět': 'Back',
+  'Stručně a srozumitelně': 'Clear and concise',
+  'Soukromí je součást návrhu aplikace': 'Privacy is built into the app',
+  'Psychočas používá údaje potřebné pro správu členství, zpřístupnění partnerských výhod, zabezpečení účtu a provoz aplikace. Veřejné QR ověření nezobrazuje jméno ani kontaktní údaje.':
+    'Psychočas uses the data needed to manage membership, provide partner benefits, secure accounts, and operate the app. Public QR verification does not display a name or contact details.',
+  'Členství': 'Membership',
+  'Email, jméno, pobočka, stav a platnost členství slouží k přihlášení a zpřístupnění výhod.':
+    'Email, name, branch, status, and membership validity are used for sign-in and benefit access.',
+  'Bezpečnost': 'Security',
+  'OTP rate limits, session a audit změn chrání členské a správcovské účty.':
+    'OTP rate limits, sessions, and change auditing protect member and staff accounts.',
+  'Agregované metriky': 'Aggregate metrics',
+  'Použití QR se po krátké provozní době převádí na souhrny bez členského žebříčku nebo behaviorálního profilu.':
+    'QR usage is converted into summaries after a short operational period, without member rankings or behavioural profiles.',
+  'Preference': 'Preferences',
+  'Oznámení jsou volitelná. Preference lze kdykoli změnit v profilu.':
+    'Notifications are optional. Preferences can be changed in the profile at any time.',
+  'Správce a účely': 'Controller and purposes',
+  'Psychočas, z.s., IČO 08952604, Šlechtitelů 813/21, 779 00 Olomouc, je správcem údajů v členské aplikaci. Údaje používá pro správu členství a přístupu, poskytování výhod a událostí, zabezpečení služby a vyřízení požadavků členů.':
+    'Psychočas, z.s., company ID 08952604, Šlechtitelů 813/21, 779 00 Olomouc, is the data controller for the member app. Data is used to manage membership and access, provide benefits and events, secure the service, and handle member requests.',
+  'Zpracování se opírá o plnění členského vztahu, oprávněný zájem na bezpečném provozu a plnění právních povinností. Volitelná push oznámení vyžadují souhlas v profilu i oprávnění zařízení a lze je kdykoli vypnout.':
+    'Processing is based on the membership relationship, legitimate interest in secure operation, and legal obligations. Optional push notifications require consent in the profile and device permission and can be disabled at any time.',
+  'Uložení a příjemci': 'Storage and recipients',
+  'Technické QR události se mažou po 30 dnech, navázané QR záznamy po 31 dnech a doručovací logy po 90 dnech.':
+    'Technical QR events are deleted after 30 days, linked QR records after 31 days, and delivery logs after 90 days.',
+  'OTP rate-limit záznamy se mažou po 24 hodinách neaktivity. Tajný QR kód se v databázi neukládá v čitelné podobě.':
+    'OTP rate-limit records are deleted after 24 hours of inactivity. The secret QR code is not stored in readable form.',
+  'Členský profil, přístupy, audit a privacy požadavky se uchovávají po dobu členství a následně jen po dobu stanovenou retenčním plánem spolku nebo právní povinností.':
+    'Member profiles, access records, audits, and privacy requests are retained for the membership term and afterwards only for the period required by the association retention plan or a legal obligation.',
+  'Technickými zpracovateli jsou Convex (databáze a backend v EU regionu Irsko), Vercel (hosting webové aplikace) a Resend (doručení přihlašovacích emailů). Resend zpracovává data v USA; přenos je smluvně zajištěn standardními smluvními doložkami.':
+    'Technical processors are Convex (database and backend in the EU Ireland region), Vercel (web application hosting), and Resend (sign-in email delivery). Resend processes data in the United States; the transfer is contractually covered by Standard Contractual Clauses.',
+  'Aplikace neprovádí automatizované rozhodování, nevytváří členské behaviorální profily a ve feedbacku nemají být uváděny údaje o zdraví ani jiné citlivé údaje.':
+    'The app does not make automated decisions or create member behavioural profiles. Feedback must not include health data or other sensitive information.',
+  'Tvoje práva': 'Your rights',
+  'V profilu si můžeš stáhnout strukturovaný export a požádat o přístup, opravu, výmaz, omezení zpracování nebo vznést námitku. Požadavek posoudí oprávněná osoba Psychočasu a aplikace ukáže jeho stav. Máš také právo podat stížnost u Úřadu pro ochranu osobních údajů.':
+    'In your profile, you can download a structured export and request access, correction, deletion, restriction of processing, or object. An authorised Psychočas representative reviews the request and the app shows its status. You may also lodge a complaint with the Czech Data Protection Authority.',
+  'Kontakt': 'Contact',
+  'Dotazy k soukromí a zpracování údajů směřuj na':
+    'Send questions about privacy and data processing to',
+  'Verze informací pro pilot: 13. 7. 2026. Změny účelů, retenčních lhůt nebo zpracovatelů zveřejníme před jejich účinností.':
+    'Pilot notice version: July 13, 2026. Changes to purposes, retention periods, or processors will be published before they take effect.',
+  'Členství a nabídka jsou platné': 'Membership and offer are valid',
+  'Výhodu lze poskytnout. Kód byl právě jednorázově ověřen.':
+    'The benefit can be provided. The code has just been verified once.',
+  'Kód už byl ověřen': 'Code already verified',
+  'Tento jednorázový kód už byl použit. Zkontroluj čas prvního ověření.':
+    'This one-time code has already been used. Check the first verification time.',
+  'Platnost kódu vypršela': 'Code expired',
+  'Člen musí v aplikaci vytvořit nový QR kód.': 'The member must create a new QR code in the app.',
+  'Kód byl zneplatněn': 'Code revoked',
+  'Požádej člena o vytvoření nového QR kódu.': 'Ask the member to create a new QR code.',
+  'Kód není platný': 'Invalid code',
+  'Kód neexistuje nebo členství či nabídka už nejsou aktivní.':
+    'The code does not exist or the membership or offer is no longer active.',
+  'Ověření členské výhody': 'Member benefit verification',
+  'Ověřuji kód…': 'Verifying code…',
+  'Výsledek se nikdy nenačítá z cache.': 'The result is never loaded from cache.',
+  'Ověření je dočasně nedostupné': 'Verification is temporarily unavailable',
+  'Zadat krátký kód': 'Enter short code',
+  'Zkontroluj připojení a zkus to znovu.': 'Check your connection and try again.',
+  'Pokud nejde načíst QR, zadej osmimístný kód z členské aplikace.':
+    'If the QR cannot be loaded, enter the eight-character code from the member app.',
+  'Osmimístný ověřovací kód': 'Eight-character verification code',
+  'Ověřit kód': 'Verify code',
+  'Partner': 'Partner',
+  'Nabídka': 'Offer',
+  'Hodnota': 'Value',
+  'Ověřeno': 'Verified',
+  'Ověřit další kód': 'Verify another code',
+  'Ověření nezobrazuje jméno, email ani přesné datum členství.':
+    'Verification does not display a name, email, or exact membership date.',
+  'Přesměrovávám na bezpečné ověření…': 'Redirecting to secure verification…',
+  'Digitální členství, jednorázový QR kód, výhody, události a profil.':
+    'Digital membership, one-time QR code, benefits, events, and profile.',
+  'Manažer pobočky': 'Branch manager',
+  'Lokální správa partnerů, událostí, check-inu a agregovaných metrik.':
+    'Local partner, event, check-in, and aggregate metric management.',
+  'Board a admin': 'Board and admin',
+  'Schvalování, hromadná správa členství, přístupy a privacy požadavky.':
+    'Approvals, bulk membership management, access, and privacy requests.',
+  'Demo hub': 'Demo hub',
+  'Psychočas MVP ukázka': 'Psychočas MVP preview',
+  'Vyberte roli a otevřete připravený náhled bez produkčního přihlášení.':
+    'Choose a role and open a prepared preview without a production sign-in.',
+  'Zpět na pitch': 'Back to pitch',
+  'Otevřít demo': 'Open demo',
+  'Manažerský pohled': 'Manager view',
+  'Board pohled': 'Board view',
+  'Odborné knihy': 'Professional books',
+  'Workshopy a kurzy': 'Workshops and courses',
+  'Káva a drobné občerstvení': 'Coffee and refreshments',
+  'Zpět na demo': 'Back to demo',
+  'Aktivní do 30. června 2027': 'Active until June 30, 2027',
+  'Pobočka Praha': 'Prague branch',
+  '12 dostupných': '12 available',
+  'Podle členství a pobočky': 'Based on membership and branch',
+  'Nejbližší událost': 'Next event',
+  'Setkání členů Psychočasu': 'Psychočas member meetup',
+  '21. září, 17:30 · Kampus Hybernská': 'September 21, 17:30 · Kampus Hybernská',
+  'Scope řídí, které záznamy lze zobrazit a upravit.':
+    'Scope controls which records can be viewed and edited.',
+  'Aktivní členové': 'Active members',
+  'Validní QR': 'Valid QR codes',
+  'Čeká na rozhodnutí': 'Pending decision',
+  'Aktivní nabídky': 'Active offers',
+  'Workflow s dohledatelným schválením': 'Workflow with traceable approval',
+  'Obsah v povoleném scope': 'Content in the permitted scope',
+  'Schválit': 'Approve',
+  'Filtrování, hromadný výběr a změna platnosti pouze pro board a admin.':
+    'Filtering, bulk selection, and validity changes for board and admin only.',
+  'Spravovat členy': 'Manage members',
+  'Privacy fronta': 'Privacy queue',
+  '2 otevřené požadavky · bez behaviorálních profilů':
+    '2 open requests · no behavioural profiles',
+  'Anonymní metriky': 'Anonymous metrics',
+  'Agregované využití výhod bez historie jednotlivých členů.':
+    'Aggregate benefit usage without individual member history.',
+  '3 plánované · check-in připraven': '3 scheduled · check-in ready',
+  'Je dostupná nová verze': 'A new version is available',
+  'Aktualizace zachová přihlášení a načte nejnovější funkce.':
+    'The update keeps your session and loads the latest features.',
+  'Aktualizovat': 'Update',
+  'Skrýt upozornění': 'Dismiss notification',
+  'Skrýt': 'Dismiss',
+  'Načítám přihlášení…': 'Loading sign-in…',
+};
+
+function flattenDictionary(
+  source: Record<string, unknown>,
+  prefix = '',
+  output: Record<string, string> = {},
+): Record<string, string> {
+  for (const [key, value] of Object.entries(source)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (typeof value === 'string') {
+      output[path] = value;
+    } else if (value && typeof value === 'object') {
+      flattenDictionary(value as Record<string, unknown>, path, output);
+    }
+  }
+  return output;
+}
+
+const czechByPath = flattenDictionary(dictionaries.cs);
+const englishByPath = flattenDictionary(dictionaries.en);
+
+const inferredEnglishPhrases = Object.fromEntries(
+  Object.entries(czechByPath)
+    .map(([path, czech]) => [czech, englishByPath[path]])
+    .filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+);
+
+export const pilotEnglishPhrases: Record<string, string> = {
+  ...inferredEnglishPhrases,
+  ...explicitEnglishPhrases,
+};
+
+export function translatePilotPhrase(locale: Locale, value: string): string {
+  if (locale === 'cs') {
+    return value;
+  }
+
+  return pilotEnglishPhrases[value] ?? value;
+}

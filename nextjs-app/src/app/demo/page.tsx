@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { ArrowRight, BarChart3, BadgeCheck, Settings } from 'lucide-react';
 import PsychocasLogo from '@/components/PsychocasLogo';
+import useLocale from '@/hooks/useLocale';
 import Button from '@/ui/components/Button';
 import Badge from '@/ui/components/Badge';
 import type { MemberRole } from '@/types/member';
@@ -37,6 +38,7 @@ const demoCards: DemoCard[] = [
 
 export default function DemoPage() {
   const router = useRouter();
+  const { tr } = useLocale();
 
   const openDemo = (card: DemoCard) => {
     router.push(`/demo/${card.role}`);
@@ -49,17 +51,17 @@ export default function DemoPage() {
           <div className="flex items-center gap-4">
             <PsychocasLogo size={58} gradientId="demoHubLogo" />
             <div>
-              <Badge tone="info">Demo hub</Badge>
+              <Badge tone="info">{tr('Demo hub')}</Badge>
               <h1 className="mt-2 text-2xl font-semibold text-[#12385b]">
-                Psychočas MVP ukázka
+                {tr('Psychočas MVP ukázka')}
               </h1>
               <p className="mt-1 text-sm text-[#536273]">
-                Vyberte roli a otevřete připravený náhled bez produkčního přihlášení.
+                {tr('Vyberte roli a otevřete připravený náhled bez produkčního přihlášení.')}
               </p>
             </div>
           </div>
           <Button type="button" variant="ghost" onClick={() => router.push('/')}>
-            Zpět na pitch
+            {tr('Zpět na pitch')}
           </Button>
         </header>
 
@@ -74,12 +76,12 @@ export default function DemoPage() {
                 className="rounded-lg border border-[#dfe8f1] bg-white p-5 text-left shadow-sm transition hover:border-[#bcd4ea] hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#049edb]"
               >
                 <Icon className="h-6 w-6 text-[#1d4f7d]" aria-hidden />
-                <h2 className="mt-4 text-lg font-semibold text-[#172033]">{card.title}</h2>
+                <h2 className="mt-4 text-lg font-semibold text-[#172033]">{tr(card.title)}</h2>
                 <p className="mt-2 min-h-16 text-sm leading-6 text-[#536273]">
-                  {card.description}
+                  {tr(card.description)}
                 </p>
                 <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#1d4f7d]">
-                  Otevřít demo
+                  {tr('Otevřít demo')}
                   <ArrowRight className="h-4 w-4" aria-hidden />
                 </span>
               </button>

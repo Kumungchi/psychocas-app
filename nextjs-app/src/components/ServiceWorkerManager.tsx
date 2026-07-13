@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { RefreshCw, X } from 'lucide-react';
 import { colors, radii, shadows } from '@/ui/theme';
+import useLocale from '@/hooks/useLocale';
 
 export default function ServiceWorkerManager() {
+  const { tr } = useLocale();
   const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null);
   const refreshingRef = useRef(false);
 
@@ -68,9 +70,9 @@ export default function ServiceWorkerManager() {
     >
       <RefreshCw className="h-5 w-5 shrink-0" style={{ color: colors.brandPrimary }} />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold">Je dostupná nová verze</p>
+        <p className="text-sm font-semibold">{tr('Je dostupná nová verze')}</p>
         <p className="text-xs" style={{ color: colors.textSecondary }}>
-          Aktualizace zachová přihlášení a načte nejnovější funkce.
+          {tr('Aktualizace zachová přihlášení a načte nejnovější funkce.')}
         </p>
       </div>
       <button
@@ -79,13 +81,13 @@ export default function ServiceWorkerManager() {
         style={{ borderRadius: radii.sm, background: colors.brandPrimary }}
         onClick={() => waitingWorker.postMessage({ type: 'SKIP_WAITING' })}
       >
-        Aktualizovat
+        {tr('Aktualizovat')}
       </button>
       <button
         type="button"
         className="flex h-10 w-10 shrink-0 items-center justify-center"
-        aria-label="Skrýt upozornění"
-        title="Skrýt"
+        aria-label={tr('Skrýt upozornění')}
+        title={tr('Skrýt')}
         onClick={() => setWaitingWorker(null)}
       >
         <X className="h-4 w-4" />

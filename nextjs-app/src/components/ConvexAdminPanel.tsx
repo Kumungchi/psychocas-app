@@ -21,6 +21,9 @@ import {
 } from 'lucide-react';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
+import useLocale from '@/hooks/useLocale';
+import type { Locale } from '@/lib/i18n/config';
+import { getDateLocale } from '@/lib/i18n/utils';
 import { colors, radii, shadows, typography } from '@/ui/theme';
 
 type AccessStatus = 'active' | 'inactive' | 'expired' | 'revoked';
@@ -119,8 +122,8 @@ function timestampFromDateInput(value: string): number {
   return new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
 }
 
-function formatDate(timestamp: number): string {
-  return new Intl.DateTimeFormat('cs-CZ', {
+function formatDate(timestamp: number, locale: Locale): string {
+  return new Intl.DateTimeFormat(getDateLocale(locale), {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -165,6 +168,7 @@ function softButtonStyle(): React.CSSProperties {
 export default function ConvexAdminPanel() {
   const router = useRouter();
   const { signOut } = useAuthActions();
+  const { locale, tr } = useLocale();
   const viewer = useQuery(api.members.viewer);
   const canManage =
     viewer?.status === 'ready' &&
@@ -386,7 +390,7 @@ export default function ConvexAdminPanel() {
         patch,
         reason: bulkPatch.reason.trim() || undefined,
       });
-      setMessage({ type: 'success', text: `Aktualizováno: ${result.updatedCount} členů.` });
+      setMessage({ type: 'success', text: tr('Aktualizováno: {count} členů.').replace('{count}', String(result.updatedCount)) });
       setSelected(new Set());
       setBulkPatch({
         status: 'no-change',
@@ -473,7 +477,7 @@ export default function ConvexAdminPanel() {
         <div className="psychocas-container">
           <div className="psychocas-card flex items-center gap-3 text-sm" style={{ color: colors.textSecondary }}>
             <RefreshCcw className="h-4 w-4 animate-spin" />
-            Načítám administraci.
+            {tr('Načítám administraci.')}
           </div>
         </div>
       </main>
@@ -486,12 +490,12 @@ export default function ConvexAdminPanel() {
         <div className="psychocas-container">
           <section className="psychocas-card space-y-3">
             <ShieldCheck className="h-8 w-8" style={{ color: colors.brandPrimary }} />
-            <h1>Administrace</h1>
+            <h1>{tr('Administrace')}</h1>
             <p style={{ color: colors.textSecondary }}>
-              Tato část je dostupná pouze pro aktivní board a admin účet.
+              {tr('Tato část je dostupná pouze pro aktivní board a admin účet.')}
             </p>
             <button type="button" onClick={() => router.replace('/home')} style={softButtonStyle()}>
-              Zpět do aplikace
+              {tr('Zpět do aplikace')}
             </button>
           </section>
         </div>
@@ -507,9 +511,9 @@ export default function ConvexAdminPanel() {
             <p className="text-sm font-semibold" style={{ color: colors.brandPrimary }}>
               Psychočas
             </p>
-            <h1 style={{ color: colors.textPrimary }}>Správa členství</h1>
+            <h1 style={{ color: colors.textPrimary }}>{tr('Správa členství')}</h1>
             <p className="max-w-2xl text-sm leading-6" style={{ color: colors.textSecondary }}>
-              Přidávání členů, filtrování a hromadné změny přístupů pro pilotní provoz.
+              {tr('Přidávání členů, filtrování a hromadné změny přístupů pro pilotní provoz.')}
             </p>
           </div>
           <button
@@ -519,7 +523,7 @@ export default function ConvexAdminPanel() {
             style={softButtonStyle()}
           >
             <LogOut className="h-4 w-4" />
-            Odhlásit
+            {tr('Odhlásit')}
           </button>
         </header>
 
@@ -548,7 +552,7 @@ export default function ConvexAdminPanel() {
                     : colors.brandOnSurface,
             }}
           >
-            {message.text}
+            {tr(message.text)}
           </div>
         )}
 
@@ -567,7 +571,7 @@ export default function ConvexAdminPanel() {
                 }}
               >
                 {tab === 'members' ? <Users className="h-4 w-4" /> : tab === 'branches' ? <Building2 className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
-                {tab === 'members' ? 'Členové' : tab === 'branches' ? 'Pobočky' : 'Role'}
+                {tr(tab === 'members' ? 'Členové' : tab === 'branches' ? 'Pobočky' : 'Role')}
               </button>
             );
           })}
@@ -583,12 +587,12 @@ export default function ConvexAdminPanel() {
                 <div className="mb-4 flex items-center gap-2">
                   <Filter className="h-4 w-4" style={{ color: colors.brandPrimary }} />
                   <h2 className="text-base font-semibold" style={{ color: colors.textPrimary }}>
-                    Filtry
+                    {tr('Filtry')}
                   </h2>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <label className="space-y-1 text-sm">
-                    <span style={{ color: colors.textSecondary }}>Hledat</span>
+                    <span style={{ color: colors.textSecondary }}>{tr('Hledat')}</span>
                     <div className="relative">
                       <Search
                         aria-hidden
@@ -598,14 +602,14 @@ export default function ConvexAdminPanel() {
                       <input
                         value={filters.search}
                         onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
-                        placeholder="Jméno nebo email"
+                        placeholder={tr('Jméno nebo email')}
                         style={{ ...fieldStyle(), paddingLeft: '2.35rem' }}
                       />
                     </div>
                   </label>
 
                   <label className="space-y-1 text-sm">
-                    <span style={{ color: colors.textSecondary }}>Stav</span>
+                    <span style={{ color: colors.textSecondary }}>{tr('Stav')}</span>
                     <select
                       value={filters.status}
                       onChange={(event) =>
@@ -613,17 +617,17 @@ export default function ConvexAdminPanel() {
                       }
                       style={fieldStyle()}
                     >
-                      <option value="all">Všechny stavy</option>
+                      <option value="all">{tr('Všechny stavy')}</option>
                       {Object.entries(statusLabels).map(([value, label]) => (
                         <option key={value} value={value}>
-                          {label}
+                          {tr(label)}
                         </option>
                       ))}
                     </select>
                   </label>
 
                   <label className="space-y-1 text-sm">
-                    <span style={{ color: colors.textSecondary }}>Role</span>
+                    <span style={{ color: colors.textSecondary }}>{tr('Role')}</span>
                     <select
                       value={filters.role}
                       onChange={(event) =>
@@ -631,17 +635,17 @@ export default function ConvexAdminPanel() {
                       }
                       style={fieldStyle()}
                     >
-                      <option value="all">Všechny role</option>
+                      <option value="all">{tr('Všechny role')}</option>
                       {Object.entries(roleLabels).map(([value, label]) => (
                         <option key={value} value={value}>
-                          {label}
+                          {tr(label)}
                         </option>
                       ))}
                     </select>
                   </label>
 
                   <label className="space-y-1 text-sm">
-                    <span style={{ color: colors.textSecondary }}>Pobočka</span>
+                    <span style={{ color: colors.textSecondary }}>{tr('Pobočka')}</span>
                     <select
                       value={filters.branchId}
                       onChange={(event) =>
@@ -652,7 +656,7 @@ export default function ConvexAdminPanel() {
                       }
                       style={fieldStyle()}
                     >
-                      <option value="all">Všechny pobočky</option>
+                      <option value="all">{tr('Všechny pobočky')}</option>
                       {activeBranches.map((branch) => (
                         <option key={branch.id} value={branch.id}>
                           {branch.name}
@@ -671,10 +675,10 @@ export default function ConvexAdminPanel() {
                 <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h2 className="text-base font-semibold" style={{ color: colors.textPrimary }}>
-                      Hromadná úprava
+                      {tr('Hromadná úprava')}
                     </h2>
                     <p className="text-sm" style={{ color: colors.textSecondary }}>
-                      Označeno: {selectedCount}
+                      {tr('Označeno:')} {selectedCount}
                     </p>
                   </div>
                   <button
@@ -685,7 +689,7 @@ export default function ConvexAdminPanel() {
                     style={softButtonStyle()}
                   >
                     <X className="h-4 w-4" />
-                    Zrušit výběr
+                    {tr('Zrušit výběr')}
                   </button>
                 </div>
 
@@ -700,10 +704,10 @@ export default function ConvexAdminPanel() {
                     }
                     style={fieldStyle()}
                   >
-                    <option value="no-change">Stav beze změny</option>
+                    <option value="no-change">{tr('Stav beze změny')}</option>
                     {Object.entries(statusLabels).map(([value, label]) => (
                       <option key={value} value={value}>
-                        Nastavit: {label}
+                        {tr('Nastavit:')} {tr(label)}
                       </option>
                     ))}
                   </select>
@@ -718,10 +722,10 @@ export default function ConvexAdminPanel() {
                     }
                     style={fieldStyle()}
                   >
-                    <option value="no-change">Role beze změny</option>
+                    <option value="no-change">{tr('Role beze změny')}</option>
                     {Object.entries(roleLabels).map(([value, label]) => (
                       <option key={value} value={value}>
-                        Nastavit: {label}
+                        {tr('Nastavit:')} {tr(label)}
                       </option>
                     ))}
                   </select>
@@ -736,8 +740,8 @@ export default function ConvexAdminPanel() {
                     }
                     style={fieldStyle()}
                   >
-                    <option value="no-change">Pobočka beze změny</option>
-                    <option value="none">Bez pobočky</option>
+                    <option value="no-change">{tr('Pobočka beze změny')}</option>
+                    <option value="none">{tr('Bez pobočky')}</option>
                     {activeBranches.map((branch) => (
                       <option key={branch.id} value={branch.id}>
                         {branch.name}
@@ -749,7 +753,7 @@ export default function ConvexAdminPanel() {
                     type="date"
                     value={bulkPatch.membershipUntil}
                     onChange={(event) => setBulkPatch((prev) => ({ ...prev, membershipUntil: event.target.value }))}
-                    aria-label="Nová platnost členství"
+                    aria-label={tr('Nová platnost členství')}
                     style={fieldStyle()}
                   />
                 </div>
@@ -758,7 +762,7 @@ export default function ConvexAdminPanel() {
                   <input
                     value={bulkPatch.reason}
                     onChange={(event) => setBulkPatch((prev) => ({ ...prev, reason: event.target.value }))}
-                    placeholder="Poznámka ke změně"
+                    placeholder={tr('Poznámka ke změně')}
                     style={fieldStyle()}
                   />
                   <button
@@ -771,7 +775,7 @@ export default function ConvexAdminPanel() {
                     }}
                   >
                     <Check className="h-4 w-4" />
-                    Uložit změny
+                    {tr('Uložit změny')}
                   </button>
                 </div>
               </form>
@@ -783,24 +787,24 @@ export default function ConvexAdminPanel() {
                 <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: colors.border }}>
                   <div>
                     <h2 className="text-base font-semibold" style={{ color: colors.textPrimary }}>
-                      Přehled členů
+                      {tr('Přehled členů')}
                     </h2>
                     <p className="text-sm" style={{ color: colors.textSecondary }}>
-                      {accessGrants ? `${accessGrants.length} záznamů` : 'Načítám'}
+                      {accessGrants ? tr('{count} záznamů').replace('{count}', String(accessGrants.length)) : tr('Načítám…')}
                     </p>
                   </div>
                   <button type="button" onClick={toggleVisibleSelection} style={softButtonStyle()}>
-                    {allVisibleSelected ? 'Odznačit vše' : 'Označit zobrazené'}
+                    {tr(allVisibleSelected ? 'Odznačit vše' : 'Označit zobrazené')}
                   </button>
                 </div>
 
                 {!accessGrants ? (
                   <div className="p-4 text-sm" style={{ color: colors.textSecondary }}>
-                    Načítám členy.
+                    {tr('Načítám členy.')}
                   </div>
                 ) : accessGrants.length === 0 ? (
                   <div className="p-4 text-sm" style={{ color: colors.textSecondary }}>
-                    Žádní členové neodpovídají filtrům.
+                    {tr('Žádní členové neodpovídají filtrům.')}
                   </div>
                 ) : (
                   <div className="divide-y" style={{ borderColor: colors.border }}>
@@ -817,9 +821,9 @@ export default function ConvexAdminPanel() {
                                 checked={isSelected}
                                 onChange={() => toggleSelected(grant.id)}
                                 className="h-5 w-5"
-                                aria-label={`Označit ${grant.fullName}`}
+                                aria-label={`${tr('Označit')} ${grant.fullName}`}
                               />
-                              <span className="sm:hidden">Označit</span>
+                              <span className="sm:hidden">{tr('Označit')}</span>
                             </label>
 
                             <div className="min-w-0 space-y-2">
@@ -831,13 +835,13 @@ export default function ConvexAdminPanel() {
                                   className="rounded-full px-2.5 py-1 text-xs font-semibold"
                                   style={statusStyle(grant.status)}
                                 >
-                                  {statusLabels[grant.status]}
+                                  {tr(statusLabels[grant.status])}
                                 </span>
                                 <span
                                   className="rounded-full px-2.5 py-1 text-xs font-semibold"
                                   style={{ background: colors.brandSurface, color: colors.brandPrimary }}
                                 >
-                                  {roleLabels[grant.role]}
+                                  {tr(roleLabels[grant.role])}
                                 </span>
                               </div>
                               <div className="grid gap-1 text-sm" style={{ color: colors.textSecondary }}>
@@ -847,11 +851,11 @@ export default function ConvexAdminPanel() {
                                 </span>
                                 <span className="flex items-center gap-2">
                                   <CalendarDays className="h-4 w-4 shrink-0" />
-                                  Platí do {formatDate(grant.membershipUntil)}
+                                  {tr('Platí do')} {formatDate(grant.membershipUntil, locale)}
                                 </span>
                                 <span className="flex items-center gap-2">
                                   <Building2 className="h-4 w-4 shrink-0" />
-                                  {branch ? `${branch.name}, ${branch.city}` : 'Bez pobočky'}
+                                  {branch ? `${branch.name}, ${branch.city}` : tr('Bez pobočky')}
                                 </span>
                               </div>
                             </div>
@@ -863,7 +867,7 @@ export default function ConvexAdminPanel() {
                               style={softButtonStyle()}
                             >
                               <Save className="h-4 w-4" />
-                              Upravit
+                              {tr('Upravit')}
                             </button>
                           </div>
                         </article>
@@ -881,7 +885,7 @@ export default function ConvexAdminPanel() {
               <div className="mb-4 flex items-center gap-2">
                 <Plus className="h-4 w-4" style={{ color: colors.brandPrimary }} />
                 <h2 className="text-base font-semibold" style={{ color: colors.textPrimary }}>
-                  Přidat nebo upravit člena
+                  {tr('Přidat nebo upravit člena')}
                 </h2>
               </div>
               <form onSubmit={handleSaveGrant} className="space-y-3">
@@ -897,17 +901,17 @@ export default function ConvexAdminPanel() {
                   />
                 </label>
                 <label className="block space-y-1 text-sm">
-                  <span style={{ color: colors.textSecondary }}>Jméno</span>
+                  <span style={{ color: colors.textSecondary }}>{tr('Jméno')}</span>
                   <input
                     value={grantForm.fullName}
                     onChange={(event) => setGrantForm((prev) => ({ ...prev, fullName: event.target.value }))}
-                    placeholder="Jméno člena"
+                    placeholder={tr('Jméno člena')}
                     style={fieldStyle()}
                   />
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <label className="block space-y-1 text-sm">
-                    <span style={{ color: colors.textSecondary }}>Role</span>
+                    <span style={{ color: colors.textSecondary }}>{tr('Role')}</span>
                     <select
                       value={grantForm.role}
                       onChange={(event) =>
@@ -917,13 +921,13 @@ export default function ConvexAdminPanel() {
                     >
                       {Object.entries(roleLabels).map(([value, label]) => (
                         <option key={value} value={value}>
-                          {label}
+                          {tr(label)}
                         </option>
                       ))}
                     </select>
                   </label>
                   <label className="block space-y-1 text-sm">
-                    <span style={{ color: colors.textSecondary }}>Stav</span>
+                    <span style={{ color: colors.textSecondary }}>{tr('Stav')}</span>
                     <select
                       value={grantForm.status}
                       onChange={(event) =>
@@ -933,14 +937,14 @@ export default function ConvexAdminPanel() {
                     >
                       {Object.entries(statusLabels).map(([value, label]) => (
                         <option key={value} value={value}>
-                          {label}
+                          {tr(label)}
                         </option>
                       ))}
                     </select>
                   </label>
                 </div>
                 <label className="block space-y-1 text-sm">
-                  <span style={{ color: colors.textSecondary }}>Platnost členství</span>
+                  <span style={{ color: colors.textSecondary }}>{tr('Platnost členství')}</span>
                   <input
                     type="date"
                     value={grantForm.membershipUntil}
@@ -949,7 +953,7 @@ export default function ConvexAdminPanel() {
                   />
                 </label>
                 <label className="block space-y-1 text-sm">
-                  <span style={{ color: colors.textSecondary }}>Pobočka</span>
+                  <span style={{ color: colors.textSecondary }}>{tr('Pobočka')}</span>
                   <select
                     value={grantForm.branchId}
                     onChange={(event) =>
@@ -957,7 +961,7 @@ export default function ConvexAdminPanel() {
                     }
                     style={fieldStyle()}
                   >
-                    <option value="">Bez pobočky</option>
+                    <option value="">{tr('Bez pobočky')}</option>
                     {activeBranches.map((branch) => (
                       <option key={branch.id} value={branch.id}>
                         {branch.name}
@@ -966,7 +970,7 @@ export default function ConvexAdminPanel() {
                   </select>
                 </label>
                 <label className="block space-y-1 text-sm">
-                  <span style={{ color: colors.textSecondary }}>Poznámka</span>
+                  <span style={{ color: colors.textSecondary }}>{tr('Poznámka')}</span>
                   <textarea
                     value={grantForm.notes}
                     onChange={(event) => setGrantForm((prev) => ({ ...prev, notes: event.target.value }))}
@@ -981,7 +985,7 @@ export default function ConvexAdminPanel() {
                     className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 font-semibold"
                     style={softButtonStyle()}
                   >
-                    Vyčistit
+                    {tr('Vyčistit')}
                   </button>
                   <button
                     type="submit"
@@ -993,7 +997,7 @@ export default function ConvexAdminPanel() {
                     }}
                   >
                     <Save className="h-4 w-4" />
-                    Uložit
+                    {tr('Uložit')}
                   </button>
                 </div>
               </form>
@@ -1011,20 +1015,20 @@ export default function ConvexAdminPanel() {
               <div className="mb-4 flex items-center gap-2">
                 <Building2 className="h-4 w-4" style={{ color: colors.brandPrimary }} />
                 <h2 className="text-base font-semibold" style={{ color: colors.textPrimary }}>
-                  Nová pobočka
+                  {tr('Nová pobočka')}
                 </h2>
               </div>
               <div className="space-y-3">
                 <input
                   value={branchForm.name}
                   onChange={(event) => setBranchForm((prev) => ({ ...prev, name: event.target.value }))}
-                  placeholder="Název pobočky"
+                  placeholder={tr('Název pobočky')}
                   style={fieldStyle()}
                 />
                 <input
                   value={branchForm.city}
                   onChange={(event) => setBranchForm((prev) => ({ ...prev, city: event.target.value }))}
-                  placeholder="Město"
+                  placeholder={tr('Město')}
                   style={fieldStyle()}
                 />
                 <button
@@ -1037,7 +1041,7 @@ export default function ConvexAdminPanel() {
                   }}
                 >
                   <Plus className="h-4 w-4" />
-                  Přidat pobočku
+                  {tr('Přidat pobočku')}
                 </button>
               </div>
             </form>
@@ -1048,19 +1052,19 @@ export default function ConvexAdminPanel() {
             >
               <div className="border-b p-4" style={{ borderColor: colors.border }}>
                 <h2 className="text-base font-semibold" style={{ color: colors.textPrimary }}>
-                  Pobočky
+                  {tr('Pobočky')}
                 </h2>
                 <p className="text-sm" style={{ color: colors.textSecondary }}>
-                  {branches ? `${branches.length} záznamů` : 'Načítám'}
+                  {branches ? tr('{count} záznamů').replace('{count}', String(branches.length)) : tr('Načítám…')}
                 </p>
               </div>
               {!branches ? (
                 <p className="p-4 text-sm" style={{ color: colors.textSecondary }}>
-                  Načítám pobočky.
+                  {tr('Načítám pobočky.')}
                 </p>
               ) : branches.length === 0 ? (
                 <p className="p-4 text-sm" style={{ color: colors.textSecondary }}>
-                  Zatím není přidaná žádná pobočka.
+                  {tr('Zatím není přidaná žádná pobočka.')}
                 </p>
               ) : (
                 <div className="divide-y" style={{ borderColor: colors.border }}>
@@ -1083,7 +1087,7 @@ export default function ConvexAdminPanel() {
                           color: branch.active ? colors.dangerStrong : colors.success,
                         }}
                       >
-                        {branch.active ? 'Vypnout' : 'Obnovit'}
+                        {tr(branch.active ? 'Vypnout' : 'Obnovit')}
                       </button>
                     </article>
                   ))}
@@ -1103,20 +1107,20 @@ export default function ConvexAdminPanel() {
               <div className="mb-4 flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4" style={{ color: colors.brandPrimary }} />
                 <div>
-                  <h2 className="text-base font-semibold" style={{ color: colors.textPrimary }}>Přiřadit oprávnění</h2>
-                  <p className="text-xs" style={{ color: colors.textSecondary }}>Preset a národní nebo lokální scope.</p>
+                  <h2 className="text-base font-semibold" style={{ color: colors.textPrimary }}>{tr('Přiřadit oprávnění')}</h2>
+                  <p className="text-xs" style={{ color: colors.textSecondary }}>{tr('Preset a národní nebo lokální scope.')}</p>
                 </div>
               </div>
               <div className="space-y-3">
                 <label className="block space-y-1 text-sm">
-                  <span style={{ color: colors.textSecondary }}>Členský přístup</span>
+                  <span style={{ color: colors.textSecondary }}>{tr('Členský přístup')}</span>
                   <select value={assignmentForm.accessGrantId} onChange={(event) => setAssignmentForm((current) => ({ ...current, accessGrantId: event.target.value as Id<'accessGrants'> }))} style={fieldStyle()}>
-                    <option value="" disabled>Vyber účet</option>
+                    <option value="" disabled>{tr('Vyber účet')}</option>
                     {accessGrants?.map((grant) => <option key={grant.id} value={grant.id}>{grant.fullName} · {grant.email}</option>)}
                   </select>
                 </label>
                 <label className="block space-y-1 text-sm">
-                  <span style={{ color: colors.textSecondary }}>Preset</span>
+                  <span style={{ color: colors.textSecondary }}>{tr('Preset')}</span>
                   <select
                     value={assignmentForm.preset}
                     onChange={(event) => {
@@ -1132,53 +1136,53 @@ export default function ConvexAdminPanel() {
                     }}
                     style={fieldStyle()}
                   >
-                    {Object.entries(presetLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    {Object.entries(presetLabels).map(([value, label]) => <option key={value} value={value}>{tr(label)}</option>)}
                   </select>
                 </label>
                 <label className="block space-y-1 text-sm">
-                  <span style={{ color: colors.textSecondary }}>Rozsah</span>
+                  <span style={{ color: colors.textSecondary }}>{tr('Rozsah')}</span>
                   <select
                     value={assignmentForm.scope}
                     disabled={assignmentForm.preset === 'board' || assignmentForm.preset === 'admin' || assignmentForm.preset === 'manager'}
                     onChange={(event) => setAssignmentForm((current) => ({ ...current, scope: event.target.value as 'organization' | 'branch', branchId: event.target.value === 'organization' ? '' : current.branchId }))}
                     style={fieldStyle()}
                   >
-                    <option value="organization">Celostátní</option>
-                    <option value="branch">Jedna pobočka</option>
+                    <option value="organization">{tr('Celostátní')}</option>
+                    <option value="branch">{tr('Jedna pobočka')}</option>
                   </select>
                 </label>
                 {assignmentForm.scope === 'branch' && (
                   <label className="block space-y-1 text-sm">
-                    <span style={{ color: colors.textSecondary }}>Pobočka</span>
+                    <span style={{ color: colors.textSecondary }}>{tr('Pobočka')}</span>
                     <select value={assignmentForm.branchId} onChange={(event) => setAssignmentForm((current) => ({ ...current, branchId: event.target.value as Id<'branches'> }))} style={fieldStyle()}>
-                      <option value="" disabled>Vyber pobočku</option>
+                      <option value="" disabled>{tr('Vyber pobočku')}</option>
                       {activeBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
                     </select>
                   </label>
                 )}
-                <label className="block space-y-1 text-sm"><span style={{ color: colors.textSecondary }}>Platnost do (volitelné)</span><input type="date" value={assignmentForm.validUntil} onChange={(event) => setAssignmentForm((current) => ({ ...current, validUntil: event.target.value }))} style={fieldStyle()} /></label>
-                <label className="block space-y-1 text-sm"><span style={{ color: colors.textSecondary }}>Důvod</span><input value={assignmentForm.reason} onChange={(event) => setAssignmentForm((current) => ({ ...current, reason: event.target.value }))} placeholder="Např. PR koordinace 2026" style={fieldStyle()} /></label>
-                <button type="submit" disabled={saving || !assignmentForm.accessGrantId || !organizationId} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg px-4 font-semibold" style={{ background: saving ? colors.neutralSurface : colors.brandPrimary, color: saving ? colors.textSecondary : colors.background }}><Save className="h-4 w-4" /> Uložit oprávnění</button>
+                <label className="block space-y-1 text-sm"><span style={{ color: colors.textSecondary }}>{tr('Platnost do (volitelné)')}</span><input type="date" value={assignmentForm.validUntil} onChange={(event) => setAssignmentForm((current) => ({ ...current, validUntil: event.target.value }))} style={fieldStyle()} /></label>
+                <label className="block space-y-1 text-sm"><span style={{ color: colors.textSecondary }}>{tr('Důvod')}</span><input value={assignmentForm.reason} onChange={(event) => setAssignmentForm((current) => ({ ...current, reason: event.target.value }))} placeholder={tr('Např. PR koordinace 2026')} style={fieldStyle()} /></label>
+                <button type="submit" disabled={saving || !assignmentForm.accessGrantId || !organizationId} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg px-4 font-semibold" style={{ background: saving ? colors.neutralSurface : colors.brandPrimary, color: saving ? colors.textSecondary : colors.background }}><Save className="h-4 w-4" /> {tr('Uložit oprávnění')}</button>
               </div>
             </form>
 
             <section className="rounded-lg border bg-white" style={{ borderColor: colors.border, boxShadow: shadows.sm }}>
-              <div className="border-b p-4" style={{ borderColor: colors.border }}><h2 className="text-base font-semibold">Přiřazené role</h2><p className="text-sm" style={{ color: colors.textSecondary }}>{assignments ? `${assignments.length} záznamů` : 'Načítám'}</p></div>
+              <div className="border-b p-4" style={{ borderColor: colors.border }}><h2 className="text-base font-semibold">{tr('Přiřazené role')}</h2><p className="text-sm" style={{ color: colors.textSecondary }}>{assignments ? tr('{count} záznamů').replace('{count}', String(assignments.length)) : tr('Načítám…')}</p></div>
               <div className="divide-y" style={{ borderColor: colors.border }}>
                 {assignments?.map((assignment) => (
                   <article key={assignment.id} className="p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2"><h3 className="truncate font-semibold">{assignment.fullName ?? 'Člen bez přihlášení'}</h3><span className="rounded-full px-2 py-1 text-xs font-semibold" style={{ background: assignment.status === 'active' ? colors.successSurface : colors.neutralSurface, color: assignment.status === 'active' ? colors.success : colors.textSecondary }}>{assignment.status === 'active' ? 'Aktivní' : 'Odebráno'}</span></div>
+                        <div className="flex flex-wrap items-center gap-2"><h3 className="truncate font-semibold">{assignment.fullName ?? tr('Člen bez přihlášení')}</h3><span className="rounded-full px-2 py-1 text-xs font-semibold" style={{ background: assignment.status === 'active' ? colors.successSurface : colors.neutralSurface, color: assignment.status === 'active' ? colors.success : colors.textSecondary }}>{tr(assignment.status === 'active' ? 'Aktivní' : 'Odebráno')}</span></div>
                         <p className="mt-1 truncate text-sm" style={{ color: colors.textSecondary }}>{assignment.email}</p>
-                        <p className="mt-2 text-sm"><strong>{presetLabels[assignment.preset]}</strong> · {assignment.scope === 'organization' ? 'celostátní' : assignment.branch?.name ?? 'lokální'}</p>
-                        {assignment.validUntil && <p className="mt-1 text-xs" style={{ color: colors.textSecondary }}>Platí do {formatDate(assignment.validUntil)}</p>}
+                        <p className="mt-2 text-sm"><strong>{tr(presetLabels[assignment.preset])}</strong> · {assignment.scope === 'organization' ? tr('celostátní') : assignment.branch?.name ?? tr('lokální')}</p>
+                        {assignment.validUntil && <p className="mt-1 text-xs" style={{ color: colors.textSecondary }}>{tr('Platí do')} {formatDate(assignment.validUntil, locale)}</p>}
                       </div>
                       {assignment.status === 'active' && (
                         <button
                           type="button"
                           onClick={() => {
-                            if (!window.confirm(`Odebrat oprávnění ${presetLabels[assignment.preset]}?`)) return;
+                            if (!window.confirm(tr('Odebrat oprávnění {preset}?').replace('{preset}', tr(presetLabels[assignment.preset])))) return;
                             void revokeAssignment({ id: assignment.id, reason: 'Odebráno v administraci Psychočasu.' })
                               .then(() => setMessage({ type: 'success', text: 'Oprávnění bylo odebráno.' }))
                               .catch(() => setMessage({ type: 'error', text: 'Oprávnění nelze odebrat. Poslední board/admin musí zůstat aktivní.' }));
@@ -1186,13 +1190,13 @@ export default function ConvexAdminPanel() {
                           className="min-h-10 rounded-lg border px-3 text-sm font-semibold"
                           style={{ borderColor: colors.border, color: colors.dangerStrong }}
                         >
-                          Odebrat
+                          {tr('Odebrat')}
                         </button>
                       )}
                     </div>
                   </article>
                 ))}
-                {assignments?.length === 0 && <p className="p-6 text-center text-sm" style={{ color: colors.textSecondary }}>Zatím není přiřazené žádné scoped oprávnění.</p>}
+                {assignments?.length === 0 && <p className="p-6 text-center text-sm" style={{ color: colors.textSecondary }}>{tr('Zatím není přiřazené žádné scoped oprávnění.')}</p>}
               </div>
             </section>
           </section>

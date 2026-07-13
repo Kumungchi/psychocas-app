@@ -79,6 +79,7 @@ async function takeScreenshots() {
         try {
           const context = await browser.newContext({
             viewport,
+            locale: 'cs-CZ',
             userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           });
           const page = await context.newPage();

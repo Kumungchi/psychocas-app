@@ -34,8 +34,11 @@ import {
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import PsychocasLogo from '@/components/PsychocasLogo';
+import useLocale from '@/hooks/useLocale';
 import useNetworkStatus from '@/hooks/useNetworkStatus';
 import usePwaInstallPrompt from '@/hooks/usePwaInstallPrompt';
+import { getDateLocale } from '@/lib/i18n/utils';
+import type { Locale } from '@/lib/i18n/config';
 import {
   clearMemberSnapshot,
   loadMemberSnapshot,
@@ -77,8 +80,8 @@ const preferenceLabels = {
   events: 'Události Psychočasu',
 } as const;
 
-function formatDate(timestamp: number): string {
-  return new Intl.DateTimeFormat('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' }).format(
+function formatDate(timestamp: number, locale: Locale): string {
+  return new Intl.DateTimeFormat(getDateLocale(locale), { day: 'numeric', month: 'long', year: 'numeric' }).format(
     new Date(timestamp),
   );
 }
@@ -149,6 +152,7 @@ function OfferRow({
 }
 
 function TokenView({ token, onRegenerate }: { token: IssuedToken; onRegenerate: () => void }) {
+  const { tr } = useLocale();
   const [now, setNow] = useState(() => Date.now());
   const verificationUrl = typeof window === 'undefined' ? token.verificationPath : `${window.location.origin}${token.verificationPath}`;
   const seconds = Math.max(0, Math.ceil((token.expiresAt - now) / 1000));
@@ -185,16 +189,16 @@ function TokenView({ token, onRegenerate }: { token: IssuedToken; onRegenerate: 
               {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
             </div>
             <p className="mt-3 max-w-xs text-center text-xs leading-5" style={{ color: colors.textSecondary }}>
-              Obsluha naskenuje QR běžným fotoaparátem telefonu. Zobrazí se pouze platnost členství a nabídky.
+              {tr('Obsluha naskenuje QR běžným fotoaparátem telefonu. Zobrazí se pouze platnost členství a nabídky.')}
             </p>
           </>
         ) : (
           <div className="py-10 text-center">
             <WifiOff className="mx-auto h-8 w-8" style={{ color: colors.textSecondary }} />
-            <p className="mt-3 font-semibold" style={{ color: colors.textPrimary }}>Kód vypršel</p>
-            <p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>Vytvoř si nový kód pro další ověření.</p>
+            <p className="mt-3 font-semibold" style={{ color: colors.textPrimary }}>{tr('Kód vypršel')}</p>
+            <p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>{tr('Vytvoř si nový kód pro další ověření.')}</p>
             <button type="button" onClick={onRegenerate} className="mt-5 min-h-11 px-4 font-semibold text-white" style={{ borderRadius: radii.md, background: colors.brandPrimary }}>
-              Vytvořit nový kód
+              {tr('Vytvořit nový kód')}
             </button>
           </div>
         )}
@@ -208,6 +212,7 @@ export default function ConvexMemberHome() {
   const convex = useConvex();
   const { signOut } = useAuthActions();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
+  const { locale, tr } = useLocale();
   const viewer = useQuery(api.members.viewer, isAuthenticated ? {} : 'skip');
   const ensureViewer = useMutation(api.members.ensureViewer);
   const ensureIam = useMutation(api.iam.ensureBootstrap);
@@ -439,7 +444,7 @@ export default function ConvexMemberHome() {
       <main className="flex min-h-screen items-center justify-center px-5" style={{ background: colors.backgroundMuted }}>
         <div className="flex items-center gap-3 text-sm" role="status" style={{ color: colors.textSecondary }}>
           <Loader2 className="h-5 w-5 animate-spin" style={{ color: colors.brandPrimary }} />
-          Načítám členskou aplikaci…
+          {tr('Načítám členskou aplikaci…')}
         </div>
       </main>
     );
@@ -451,11 +456,11 @@ export default function ConvexMemberHome() {
     <main className="min-h-screen pb-24" style={{ background: colors.backgroundMuted, color: colors.textPrimary }}>
       <header className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur" style={{ borderColor: colors.border }}>
         <div className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-4 sm:px-6">
-          <button type="button" onClick={() => setActiveTab('home')} className="flex min-w-0 items-center gap-2 text-left" aria-label="Domů">
+          <button type="button" onClick={() => setActiveTab('home')} className="flex min-w-0 items-center gap-2 text-left" aria-label={tr('Domů')}>
             <PsychocasLogo size={38} />
             <span className="min-w-0">
               <span className="block text-sm font-bold" style={{ color: colors.brandPrimary }}>Psychočas</span>
-              <span className="block truncate text-xs" style={{ color: colors.textSecondary }}>{member.branch?.name ?? 'Členská aplikace'}</span>
+              <span className="block truncate text-xs" style={{ color: colors.textSecondary }}>{member.branch?.name ?? tr('Členská aplikace')}</span>
             </span>
           </button>
           <div className="flex items-center gap-2">
@@ -464,7 +469,7 @@ export default function ConvexMemberHome() {
                 <WifiOff size={15} /> Offline
               </span>
             )}
-            <button type="button" onClick={() => setActiveTab('profile')} className="flex h-10 w-10 items-center justify-center border" aria-label="Otevřít profil" style={{ borderColor: colors.border, borderRadius: radii.md, background: colors.background }}>
+            <button type="button" onClick={() => setActiveTab('profile')} className="flex h-10 w-10 items-center justify-center border" aria-label={tr('Otevřít profil')} style={{ borderColor: colors.border, borderRadius: radii.md, background: colors.background }}>
               <UserRound size={19} style={{ color: colors.brandPrimary }} />
             </button>
           </div>
@@ -474,63 +479,63 @@ export default function ConvexMemberHome() {
       <div className="mx-auto w-full max-w-3xl px-4 py-5 sm:px-6 sm:py-7">
         {message && (
           <div className="mb-4 border px-4 py-3 text-sm" role="alert" style={{ borderColor: '#FECACA', borderRadius: radii.md, background: colors.dangerSurface, color: colors.dangerStrong }}>
-            {message}
+            {tr(message)}
           </div>
         )}
 
         {activeTab === 'home' && (
           <div className="space-y-5">
             <section>
-              <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>Ahoj,</p>
+              <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>{tr('Ahoj,')}</p>
               <h1 className="mt-1 text-2xl font-semibold" style={{ color: colors.textPrimary, fontFamily: typography.heading }}>{member.fullName}</h1>
             </section>
 
             <AppSection className="overflow-hidden">
               <div className="flex items-start justify-between gap-4 px-5 py-5" style={{ background: colors.brandPrimary, color: colors.background }}>
                 <div>
-                  <p className="text-xs font-semibold uppercase opacity-80">Digitální členství</p>
-                  <h2 className="mt-1 text-lg font-semibold text-white">Aktivní do {formatDate(member.membershipUntil)}</h2>
-                  <p className="mt-1 text-sm text-white/80">{member.branch?.name ?? 'Celostátní členství'}</p>
+                  <p className="text-xs font-semibold uppercase opacity-80">{tr('Digitální členství')}</p>
+                  <h2 className="mt-1 text-lg font-semibold text-white">{tr('Aktivní do')} {formatDate(member.membershipUntil, locale)}</h2>
+                  <p className="mt-1 text-sm text-white/80">{member.branch?.name ?? tr('Celostátní členství')}</p>
                 </div>
                 <CheckCircle2 className="h-7 w-7 shrink-0" />
               </div>
               <div className="grid grid-cols-2 divide-x border-t" style={{ borderColor: colors.border }}>
                 <div className="px-4 py-3">
-                  <p className="text-xs" style={{ color: colors.textSecondary }}>Role</p>
-                  <p className="mt-1 text-sm font-semibold">{roleLabels[member.role]}</p>
+                  <p className="text-xs" style={{ color: colors.textSecondary }}>{tr('Role')}</p>
+                  <p className="mt-1 text-sm font-semibold">{tr(roleLabels[member.role])}</p>
                 </div>
                 <div className="px-4 py-3">
-                  <p className="text-xs" style={{ color: colors.textSecondary }}>Výhody</p>
-                  <p className="mt-1 text-sm font-semibold">{offers.length} dostupných</p>
+                  <p className="text-xs" style={{ color: colors.textSecondary }}>{tr('Výhody')}</p>
+                  <p className="mt-1 text-sm font-semibold">{offers.length} {tr('dostupných')}</p>
                 </div>
               </div>
             </AppSection>
 
             <button type="button" onClick={() => setActiveTab('offers')} className="flex min-h-12 w-full items-center justify-center gap-2 px-4 font-semibold text-white" style={{ borderRadius: radii.md, background: colors.brandPrimary }}>
-              <Tags size={20} /> Vybrat členskou výhodu
+              <Tags size={20} /> {tr('Vybrat členskou výhodu')}
             </button>
 
             <section>
               <div className="mb-2 flex items-end justify-between gap-3 px-1">
                 <div>
-                  <h2 className="text-base font-semibold" style={{ color: colors.textPrimary }}>Aktuální výhody</h2>
-                  <p className="text-xs" style={{ color: colors.textSecondary }}>{isOnline ? 'Podle tvého členství a pobočky' : `Uloženo ${offlineSnapshot ? new Date(offlineSnapshot.savedAt).toLocaleString('cs-CZ') : ''}`}</p>
+                  <h2 className="text-base font-semibold" style={{ color: colors.textPrimary }}>{tr('Aktuální výhody')}</h2>
+                  <p className="text-xs" style={{ color: colors.textSecondary }}>{isOnline ? tr('Podle tvého členství a pobočky') : tr('Uloženo {date}').replace('{date}', offlineSnapshot ? new Date(offlineSnapshot.savedAt).toLocaleString(getDateLocale(locale)) : '')}</p>
                 </div>
-                <button type="button" onClick={() => setActiveTab('offers')} className="text-sm font-semibold" style={{ color: colors.brandPrimary }}>Všechny</button>
+                <button type="button" onClick={() => setActiveTab('offers')} className="text-sm font-semibold" style={{ color: colors.brandPrimary }}>{tr('Všechny')}</button>
               </div>
               <AppSection className="overflow-hidden">
                 {offers.slice(0, 3).map((offer) => (
                   <OfferRow key={offer.id} offer={offer} onSelect={() => { setSelectedOfferId(offer.id as Id<'offers'>); setActiveTab('card'); }} />
                 ))}
-                {offers.length === 0 && <p className="px-5 py-8 text-center text-sm" style={{ color: colors.textSecondary }}>Zatím nejsou publikované žádné výhody.</p>}
+                {offers.length === 0 && <p className="px-5 py-8 text-center text-sm" style={{ color: colors.textSecondary }}>{tr('Zatím nejsou publikované žádné výhody.')}</p>}
               </AppSection>
             </section>
 
             {(upcomingEvents?.length ?? 0) > 0 && (
               <section>
-                <div className="mb-2 px-1"><h2 className="text-base font-semibold" style={{ color: colors.textPrimary }}>Nadcházející události</h2><p className="text-xs" style={{ color: colors.textSecondary }}>Akce dostupné pro tvoje členství</p></div>
+                <div className="mb-2 px-1"><h2 className="text-base font-semibold" style={{ color: colors.textPrimary }}>{tr('Nadcházející události')}</h2><p className="text-xs" style={{ color: colors.textSecondary }}>{tr('Akce dostupné pro tvoje členství')}</p></div>
                 <AppSection className="divide-y overflow-hidden">
-                  {upcomingEvents?.slice(0, 3).map((event) => <article key={event.id} className="flex gap-3 px-4 py-4"><span className="flex h-11 w-11 shrink-0 flex-col items-center justify-center" style={{ borderRadius: radii.md, background: colors.brandSurface, color: colors.brandPrimary }}><strong className="text-base leading-none">{new Date(event.startsAt).getDate()}</strong><span className="mt-1 text-[10px] font-semibold uppercase">{new Intl.DateTimeFormat('cs-CZ', { month: 'short' }).format(new Date(event.startsAt))}</span></span><div className="min-w-0"><h3 className="truncate text-sm font-semibold">{event.title}</h3><p className="mt-1 text-xs" style={{ color: colors.textSecondary }}>{new Date(event.startsAt).toLocaleString('cs-CZ')}{event.location ? ` · ${event.location}` : ''}</p></div></article>)}
+                  {upcomingEvents?.slice(0, 3).map((event) => <article key={event.id} className="flex gap-3 px-4 py-4"><span className="flex h-11 w-11 shrink-0 flex-col items-center justify-center" style={{ borderRadius: radii.md, background: colors.brandSurface, color: colors.brandPrimary }}><strong className="text-base leading-none">{new Date(event.startsAt).getDate()}</strong><span className="mt-1 text-[10px] font-semibold uppercase">{new Intl.DateTimeFormat(getDateLocale(locale), { month: 'short' }).format(new Date(event.startsAt))}</span></span><div className="min-w-0"><h3 className="truncate text-sm font-semibold">{event.title}</h3><p className="mt-1 text-xs" style={{ color: colors.textSecondary }}>{new Date(event.startsAt).toLocaleString(getDateLocale(locale))}{event.location ? ` · ${event.location}` : ''}</p></div></article>)}
                 </AppSection>
               </section>
             )}
@@ -539,12 +544,12 @@ export default function ConvexMemberHome() {
               <div className="grid gap-2 sm:grid-cols-2">
                 {canOpenWorkspace && (
                   <button type="button" onClick={() => router.push('/workspace')} className="flex min-h-12 items-center justify-between border bg-white px-4 font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md }}>
-                    <span className="flex items-center gap-2"><Store size={19} style={{ color: colors.brandPrimary }} /> Pracovní prostor</span><ChevronRight size={18} />
+                    <span className="flex items-center gap-2"><Store size={19} style={{ color: colors.brandPrimary }} /> {tr('Pracovní prostor')}</span><ChevronRight size={18} />
                   </button>
                 )}
                 {canOpenAdmin && (
                   <button type="button" onClick={() => router.push('/admin')} className="flex min-h-12 items-center justify-between border bg-white px-4 font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md }}>
-                    <span className="flex items-center gap-2"><Settings2 size={19} style={{ color: colors.brandPrimary }} /> Členové a přístupy</span><ChevronRight size={18} />
+                    <span className="flex items-center gap-2"><Settings2 size={19} style={{ color: colors.brandPrimary }} /> {tr('Členové a přístupy')}</span><ChevronRight size={18} />
                   </button>
                 )}
               </div>
@@ -555,23 +560,23 @@ export default function ConvexMemberHome() {
         {activeTab === 'offers' && (
           <div className="space-y-4">
             <div>
-              <h1 className="text-2xl font-semibold" style={{ color: colors.textPrimary }}>Členské výhody</h1>
-              <p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>Národní nabídky a lokální partneři pro tvoji pobočku.</p>
+              <h1 className="text-2xl font-semibold" style={{ color: colors.textPrimary }}>{tr('Členské výhody')}</h1>
+              <p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>{tr('Národní nabídky a lokální partneři pro tvoji pobočku.')}</p>
             </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: colors.textSecondary }} />
-              <input value={offerSearch} onChange={(event) => setOfferSearch(event.target.value)} placeholder="Hledat partnera nebo výhodu" className="min-h-12 w-full border bg-white pl-10 pr-3 text-base" style={{ borderColor: colors.border, borderRadius: radii.md }} />
+              <input value={offerSearch} onChange={(event) => setOfferSearch(event.target.value)} placeholder={tr('Hledat partnera nebo výhodu')} className="min-h-12 w-full border bg-white pl-10 pr-3 text-base" style={{ borderColor: colors.border, borderRadius: radii.md }} />
             </div>
             <div className="grid grid-cols-3 gap-1 border bg-white p-1" style={{ borderColor: colors.border, borderRadius: radii.md }}>
               {(['all', 'national', 'local'] as OfferFilter[]).map((filter) => (
                 <button key={filter} type="button" onClick={() => setOfferFilter(filter)} className="min-h-10 text-sm font-semibold" style={{ borderRadius: radii.sm, background: offerFilter === filter ? colors.brandPrimary : colors.background, color: offerFilter === filter ? colors.background : colors.textSecondary }}>
-                  {filter === 'all' ? 'Vše' : filter === 'national' ? 'Národní' : 'Lokální'}
+                  {tr(filter === 'all' ? 'Vše' : filter === 'national' ? 'Národní' : 'Lokální')}
                 </button>
               ))}
             </div>
             <AppSection className="overflow-hidden">
               {filteredOffers.map((offer) => <OfferRow key={offer.id} offer={offer} onSelect={() => { setSelectedOfferId(offer.id as Id<'offers'>); setActiveTab('card'); }} />)}
-              {filteredOffers.length === 0 && <p className="px-5 py-10 text-center text-sm" style={{ color: colors.textSecondary }}>Žádná výhoda neodpovídá výběru.</p>}
+              {filteredOffers.length === 0 && <p className="px-5 py-10 text-center text-sm" style={{ color: colors.textSecondary }}>{tr('Žádná výhoda neodpovídá výběru.')}</p>}
             </AppSection>
           </div>
         )}
@@ -579,13 +584,13 @@ export default function ConvexMemberHome() {
         {activeTab === 'card' && (
           <div className="space-y-4">
             <div>
-              <h1 className="text-2xl font-semibold" style={{ color: colors.textPrimary }}>QR karta</h1>
-              <p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>Jednorázové bezpečné ověření konkrétní výhody.</p>
+              <h1 className="text-2xl font-semibold" style={{ color: colors.textPrimary }}>{tr('QR karta')}</h1>
+              <p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>{tr('Jednorázové bezpečné ověření konkrétní výhody.')}</p>
             </div>
             {offers.length > 0 ? (
               <>
                 <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
-                  Vybraná výhoda
+                  {tr('Vybraná výhoda')}
                   <select value={selectedOfferId ?? ''} onChange={(event) => { setSelectedOfferId(event.target.value as Id<'offers'>); setIssuedToken(null); }} className="mt-2 min-h-12 w-full border bg-white px-3 text-base" style={{ borderColor: colors.border, borderRadius: radii.md }}>
                     {offers.map((offer) => <option key={offer.id} value={offer.id}>{offer.partnerName} - {offer.value}</option>)}
                   </select>
@@ -595,15 +600,15 @@ export default function ConvexMemberHome() {
                     <QrCode className="mx-auto h-10 w-10" style={{ color: colors.brandPrimary }} />
                     <h2 className="mt-3 text-lg font-semibold" style={{ color: colors.textPrimary }}>{selectedOffer?.title}</h2>
                     <p className="mt-1 text-2xl font-bold" style={{ color: colors.brandPrimary }}>{selectedOffer?.value}</p>
-                    {currentToken && <p className="mt-3 text-xs" style={{ color: colors.textSecondary }}>Předchozí kód je aktivní na jiném zobrazení. Nový kód ho bezpečně nahradí.</p>}
+                    {currentToken && <p className="mt-3 text-xs" style={{ color: colors.textSecondary }}>{tr('Předchozí kód je aktivní na jiném zobrazení. Nový kód ho bezpečně nahradí.')}</p>}
                     <button type="button" onClick={() => void handleIssueToken()} disabled={!isOnline || issuing} className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 px-4 font-semibold text-white" style={{ borderRadius: radii.md, background: !isOnline || issuing ? colors.textSecondary : colors.brandPrimary }}>
-                      {issuing ? <Loader2 className="h-5 w-5 animate-spin" /> : <QrCode size={20} />} {isOnline ? 'Vytvořit QR kód' : 'QR vyžaduje připojení'}
+                      {issuing ? <Loader2 className="h-5 w-5 animate-spin" /> : <QrCode size={20} />} {tr(isOnline ? 'Vytvořit QR kód' : 'QR vyžaduje připojení')}
                     </button>
                   </AppSection>
                 )}
               </>
             ) : (
-              <AppSection className="px-5 py-10 text-center"><Tags className="mx-auto h-9 w-9" style={{ color: colors.textSecondary }} /><p className="mt-3 text-sm" style={{ color: colors.textSecondary }}>Nejdřív musí být publikovaná alespoň jedna nabídka.</p></AppSection>
+              <AppSection className="px-5 py-10 text-center"><Tags className="mx-auto h-9 w-9" style={{ color: colors.textSecondary }} /><p className="mt-3 text-sm" style={{ color: colors.textSecondary }}>{tr('Nejdřív musí být publikovaná alespoň jedna nabídka.')}</p></AppSection>
             )}
           </div>
         )}
@@ -611,63 +616,63 @@ export default function ConvexMemberHome() {
         {activeTab === 'profile' && (
           <div className="space-y-5">
             <div>
-              <h1 className="text-2xl font-semibold" style={{ color: colors.textPrimary }}>Profil a soukromí</h1>
-              <p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>Členství, preference a kontakt s Psychočasem.</p>
+              <h1 className="text-2xl font-semibold" style={{ color: colors.textPrimary }}>{tr('Profil a soukromí')}</h1>
+              <p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>{tr('Členství, preference a kontakt s Psychočasem.')}</p>
             </div>
             <AppSection className="divide-y px-4">
               <div className="flex items-center gap-3 py-4"><UserRound size={19} style={{ color: colors.brandPrimary }} /><div className="min-w-0"><p className="truncate text-sm font-semibold">{member.fullName}</p><p className="truncate text-xs" style={{ color: colors.textSecondary }}>{member.email}</p></div></div>
-              <div className="flex items-center gap-3 py-4"><Building2 size={19} style={{ color: colors.brandPrimary }} /><p className="text-sm">{member.branch?.name ?? 'Bez pobočky'}</p></div>
-              <div className="flex items-center gap-3 py-4"><CalendarDays size={19} style={{ color: colors.brandPrimary }} /><p className="text-sm">Platnost do {formatDate(member.membershipUntil)}</p></div>
+              <div className="flex items-center gap-3 py-4"><Building2 size={19} style={{ color: colors.brandPrimary }} /><p className="text-sm">{member.branch?.name ?? tr('Bez pobočky')}</p></div>
+              <div className="flex items-center gap-3 py-4"><CalendarDays size={19} style={{ color: colors.brandPrimary }} /><p className="text-sm">{tr('Platnost do')} {formatDate(member.membershipUntil, locale)}</p></div>
             </AppSection>
 
             <AppSection className="px-4 py-4">
-              <div className="mb-3 flex items-center gap-2"><Bell size={19} style={{ color: colors.brandPrimary }} /><h2 className="text-base font-semibold">Preference oznámení</h2></div>
+              <div className="mb-3 flex items-center gap-2"><Bell size={19} style={{ color: colors.brandPrimary }} /><h2 className="text-base font-semibold">{tr('Preference oznámení')}</h2></div>
               <div className="space-y-2">
                 {(Object.keys(preferenceLabels) as Array<keyof typeof preferenceLabels>).map((key) => {
                   const checked = privacy?.preferences[key] ?? false;
-                  return <label key={key} className="flex min-h-11 items-center justify-between gap-3 border-t first:border-t-0" style={{ borderColor: colors.border }}><span className="text-sm">{preferenceLabels[key]}</span><input type="checkbox" checked={checked} onChange={(event) => void updatePreferences({ ...(privacy?.preferences ?? { membershipReminders: false, newOffers: false, events: false }), [key]: event.target.checked })} className="h-5 w-5" /></label>;
+                  return <label key={key} className="flex min-h-11 items-center justify-between gap-3 border-t first:border-t-0" style={{ borderColor: colors.border }}><span className="text-sm">{tr(preferenceLabels[key])}</span><input type="checkbox" checked={checked} onChange={(event) => void updatePreferences({ ...(privacy?.preferences ?? { membershipReminders: false, newOffers: false, events: false }), [key]: event.target.checked })} className="h-5 w-5" /></label>;
                 })}
               </div>
               <button type="button" disabled={pushWorking || !notificationConfig?.pushConfigured} onClick={() => void handlePushToggle()} className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 border font-semibold" style={{ borderColor: colors.brandPrimary, borderRadius: radii.md, color: notificationConfig?.pushConfigured ? colors.brandPrimary : colors.textSecondary }}>
-                {pushWorking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell size={18} />} {notificationConfig?.pushConfigured ? (pushEnabled ? 'Vypnout push na tomto zařízení' : 'Zapnout push na tomto zařízení') : 'Push bude dostupný po nasazení'}
+                {pushWorking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell size={18} />} {tr(notificationConfig?.pushConfigured ? (pushEnabled ? 'Vypnout push na tomto zařízení' : 'Zapnout push na tomto zařízení') : 'Push bude dostupný po nasazení')}
               </button>
             </AppSection>
 
             <AppSection className="px-4 py-4">
-              <div className="mb-3 flex items-center gap-2"><ShieldCheck size={19} style={{ color: colors.brandPrimary }} /><h2 className="text-base font-semibold">Ochrana osobních údajů</h2></div>
-              <p className="text-sm leading-6" style={{ color: colors.textSecondary }}>Veřejné QR neukazuje jméno ani email. Metriky jsou dostupné pouze agregovaně.</p>
-              <button type="button" onClick={() => void handlePrivacyExport()} className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 border font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md, color: colors.brandPrimary }}><FileJson size={18} /> Exportovat moje údaje</button>
+              <div className="mb-3 flex items-center gap-2"><ShieldCheck size={19} style={{ color: colors.brandPrimary }} /><h2 className="text-base font-semibold">{tr('Ochrana osobních údajů')}</h2></div>
+              <p className="text-sm leading-6" style={{ color: colors.textSecondary }}>{tr('Veřejné QR neukazuje jméno ani email. Metriky jsou dostupné pouze agregovaně.')}</p>
+              <button type="button" onClick={() => void handlePrivacyExport()} className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 border font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md, color: colors.brandPrimary }}><FileJson size={18} /> {tr('Exportovat moje údaje')}</button>
               <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-                <select value={privacyType} onChange={(event) => setPrivacyType(event.target.value as typeof privacyType)} className="min-h-11 border bg-white px-3 text-base" style={{ borderColor: colors.border, borderRadius: radii.md }}><option value="access">Přístup k údajům</option><option value="correction">Oprava údajů</option><option value="deletion">Žádost o výmaz</option><option value="restriction">Omezení zpracování</option><option value="objection">Námitka</option></select>
-                <button type="button" onClick={() => void submitPrivacyRequest({ type: privacyType }).then(() => setMessage(null)).catch(() => setMessage('Žádost už je otevřená nebo ji nyní nelze odeslat.'))} className="min-h-11 px-4 font-semibold text-white" style={{ borderRadius: radii.md, background: colors.brandPrimary }}>Odeslat žádost</button>
+                <select value={privacyType} onChange={(event) => setPrivacyType(event.target.value as typeof privacyType)} className="min-h-11 border bg-white px-3 text-base" style={{ borderColor: colors.border, borderRadius: radii.md }}><option value="access">{tr('Přístup k údajům')}</option><option value="correction">{tr('Oprava údajů')}</option><option value="deletion">{tr('Žádost o výmaz')}</option><option value="restriction">{tr('Omezení zpracování')}</option><option value="objection">{tr('Námitka')}</option></select>
+                <button type="button" onClick={() => void submitPrivacyRequest({ type: privacyType }).then(() => setMessage(null)).catch(() => setMessage('Žádost už je otevřená nebo ji nyní nelze odeslat.'))} className="min-h-11 px-4 font-semibold text-white" style={{ borderRadius: radii.md, background: colors.brandPrimary }}>{tr('Odeslat žádost')}</button>
               </div>
-              {(privacy?.requests.length ?? 0) > 0 && <p className="mt-3 text-xs" style={{ color: colors.textSecondary }}>Poslední žádost: {privacy?.requests[0].status}</p>}
+              {(privacy?.requests.length ?? 0) > 0 && <p className="mt-3 text-xs" style={{ color: colors.textSecondary }}>{tr('Poslední žádost:')} {tr(privacy?.requests[0].status === 'submitted' ? 'Odesláno' : privacy?.requests[0].status === 'in_review' ? 'V posouzení' : privacy?.requests[0].status === 'completed' ? 'Dokončeno' : 'Zamítnuto')}</p>}
             </AppSection>
 
             <AppSection className="px-4 py-4">
-              <div className="mb-3 flex items-center gap-2"><MessageSquareText size={19} style={{ color: colors.brandPrimary }} /><h2 className="text-base font-semibold">Zpětná vazba</h2></div>
-              <textarea value={feedbackText} onChange={(event) => setFeedbackText(event.target.value)} rows={3} maxLength={2000} placeholder="Co by ti v aplikaci pomohlo? Nevkládej citlivé osobní údaje." className="w-full resize-y border p-3 text-base" style={{ borderColor: colors.border, borderRadius: radii.md }} />
-              <button type="button" disabled={feedbackText.trim().length < 10} onClick={() => void submitFeedback({ category: 'app', message: feedbackText }).then(() => { setFeedbackText(''); setMessage(null); }).catch(() => setMessage('Feedback se nepodařilo odeslat.'))} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 font-semibold text-white" style={{ borderRadius: radii.md, background: feedbackText.trim().length < 10 ? colors.textSecondary : colors.brandPrimary }}><Send size={18} /> Odeslat feedback</button>
+              <div className="mb-3 flex items-center gap-2"><MessageSquareText size={19} style={{ color: colors.brandPrimary }} /><h2 className="text-base font-semibold">{tr('Zpětná vazba')}</h2></div>
+              <textarea value={feedbackText} onChange={(event) => setFeedbackText(event.target.value)} rows={3} maxLength={2000} placeholder={tr('Co by ti v aplikaci pomohlo? Nevkládej citlivé osobní údaje.')} className="w-full resize-y border p-3 text-base" style={{ borderColor: colors.border, borderRadius: radii.md }} />
+              <button type="button" disabled={feedbackText.trim().length < 10} onClick={() => void submitFeedback({ category: 'app', message: feedbackText }).then(() => { setFeedbackText(''); setMessage(null); }).catch(() => setMessage('Feedback se nepodařilo odeslat.'))} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 font-semibold text-white" style={{ borderRadius: radii.md, background: feedbackText.trim().length < 10 ? colors.textSecondary : colors.brandPrimary }}><Send size={18} /> {tr('Odeslat feedback')}</button>
             </AppSection>
 
             <AppSection className="px-4 py-4">
-              <div className="mb-3 flex items-center gap-2"><Lightbulb size={19} style={{ color: colors.brandPrimary }} /><h2 className="text-base font-semibold">Navrhnout partnera</h2></div>
-              <input value={suggestionName} onChange={(event) => setSuggestionName(event.target.value)} placeholder="Název podniku nebo organizace" className="min-h-11 w-full border px-3 text-base" style={{ borderColor: colors.border, borderRadius: radii.md }} />
-              <button type="button" disabled={suggestionName.trim().length < 2} onClick={() => void submitSuggestion({ partnerName: suggestionName, branchId: member.branchId ?? undefined }).then(() => { setSuggestionName(''); setMessage(null); }).catch(() => setMessage('Návrh se nepodařilo odeslat.'))} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 border font-semibold" style={{ borderColor: colors.brandPrimary, borderRadius: radii.md, color: colors.brandPrimary }}><Store size={18} /> Odeslat návrh</button>
+              <div className="mb-3 flex items-center gap-2"><Lightbulb size={19} style={{ color: colors.brandPrimary }} /><h2 className="text-base font-semibold">{tr('Navrhnout partnera')}</h2></div>
+              <input value={suggestionName} onChange={(event) => setSuggestionName(event.target.value)} placeholder={tr('Název podniku nebo organizace')} className="min-h-11 w-full border px-3 text-base" style={{ borderColor: colors.border, borderRadius: radii.md }} />
+              <button type="button" disabled={suggestionName.trim().length < 2} onClick={() => void submitSuggestion({ partnerName: suggestionName, branchId: member.branchId ?? undefined }).then(() => { setSuggestionName(''); setMessage(null); }).catch(() => setMessage('Návrh se nepodařilo odeslat.'))} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 border font-semibold" style={{ borderColor: colors.brandPrimary, borderRadius: radii.md, color: colors.brandPrimary }}><Store size={18} /> {tr('Odeslat návrh')}</button>
             </AppSection>
 
-            {canInstall && !installed && <button type="button" onClick={() => void promptInstall()} className="flex min-h-12 w-full items-center justify-center gap-2 border bg-white font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md, color: colors.brandPrimary }}><Download size={19} /> Přidat Psychočas na plochu</button>}
-            <a href="/privacy" className="flex min-h-11 items-center justify-center gap-2 text-sm font-semibold" style={{ color: colors.brandPrimary }}><ExternalLink size={16} /> Informace o zpracování údajů</a>
-            <button type="button" onClick={() => void handleSignOut()} className="flex min-h-12 w-full items-center justify-center gap-2 border bg-white font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md, color: colors.dangerStrong }}><LogOut size={19} /> Odhlásit se</button>
+            {canInstall && !installed && <button type="button" onClick={() => void promptInstall()} className="flex min-h-12 w-full items-center justify-center gap-2 border bg-white font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md, color: colors.brandPrimary }}><Download size={19} /> {tr('Přidat Psychočas na plochu')}</button>}
+            <a href="/privacy" className="flex min-h-11 items-center justify-center gap-2 text-sm font-semibold" style={{ color: colors.brandPrimary }}><ExternalLink size={16} /> {tr('Informace o zpracování údajů')}</a>
+            <button type="button" onClick={() => void handleSignOut()} className="flex min-h-12 w-full items-center justify-center gap-2 border bg-white font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md, color: colors.dangerStrong }}><LogOut size={19} /> {tr('Odhlásit se')}</button>
           </div>
         )}
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-white" style={{ borderColor: colors.border, paddingBottom: 'env(safe-area-inset-bottom)' }} aria-label="Hlavní navigace">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-white" style={{ borderColor: colors.border, paddingBottom: 'env(safe-area-inset-bottom)' }} aria-label={tr('Hlavní navigace')}>
         <div className="mx-auto grid h-16 max-w-md grid-cols-4">
           {navigation.map(({ id, label, Icon }) => {
             const active = activeTab === id;
-            return <button key={id} type="button" onClick={() => setActiveTab(id)} className="flex min-w-0 flex-col items-center justify-center gap-1 text-xs font-semibold" aria-current={active ? 'page' : undefined} style={{ color: active ? colors.brandPrimary : colors.textSecondary }}><Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 2} /><span className="truncate">{label}</span></button>;
+            return <button key={id} type="button" onClick={() => setActiveTab(id)} className="flex min-w-0 flex-col items-center justify-center gap-1 text-xs font-semibold" aria-current={active ? 'page' : undefined} style={{ color: active ? colors.brandPrimary : colors.textSecondary }}><Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 2} /><span className="truncate">{tr(label)}</span></button>;
           })}
         </div>
       </nav>

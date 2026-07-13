@@ -11,6 +11,7 @@ import {
   Store,
 } from 'lucide-react';
 import PsychocasLogo from '@/components/PsychocasLogo';
+import useLocale from '@/hooks/useLocale';
 import Button from '@/ui/components/Button';
 import Badge from '@/ui/components/Badge';
 import type { MemberRole } from '@/types/member';
@@ -70,6 +71,7 @@ const roadmap = [
 
 export default function RootPage() {
   const router = useRouter();
+  const { tr } = useLocale();
 
   const openDemo = (option: DemoOption) => {
     router.push(`/demo/${option.role}`);
@@ -83,12 +85,12 @@ export default function RootPage() {
             type="button"
             onClick={() => router.push('/')}
             className="flex items-center gap-3 rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#049edb]"
-            aria-label="Psychočas úvod"
+            aria-label={tr('Psychočas úvod')}
           >
             <PsychocasLogo size={46} gradientId="landingLogo" />
             <div>
               <p className="text-sm font-semibold text-[#1d4f7d]">Psychočas</p>
-              <p className="text-xs text-[#607086]">členská aplikace</p>
+              <p className="text-xs text-[#607086]">{tr('členská aplikace')}</p>
             </div>
           </button>
           <Button
@@ -97,24 +99,22 @@ export default function RootPage() {
             size="sm"
             onClick={() => router.push('/login')}
           >
-            Přihlášení
+            {tr('Přihlášení')}
           </Button>
         </header>
 
         <div className="grid items-center gap-8 py-8 lg:grid-cols-[1fr_0.82fr] lg:py-10">
           <div className="max-w-2xl space-y-6">
             <div className="flex flex-wrap gap-2">
-              <Badge tone="info">MVP pro ukázku</Badge>
-              <Badge tone="neutral">feedback vítán</Badge>
+              <Badge tone="info">{tr('MVP pro ukázku')}</Badge>
+              <Badge tone="neutral">{tr('feedback vítán')}</Badge>
             </div>
             <div className="space-y-4">
               <h1 className="max-w-2xl text-[2.35rem] font-semibold leading-tight text-[#12385b] sm:text-5xl">
-                Členství, slevy a zpětná vazba v jedné mobilní aplikaci.
+                {tr('Členství, slevy a zpětná vazba v jedné mobilní aplikaci.')}
               </h1>
               <p className="max-w-xl text-base leading-7 text-[#536273] sm:text-lg">
-                Psychočas dává členům jednoduchý digitální průkaz, partnerům
-                rychlé ověření a týmu data, podle kterých půjde rozvíjet
-                benefity, které lidé opravdu využijí.
+                {tr('Psychočas dává členům jednoduchý digitální průkaz, partnerům rychlé ověření a týmu data, podle kterých půjde rozvíjet benefity, které lidé opravdu využijí.')}
               </p>
             </div>
 
@@ -127,10 +127,10 @@ export default function RootPage() {
                   className="group rounded-lg border border-[#d8e5ef] bg-white p-4 text-left shadow-sm transition hover:border-[#9bc7e3] hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#049edb]"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <span className="font-semibold text-[#12385b]">{option.label}</span>
+                    <span className="font-semibold text-[#12385b]">{tr(option.label)}</span>
                     <ArrowRight className="h-4 w-4 text-[#1d4f7d] transition group-hover:translate-x-0.5" />
                   </div>
-                  <p className="mt-2 text-sm leading-5 text-[#607086]">{option.description}</p>
+                  <p className="mt-2 text-sm leading-5 text-[#607086]">{tr(option.description)}</p>
                 </button>
               ))}
             </div>
@@ -143,41 +143,41 @@ export default function RootPage() {
                   <div className="flex items-center gap-2">
                     <PsychocasLogo size={38} gradientId="phoneLogo" />
                     <div>
-                      <p className="text-sm font-semibold text-[#12385b]">Demo Člen</p>
+                      <p className="text-sm font-semibold text-[#12385b]">{tr('Demo Člen')}</p>
                       <p className="text-xs text-[#738094]">Praha</p>
                     </div>
                   </div>
                   <span className="rounded-full bg-[#DFF4FF] px-2.5 py-1 text-xs font-bold uppercase text-[#1d4f7d]">
-                    aktivní
+                    {tr('aktivní')}
                   </span>
                 </div>
                 <div className="rounded-lg border border-[#c8dff5] bg-[#eaf5ff] p-4">
                   <p className="text-xs font-semibold uppercase text-[#1d4f7d]">
-                    Digitální karta
+                    {tr('Digitální karta')}
                   </p>
                   <p className="mt-3 font-mono text-2xl font-semibold tracking-[0.14em] text-[#12385b]">
                     PSYCH-D3M0X7
                   </p>
                   <div className="mt-4 flex items-center justify-between text-sm text-[#1d4f7d]">
                     <span>02:48</span>
-                    <span>QR připraven</span>
+                    <span>{tr('QR připraven')}</span>
                   </div>
                 </div>
                 <div className="mt-4 grid gap-3">
                   <div className="rounded-lg border border-[#e5eaf0] p-3">
                     <p className="text-xs font-semibold uppercase text-[#607086]">
-                      Partnerství
+                      {tr('Partnerství')}
                     </p>
                     <p className="mt-1 text-sm text-[#172033]">
-                      Celostátní i lokální výhody podle pobočky.
+                      {tr('Celostátní i lokální výhody podle pobočky.')}
                     </p>
                   </div>
                   <div className="rounded-lg border border-[#e5eaf0] p-3">
                     <p className="text-xs font-semibold uppercase text-[#607086]">
-                      Offline režim
+                      {tr('Offline režim')}
                     </p>
                     <p className="mt-1 text-sm text-[#172033]">
-                      Poslední stav zůstane dostupný i bez připojení.
+                      {tr('Poslední stav zůstane dostupný i bez připojení.')}
                     </p>
                   </div>
                 </div>
@@ -194,8 +194,8 @@ export default function RootPage() {
             return (
               <article key={feature.title} className="rounded-lg border border-[#e4ebf2] p-4">
                 <Icon className="h-5 w-5 text-[#1d4f7d]" aria-hidden />
-                <h2 className="mt-3 text-base font-semibold text-[#172033]">{feature.title}</h2>
-                <p className="mt-2 text-sm leading-6 text-[#536273]">{feature.text}</p>
+                <h2 className="mt-3 text-base font-semibold text-[#172033]">{tr(feature.title)}</h2>
+                <p className="mt-2 text-sm leading-6 text-[#536273]">{tr(feature.text)}</p>
               </article>
             );
           })}
@@ -204,21 +204,18 @@ export default function RootPage() {
 
       <section className="mx-auto grid max-w-6xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[0.9fr_1fr] lg:px-8">
         <div>
-          <h2 className="text-2xl font-semibold text-[#12385b]">Proč aplikace existuje</h2>
+          <h2 className="text-2xl font-semibold text-[#12385b]">{tr('Proč aplikace existuje')}</h2>
           <p className="mt-3 leading-7 text-[#536273]">
-            Chceme, aby členství mělo viditelnou hodnotu každý týden, ne jen v
-            registračním e-mailu. MVP má ukázat základní tok a otevřít debatu o
-            tom, co členové i pobočky reálně potřebují.
+            {tr('Chceme, aby členství mělo viditelnou hodnotu každý týden, ne jen v registračním e-mailu. MVP má ukázat základní tok a otevřít debatu o tom, co členové i pobočky reálně potřebují.')}
           </p>
         </div>
         <div className="rounded-lg border border-[#e4ebf2] bg-white p-5">
           <div className="flex items-start gap-3">
             <MessageSquareText className="mt-1 h-5 w-5 text-[#1d4f7d]" aria-hidden />
             <div>
-              <h3 className="text-lg font-semibold text-[#172033]">Co chceme zjistit feedbackem</h3>
+              <h3 className="text-lg font-semibold text-[#172033]">{tr('Co chceme zjistit feedbackem')}</h3>
               <p className="mt-2 text-sm leading-6 text-[#536273]">
-                Které funkce mají největší smysl, jaké slevy lidé opravdu
-                využijí, kde chybí partneři a jak má vypadat správa pro pobočky.
+                {tr('Které funkce mají největší smysl, jaké slevy lidé opravdu využijí, kde chybí partneři a jak má vypadat správa pro pobočky.')}
               </p>
             </div>
           </div>
@@ -226,7 +223,7 @@ export default function RootPage() {
             {roadmap.map((item) => (
               <li key={item} className="flex gap-2">
                 <Smartphone className="mt-0.5 h-4 w-4 shrink-0 text-[#049edb]" aria-hidden />
-                <span>{item}</span>
+                <span>{tr(item)}</span>
               </li>
             ))}
           </ul>

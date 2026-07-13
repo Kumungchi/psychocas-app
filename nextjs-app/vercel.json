@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "env": {
+    "NEXT_PUBLIC_CONVEX_URL": "https://opulent-fly-2.eu-west-1.convex.cloud",
+    "NEXT_PUBLIC_CONVEX_SITE_URL": "https://opulent-fly-2.eu-west-1.convex.site",
+    "NEXT_PUBLIC_PRIVACY_CONTACT": "info@psychocas.cz"
+  }
+}

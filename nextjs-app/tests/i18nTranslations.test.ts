@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { dictionaries } from '@/lib/i18n/strings';
+import { pilotEnglishPhrases, translatePilotPhrase } from '@/lib/i18n/pilotPhrases';
 import { asTranslationKey, resolveTranslatable, formatTemplate } from '@/lib/i18n/utils';
 
 type Dictionary = Record<string, unknown>;
@@ -57,5 +58,32 @@ describe('i18n dictionaries', () => {
 
     const formatted = formatTemplate(template!, { timestamp: 'January 1, 2025' });
     expect(formatted).toContain('January 1, 2025');
+  });
+
+  it('translates the pilot interface while preserving the Czech source copy', () => {
+    const source = 'Členství, slevy a zpětná vazba v jedné mobilní aplikaci.';
+
+    expect(translatePilotPhrase('cs', source)).toBe(source);
+    expect(translatePilotPhrase('en', source)).toBe(
+      'Membership, benefits, and feedback in one mobile app.',
+    );
+    expect(translatePilotPhrase('en', 'Psychočas')).toBe('Psychočas');
+  });
+
+  it('contains English copy for the critical auth, QR, admin, and privacy flows', () => {
+    const criticalPhrases = [
+      'Přihlášení členů',
+      'Informace k přihlášení',
+      'Ověření členské výhody',
+      'Kód není platný',
+      'Správa členství',
+      'Ochrana osobních údajů',
+      'Verze informací pro pilot: 13. 7. 2026. Změny účelů, retenčních lhůt nebo zpracovatelů zveřejníme před jejich účinností.',
+    ];
+
+    for (const phrase of criticalPhrases) {
+      expect(pilotEnglishPhrases[phrase], `Missing English pilot phrase: ${phrase}`).toBeTruthy();
+      expect(pilotEnglishPhrases[phrase]).not.toBe(phrase);
+    }
   });
 });

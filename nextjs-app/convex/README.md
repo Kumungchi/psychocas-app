@@ -1,91 +1,62 @@
-# Convex Migration Notes
+# Psychočas Convex Backend
 
-This folder is the target backend for the Supabase to Convex migration.
+Convex is the sole runtime database and application backend. Convex Auth sends an eight-digit OTP through Resend and creates a session only for an active access grant or the single allowlisted bootstrap administrator.
 
-Current state:
+## Deployment environments
 
-- `schema.ts` defines the MVP and beta-pilot data model.
-- `auth.config.ts`, `auth.ts`, and `http.ts` are prepared for Convex Auth.
-- Convex Auth handles an eight-digit email OTP and sessions; there is no magic-link flow.
-- Convex calls the Resend HTTP API directly from `ResendOTP.ts`. The Resend key exists only in the Convex deployment environment and is never sent to Next.js or the browser.
-- OTP delivery is allowed only for an active `accessGrants` record (or the allowlisted first admin), with a 60-second cooldown and a five-request/15-minute server limit.
-- Runtime functions are implemented for member login sync, board/admin access management, bulk membership updates, branch management, and audit logging.
-- `/login`, `/home`, and `/admin` use the Convex UI whenever `NEXT_PUBLIC_CONVEX_URL` is set. An explicit `NEXT_PUBLIC_AUTH_BACKEND=supabase` keeps the temporary legacy fallback available.
+Each Convex deployment needs these server-side variables:
 
-Initial setup:
+```text
+SITE_URL
+JWT_PRIVATE_KEY
+JWKS
+AUTH_RESEND_KEY
+AUTH_EMAIL_FROM
+BOOTSTRAP_ADMIN_EMAILS
+QR_TOKEN_PEPPER
+VAPID_PUBLIC_KEY
+VAPID_PRIVATE_KEY
+VAPID_SUBJECT
+```
 
-1. Create or link the Convex project:
+Use different JWT, QR, and VAPID keys in development and production. `SITE_URL` must be the exact frontend origin (`http://localhost:3000` in local development and `https://app.psychocas.cz` in production).
 
-   ```bash
-   npm run convex:dev
-   ```
+The helper below generates fresh JWT, QR, and VAPID values and pipes every value directly to Convex without printing secrets:
 
-2. Generate Convex Auth JWT keys locally:
+```powershell
+$env:PSYCHOCAS_SITE_URL='https://app.psychocas.cz'
+$env:AUTH_RESEND_KEY='<set outside Git>'
+$env:BOOTSTRAP_ADMIN_EMAILS='viceprezident@psychocas.cz'
+npm run convex:provision -- --prod
+```
 
-   ```bash
-   npm run convex:auth-keys
-   ```
+After provisioning, remove temporary process variables and verify names only:
 
-   Do not commit the generated values.
+```powershell
+Remove-Item Env:AUTH_RESEND_KEY
+npx convex env list --prod --names-only
+```
 
-3. Set Convex Auth environment variables on the Convex deployment:
+## Production deployment
 
-   ```bash
-   npx convex env set SITE_URL http://localhost:3000
-   npx convex env set JWT_PRIVATE_KEY "..."
-   npx convex env set JWKS "..."
-   ```
+```powershell
+npx tsc -p convex/tsconfig.json --noEmit
+npm run convex:deploy
+npx convex function-spec --prod
+```
 
-4. Configure local frontend environment:
+The production deployment must be in the intended region before member data is imported. A deployment region cannot be changed in place.
 
-   ```bash
-   NEXT_PUBLIC_CONVEX_URL=https://your-convex-deployment.convex.cloud
-   ```
+## Authorization
 
-   The Convex URL enables Convex Auth by default. Use `NEXT_PUBLIC_AUTH_BACKEND=supabase` only for a temporary rollback during migration.
+- Board/admin: membership access, bulk changes, branches, assignments, approvals, audit, and privacy requests
+- Manager: branch-scoped partner, offer, campaign, event/check-in, support, and aggregate metric workflows
+- Coordinators/support: only capabilities granted by their scoped staff assignment
+- Member: own profile, offers, tokens, events, feedback, suggestions, privacy export, and requests
+- Public: one-time QR validation result only; no member identity or exact membership date
 
-5. Configure email delivery before enabling real OTP:
+All mutations enforce authorization in Convex. UI visibility is an ergonomic layer, not a security boundary.
 
-   ```bash
-   npx convex env set AUTH_RESEND_KEY your_resend_key
-   npx convex env set AUTH_EMAIL_FROM "Psychočas <no-reply@psychocas.cz>"
-   ```
+## PWA and data handling
 
-   Set these in the Convex dashboard or CLI, never in a `NEXT_PUBLIC_*` variable.
-
-6. Allow the first admin account to bootstrap automatically after verified email login:
-
-   ```bash
-   npx convex env set BOOTSTRAP_ADMIN_EMAILS first.admin@psychocas.cz
-   ```
-
-   Use a comma-separated list only if more than one person may perform the first setup. No bootstrap controls are exposed in the member UI.
-
-7. Generate Convex types:
-
-   ```bash
-   npm run convex:codegen
-   ```
-
-8. Implement the remaining server functions in this order:
-
-   - `members.ts`: `viewer`, `ensureViewer`, access grant list/update/bulk update. Done.
-   - `branches.ts`: board/admin branch list/create/active toggle. Done.
-   - `partners.ts`: board/admin/manager partner CRUD.
-   - `offers.ts`: offer list and CRUD with branch scoping.
-   - `tokens.ts`: short-lived token creation and public QR scan validation.
-   - `analytics.ts`: anonymized board/manager metrics.
-   - `feedback.ts`, `partnerSuggestions.ts`, `campaigns.ts`: beta and post-beta workflows.
-
-Authorization requirements:
-
-- Board/admin only: access grants, bulk membership updates, cross-branch changes, campaign publishing.
-- Manager: branch-scoped partner/offer CRUD and branch-scoped metrics.
-- Member: own profile, available offers, own token creation, feedback, partner suggestions.
-- Public: QR scan validation by `publicHash` only.
-
-PWA requirements:
-
-- Never cache `/v/[publicHash]`.
-- Never cache token mutation or validation responses.
-- Offline mode may show stale member/offers snapshot, but token creation and QR scan require network.
+Private and security-sensitive routes are network-only. QR secrets are HMAC-hashed with the deployment pepper, OTP requests are allowlisted and rate-limited, and operational cleanup runs daily. Public validation responses always use `no-store` headers.

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../convex/_generated/api';
 import PsychocasLogo from '@/components/PsychocasLogo';
+import useLocale from '@/hooks/useLocale';
 import { sanitizeRedirect } from '@/lib/navigation/redirect';
 import { colors, radii, shadows, spacing, typography } from '@/ui/theme';
 
@@ -74,6 +75,7 @@ export default function ConvexLoginPanel() {
   const searchParams = useSearchParams();
   const { signIn, signOut } = useAuthActions();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
+  const { tr } = useLocale();
   const viewer = useQuery(api.members.viewer, isAuthenticated ? {} : 'skip');
   const ensureViewer = useMutation(api.members.ensureViewer);
   const [step, setStep] = useState<LoginStep>('email');
@@ -271,7 +273,7 @@ export default function ConvexLoginPanel() {
                 className="text-xl font-semibold"
                 style={{ color: colors.textPrimary, fontFamily: typography.heading }}
               >
-                Přihlášení členů
+                {tr('Přihlášení členů')}
               </h1>
             </div>
           </div>
@@ -279,7 +281,7 @@ export default function ConvexLoginPanel() {
           <div className="relative shrink-0">
             <button
               type="button"
-              aria-label="Informace k přihlášení"
+              aria-label={tr('Informace k přihlášení')}
               aria-expanded={infoOpen}
               onClick={() => setInfoOpen((open) => !open)}
               className="flex h-10 w-10 items-center justify-center"
@@ -295,7 +297,7 @@ export default function ConvexLoginPanel() {
             {infoOpen && (
               <div
                 role="dialog"
-                aria-label="Informace k přihlášení"
+                aria-label={tr('Informace k přihlášení')}
                 className="absolute right-0 top-12 z-10 w-[min(18rem,calc(100vw-3rem))]"
                 style={{
                   background: colors.background,
@@ -308,11 +310,11 @@ export default function ConvexLoginPanel() {
               >
                 <div className="mb-2 flex items-start justify-between gap-3">
                   <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
-                    Jak se přihlásit
+                    {tr('Jak se přihlásit')}
                   </p>
                   <button
                     type="button"
-                    aria-label="Zavřít informace"
+                    aria-label={tr('Zavřít informace')}
                     onClick={() => setInfoOpen(false)}
                     className="flex h-7 w-7 items-center justify-center"
                     style={{ color: colors.textSecondary }}
@@ -321,8 +323,7 @@ export default function ConvexLoginPanel() {
                   </button>
                 </div>
                 <p className="text-sm leading-6">
-                  Zadej svůj členský email. Přijde ti jednorázový kód platný 10 minut. Pokud
-                  email nedorazí, zkontroluj také složku Hromadné nebo Spam.
+                  {tr('Zadej svůj členský email. Přijde ti jednorázový kód platný 10 minut. Pokud email nedorazí, zkontroluj také složku Hromadné nebo Spam.')}
                 </p>
               </div>
             )}
@@ -333,7 +334,7 @@ export default function ConvexLoginPanel() {
           <form onSubmit={handleEmailSubmit} className="space-y-5">
             <label className="block space-y-2" htmlFor="convex-login-email">
               <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
-                Členský email
+                {tr('Členský email')}
               </span>
               <div className="relative">
                 <Mail
@@ -380,17 +381,17 @@ export default function ConvexLoginPanel() {
               }}
             >
               {busy ? <Loader2 size={18} className="animate-spin" /> : <ArrowRight size={18} />}
-              Poslat přihlašovací kód
+              {tr('Poslat přihlašovací kód')}
             </button>
           </form>
         ) : (
           <form onSubmit={handleCodeSubmit} className="space-y-5">
             <div>
               <p className="text-sm font-medium" style={{ color: colors.textPrimary }}>
-                Kód z emailu
+                {tr('Kód z emailu')}
               </p>
               <p className="mt-1 break-all text-sm" style={{ color: colors.textSecondary }}>
-                Odesláno na <strong style={{ color: colors.textPrimary }}>{submittedEmail}</strong>
+                {tr('Odesláno na')} <strong style={{ color: colors.textPrimary }}>{submittedEmail}</strong>
               </p>
             </div>
 
@@ -403,7 +404,7 @@ export default function ConvexLoginPanel() {
               inputMode="numeric"
               disabled={busy}
               autoFocus
-              aria-label="Osmimístný přihlašovací kód"
+              aria-label={tr('Osmimístný přihlašovací kód')}
               containerClassName="w-full"
               render={({ slots }) => (
                 <div className="grid w-full grid-cols-[repeat(4,minmax(0,1fr))_0.5rem_repeat(4,minmax(0,1fr))] gap-1">
@@ -432,7 +433,7 @@ export default function ConvexLoginPanel() {
               }}
             >
               {busy ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
-              Ověřit a přihlásit
+              {tr('Ověřit a přihlásit')}
             </button>
 
             <div className="grid grid-cols-2 gap-2">
@@ -448,7 +449,7 @@ export default function ConvexLoginPanel() {
                 }}
               >
                 <ArrowLeft size={16} />
-                Změnit email
+                {tr('Změnit email')}
               </button>
               <button
                 type="button"
@@ -462,7 +463,9 @@ export default function ConvexLoginPanel() {
                 }}
               >
                 <RefreshCw size={16} />
-                {cooldown > 0 ? `Znovu za ${cooldown} s` : 'Poslat znovu'}
+                {cooldown > 0
+                  ? tr('Znovu za {seconds} s').replace('{seconds}', String(cooldown))
+                  : tr('Poslat znovu')}
               </button>
             </div>
           </form>
@@ -495,7 +498,7 @@ export default function ConvexLoginPanel() {
           ) : (
             <ShieldCheck size={18} className="mt-0.5 shrink-0" />
           )}
-          <p>{state.text}</p>
+          <p>{tr(state.text)}</p>
         </div>
       </section>
     </main>

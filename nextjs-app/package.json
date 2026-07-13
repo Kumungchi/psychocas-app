@@ -13,6 +13,7 @@
     "convex:codegen": "convex codegen --typecheck disable",
     "convex:deploy": "convex deploy --typecheck enable --codegen enable",
     "convex:auth-keys": "node scripts/generateConvexAuthKeys.mjs",
+    "convex:provision": "node scripts/provisionConvexDeployment.mjs",
     "test:vercel": "tsx scripts/testVercelBuild.ts",
     "verify": "npm run lint && npm run test && npm run test:vercel"
   },

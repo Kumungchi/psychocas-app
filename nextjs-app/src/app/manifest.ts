@@ -3,9 +3,9 @@ import type { MetadataRoute } from 'next';
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: '/',
-    name: 'Psychočas - členská aplikace',
+    name: 'Psychočas - členská aplikace / member app',
     short_name: 'Psychočas',
-    description: 'Členství, partnerské výhody a bezpečné ověření slev Psychočasu.',
+    description: 'Členství, partnerské výhody a bezpečné ověření slev. Membership, benefits, and secure verification.',
     start_url: '/home?source=pwa',
     scope: '/',
     display: 'standalone',

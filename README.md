@@ -1,49 +1,48 @@
 # Psychočas App
 
-A Next.js + Supabase application for Psychočas members. This repository contains the production PWA located in `nextjs-app` along with helper scripts and design assets.
+Production-oriented member PWA for Psychočas. The application lives in `nextjs-app` and uses Next.js, Convex, Convex Auth, Resend email OTP, and Vercel.
 
-## Highlights
-- Magic-link login with support for trusted users who only exist in the `trusted_users` table
-- Role-aware navigation for members, managers, council, and technicians
-- QR code redemption, validation tools, and analytics dashboards
-- Technician console for activating memberships and auditing trusted access
-- Localised UI (Czech + English preview) and shared design system primitives
+## Pilot scope
 
-## Getting Started
-1. Navigate to the Next.js project
-   ```bash
-   cd nextjs-app
-   npm install
-   ```
-2. Create `.env.local`
-   ```env
-   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-   SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_key
-   ```
-3. Run the development server
-   ```bash
-   npm run dev
-   ```
-4. Sign in using an email address that exists in `members` or `trusted_users`. The fallback accepts email-only trusted rows and will normalise optional role or branch data when it is provided.
+- Allowlisted email OTP sign-in and role-aware member sessions
+- Digital membership, one-time QR verification, offers, events, feedback, and partner suggestions
+- Board/admin membership administration with filters and bulk changes
+- Scoped staff assignments for national and local partner, offer, event, campaign, and metric workflows
+- Public QR result without member names, email addresses, or exact membership dates
+- Czech and English UI with a persistent global language switch
+- Installable PWA with an offline fallback and network-only private routes
+- Privacy export/request workflow, aggregate metrics, audit logs, and scheduled operational retention
 
-## Database
-Follow `DATABASE_SETUP.md` to apply the Supabase schema and RLS policies. The SQL scripts live in `nextjs-app/sql/` and can be applied in order or via `complete_schema.sql`.
+## Local development
 
-## Helpful Commands
-From `nextjs-app`:
-```bash
-npm run lint   # ESLint
-npm run test   # Vitest unit tests
-npm run build  # Production build
+```powershell
+cd nextjs-app
+npm install
+npm run convex:dev
+npm run dev
 ```
 
-## Deployment
-Use `deploy.sh` (macOS/Linux) or `deploy.bat` (Windows) from the repository root to verify a production build before deploying to Vercel. The scripts install dependencies, compile the app, and remind you about required Supabase environment variables.
+The frontend needs the Convex values documented in `nextjs-app/.env.local.example`. Backend secrets belong in the selected Convex deployment, never in `NEXT_PUBLIC_*` variables or Git.
 
-## Next steps
-- Finish wiring real analytics data sources for `/stats`
-- Expand the technician console with trusted-user expiry management
-- Integrate structured logging/monitoring (e.g. Sentry or Logflare)
-- Continue refining localisation by extracting remaining hard-coded strings
+## Verification
 
+Run from `nextjs-app`:
+
+```powershell
+npm run verify
+npx tsc -p convex/tsconfig.json --noEmit
+```
+
+For browser tests, start the production build and run `npm run test:browser`. The test covers mobile layouts, CZ/EN persistence, login and public QR screens, security headers, service-worker activation, private-cache exclusion, the web manifest, and offline navigation.
+
+## Production
+
+Convex and Vercel are deployed separately. `npm run build` never deploys a backend.
+
+1. Verify the code locally.
+2. Provision the production Convex environment and run `npm run convex:deploy`.
+3. Set Vercel public variables to the production Convex cloud/site URLs.
+4. Deploy the Next.js package from `nextjs-app`.
+5. Run the browser suite against `https://app.psychocas.cz`.
+
+See `nextjs-app/convex/README.md` for exact environment names and deployment checks.

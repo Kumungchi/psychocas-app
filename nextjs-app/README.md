@@ -1,74 +1,42 @@
-# Psychočas Member App
+# Psychočas Member PWA
 
-This package contains the public-facing Psychočas PWA. It is built with Next.js 15, Supabase, and Tailwind CSS and is designed to run on Vercel.
+Mobile-first Next.js application backed exclusively by Convex. Authentication uses Convex Auth and an eight-digit Resend email OTP. Supabase is not used at runtime.
 
-## Features
-- Magic-link authentication backed by Supabase Auth
-- Shared member context sourced from the `memberships` table
-- Role-aware navigation and feature gating for members, managers, council, and technicians
-- QR-based membership confirmation and token validation workflows
-- Technician console for managing membership activation
-- Localised UI copy (Czech and English preview) with a runtime language toggle
+## Commands
 
-## Prerequisites
-- Node.js 20+
-- Supabase project with the schema from `sql/complete_schema.sql`
-- Environment variables configured for Supabase (see below)
-
-## Getting Started
-1. Install dependencies
-   ```bash
-   npm install
-   ```
-2. Provide required environment variables in `.env.local`
-   ```env
-   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-   SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_key
-   ```
-3. Start the development server
-   ```bash
-   npm run dev
-   ```
-4. Open http://localhost:3000 and sign in with a Supabase account that is present in `memberships`.
-
-## Database Notes
-- `memberships` rows power the full experience, including profile editing and partner visibility
-- `ensure_membership_from_whitelist` RPC hydrates member records automatically based on the whitelist
-- `membership_whitelist` entries act as the allow-list that `ensure_membership_from_whitelist` consumes on sign-in
-- Technicians and admins can toggle `membership_active` directly from the technician console once the service role key is available to the client
-
-See the root-level `DATABASE_SETUP.md` for the full schema walkthrough and policies.
-
-## Available Scripts
-```bash
-npm run dev       # Start the Next.js development server
-npm run build     # Create a production build
-npm run start     # Run the production build locally
-npm run lint      # Lint the codebase
-npm run test      # Execute Vitest unit tests
-npm run test:vercel # Smoke-test a production build in a Vercel-like environment
-npm run verify    # Run linting, unit tests, and the Vercel build check
+```powershell
+npm run dev                 # Next.js development server
+npm run convex:dev          # Push/watch the selected Convex dev deployment
+npm run lint                # ESLint
+npm test                    # Vitest
+npm run build               # Pure local production build
+npm run test:browser        # Playwright MVP/PWA checks against a running build
+npm run verify              # Lint, unit tests, and Vercel-like production build
+npm run convex:deploy       # Deploy Convex functions to the project production deployment
 ```
 
-## Project Structure
+## Frontend environment
+
+Copy only the variable names from `.env.local.example` and use the URLs of the selected deployment:
+
+```env
+CONVEX_DEPLOYMENT=dev:deployment-name
+NEXT_PUBLIC_CONVEX_URL=https://deployment.convex.cloud
+NEXT_PUBLIC_CONVEX_SITE_URL=https://deployment.convex.site
+NEXT_PUBLIC_PRIVACY_CONTACT=info@psychocas.cz
 ```
-src/
-├── app/               # Route segments (login, home, validate, stats, technician, etc.)
-├── components/        # Reusable UI building blocks (navigation, locale toggle, profile drawer)
-├── hooks/             # React hooks including useMemberContext and locale handling
-├── lib/               # Utilities (Supabase client, logging, offline cache, i18n config)
-├── types/             # Shared TypeScript types
-├── ui/                # Design system primitives (Button, Card, Badge)
-└── tests/             # Vitest suites for helpers
-```
 
-## Deployment
-The project is optimised for Vercel. Use the helper scripts in the repository root (`deploy.sh` / `deploy.bat`) to install dependencies, run a production build, and verify Supabase connectivity before pushing to production.
+No email, JWT, QR, push, or deployment secret may use a `NEXT_PUBLIC_*` name.
 
-For local smoke tests that mirror Vercel, run `npm run verify` — it lints the project, executes the Vitest suites, and performs the same PWA-aware production build verification that Vercel uses.
+## Architecture
 
-### Role preview sandbox
+- `src/app`: public pitch, auth, member, staff, administration, privacy, demo, and QR verification routes
+- `src/components`: mobile product surfaces and shared providers
+- `src/lib/i18n`: Czech/English dictionaries and pilot copy
+- `convex`: schema, auth, authorization, business workflows, analytics, privacy, audit, and retention
+- `public/sw.js`: privacy-aware service worker; auth, member, staff, privacy, and QR routes are network-only
+- `scripts`: production build, browser, screenshot, key-generation, and deployment provisioning checks
 
-When you set `NEXT_PUBLIC_ENABLE_ROLE_PREVIEW=true` in your environment, the `/test` route unlocks a role preview tool. It lets you impersonate manager, council, and technician accounts without sending magic links so you can validate dashboard and redemption flows quickly on shared devices.
+## Release rule
 
+Deploy the backend first, then build the frontend with the resulting production Convex URLs. Run the browser suite against the final custom domain after every production release.

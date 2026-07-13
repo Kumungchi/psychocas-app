@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Clock3, Loader2, QrCode, ShieldCheck, XCircle } from 'lucide-react';
 import PsychocasLogo from '@/components/PsychocasLogo';
+import useLocale from '@/hooks/useLocale';
+import { getDateLocale } from '@/lib/i18n/utils';
 import { colors, radii, shadows } from '@/ui/theme';
 
 type ValidationResult = {
@@ -22,6 +24,7 @@ function convexSiteUrl(): string | null {
 }
 
 export default function PublicValidationPage() {
+  const { locale, tr } = useLocale();
   const endpoint = useMemo(() => {
     const site = convexSiteUrl();
     return site ? `${site}/qr/validate` : null;
@@ -109,7 +112,7 @@ export default function PublicValidationPage() {
           <PsychocasLogo size={42} />
           <div>
             <p className="text-sm font-bold" style={{ color: colors.brandPrimary }}>Psychočas</p>
-            <h1 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Ověření členské výhody</h1>
+            <h1 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>{tr('Ověření členské výhody')}</h1>
           </div>
         </header>
 
@@ -118,21 +121,21 @@ export default function PublicValidationPage() {
             {result.status === 'loading' ? (
               <div className="flex min-h-48 flex-col items-center justify-center text-center" role="status">
                 <Loader2 className="h-8 w-8 animate-spin" style={{ color: colors.brandPrimary }} />
-                <p className="mt-4 font-semibold" style={{ color: colors.textPrimary }}>Ověřuji kód…</p>
-                <p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>Výsledek se nikdy nenačítá z cache.</p>
+                <p className="mt-4 font-semibold" style={{ color: colors.textPrimary }}>{tr('Ověřuji kód…')}</p>
+                <p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>{tr('Výsledek se nikdy nenačítá z cache.')}</p>
               </div>
             ) : (
               <>
                 <div className="flex items-start gap-3">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center" style={{ borderRadius: radii.md, background: colors.brandSurface, color: colors.brandPrimary }}><QrCode size={20} /></span>
                   <div>
-                    <h2 className="font-semibold" style={{ color: colors.textPrimary }}>{result.status === 'error' ? 'Ověření je dočasně nedostupné' : 'Zadat krátký kód'}</h2>
-                    <p className="mt-1 text-sm leading-6" style={{ color: colors.textSecondary }}>{result.status === 'error' ? 'Zkontroluj připojení a zkus to znovu.' : 'Pokud nejde načíst QR, zadej osmimístný kód z členské aplikace.'}</p>
+                    <h2 className="font-semibold" style={{ color: colors.textPrimary }}>{tr(result.status === 'error' ? 'Ověření je dočasně nedostupné' : 'Zadat krátký kód')}</h2>
+                    <p className="mt-1 text-sm leading-6" style={{ color: colors.textSecondary }}>{tr(result.status === 'error' ? 'Zkontroluj připojení a zkus to znovu.' : 'Pokud nejde načíst QR, zadej osmimístný kód z členské aplikace.')}</p>
                   </div>
                 </div>
                 <form className="mt-5 space-y-3" onSubmit={(event) => { event.preventDefault(); void validate({ shortCode }); }}>
-                  <input value={shortCode} onChange={(event) => setShortCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8))} inputMode="text" autoCapitalize="characters" autoComplete="off" placeholder="ABCD2345" aria-label="Osmimístný ověřovací kód" className="min-h-12 w-full border px-3 text-center font-mono text-xl font-semibold tracking-[0.12em]" style={{ borderColor: colors.border, borderRadius: radii.md }} />
-                  <button type="submit" disabled={shortCode.length !== 8} className="min-h-12 w-full font-semibold text-white" style={{ borderRadius: radii.md, background: shortCode.length === 8 ? colors.brandPrimary : colors.textSecondary }}>Ověřit kód</button>
+                  <input value={shortCode} onChange={(event) => setShortCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8))} inputMode="text" autoCapitalize="characters" autoComplete="off" placeholder="ABCD2345" aria-label={tr('Osmimístný ověřovací kód')} className="min-h-12 w-full border px-3 text-center font-mono text-xl font-semibold tracking-[0.12em]" style={{ borderColor: colors.border, borderRadius: radii.md }} />
+                  <button type="submit" disabled={shortCode.length !== 8} className="min-h-12 w-full font-semibold text-white" style={{ borderRadius: radii.md, background: shortCode.length === 8 ? colors.brandPrimary : colors.textSecondary }}>{tr('Ověřit kód')}</button>
                 </form>
               </>
             )}
@@ -142,23 +145,23 @@ export default function PublicValidationPage() {
         {finalState && (
           <section className="border px-5 py-6 text-center" style={{ borderColor: finalState.color, borderRadius: radii.md, background: finalState.surface, boxShadow: shadows.sm }}>
             <finalState.Icon className="mx-auto h-12 w-12" style={{ color: finalState.color }} />
-            <h2 className="mt-4 text-xl font-semibold" style={{ color: finalState.color }}>{finalState.title}</h2>
-            <p className="mt-2 text-sm leading-6" style={{ color: colors.textSecondary }}>{finalState.note}</p>
+            <h2 className="mt-4 text-xl font-semibold" style={{ color: finalState.color }}>{tr(finalState.title)}</h2>
+            <p className="mt-2 text-sm leading-6" style={{ color: colors.textSecondary }}>{tr(finalState.note)}</p>
             {result.offerTitle && (
               <dl className="mt-5 divide-y border-y text-left" style={{ borderColor: colors.border }}>
-                <div className="flex justify-between gap-4 py-3"><dt className="text-sm" style={{ color: colors.textSecondary }}>Partner</dt><dd className="text-right text-sm font-semibold">{result.partnerName}</dd></div>
-                <div className="flex justify-between gap-4 py-3"><dt className="text-sm" style={{ color: colors.textSecondary }}>Nabídka</dt><dd className="text-right text-sm font-semibold">{result.offerTitle}</dd></div>
-                <div className="flex justify-between gap-4 py-3"><dt className="text-sm" style={{ color: colors.textSecondary }}>Hodnota</dt><dd className="text-right text-sm font-bold" style={{ color: colors.brandPrimary }}>{result.offerValue}</dd></div>
-                <div className="flex justify-between gap-4 py-3"><dt className="text-sm" style={{ color: colors.textSecondary }}>Ověřeno</dt><dd className="text-right text-sm font-semibold">{new Date(result.validatedAt ?? result.checkedAt ?? Date.now()).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</dd></div>
+                <div className="flex justify-between gap-4 py-3"><dt className="text-sm" style={{ color: colors.textSecondary }}>{tr('Partner')}</dt><dd className="text-right text-sm font-semibold">{result.partnerName}</dd></div>
+                <div className="flex justify-between gap-4 py-3"><dt className="text-sm" style={{ color: colors.textSecondary }}>{tr('Nabídka')}</dt><dd className="text-right text-sm font-semibold">{result.offerTitle}</dd></div>
+                <div className="flex justify-between gap-4 py-3"><dt className="text-sm" style={{ color: colors.textSecondary }}>{tr('Hodnota')}</dt><dd className="text-right text-sm font-bold" style={{ color: colors.brandPrimary }}>{result.offerValue}</dd></div>
+                <div className="flex justify-between gap-4 py-3"><dt className="text-sm" style={{ color: colors.textSecondary }}>{tr('Ověřeno')}</dt><dd className="text-right text-sm font-semibold">{new Date(result.validatedAt ?? result.checkedAt ?? Date.now()).toLocaleTimeString(getDateLocale(locale), { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</dd></div>
               </dl>
             )}
-            <button type="button" onClick={() => { setResult({ status: 'idle' }); setShortCode(''); }} className="mt-5 min-h-11 w-full border bg-white font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md, color: colors.brandPrimary }}>Ověřit další kód</button>
+            <button type="button" onClick={() => { setResult({ status: 'idle' }); setShortCode(''); }} className="mt-5 min-h-11 w-full border bg-white font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md, color: colors.brandPrimary }}>{tr('Ověřit další kód')}</button>
           </section>
         )}
 
         <footer className="mt-5 flex items-start gap-2 px-2 text-xs leading-5" style={{ color: colors.textSecondary }}>
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-          Ověření nezobrazuje jméno, email ani přesné datum členství.
+          {tr('Ověření nezobrazuje jméno, email ani přesné datum členství.')}
         </footer>
       </div>
     </main>

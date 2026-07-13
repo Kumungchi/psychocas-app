@@ -113,33 +113,24 @@ body {
 }
 
 .locale-toggle {
-  position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + clamp(0.75rem, 2.5vw, 1.25rem));
-  right: clamp(0.75rem, 3vw, 1.75rem);
-  z-index: 50;
-  display: inline-flex;
+  position: relative;
+  z-index: 60;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.92);
+  justify-content: flex-end;
+  gap: 0.2rem;
+  width: 100%;
+  min-height: 2.5rem;
+  background: #ffffff;
   color: var(--psychocas-primary);
-  border-radius: 9999px;
-  border: 1px solid rgba(29, 79, 125, 0.16);
-  padding: 0.48rem 0.8rem;
-  min-width: 3.5rem;
+  border: 0;
+  border-bottom: 1px solid rgba(29, 79, 125, 0.12);
+  border-radius: 0;
+  padding: calc(env(safe-area-inset-top, 0px) + 0.2rem) max(1rem, env(safe-area-inset-right, 0px)) 0.2rem max(1rem, env(safe-area-inset-left, 0px));
   font-weight: 700;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   letter-spacing: 0;
-  text-transform: uppercase;
-  box-shadow: 0 8px 20px rgba(23, 32, 51, 0.08);
-  backdrop-filter: blur(10px);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
-  cursor: pointer;
-}
-
-.locale-toggle:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 28px rgba(23, 32, 51, 0.12);
-  filter: brightness(1.05);
+  box-shadow: none;
 }
 
 .locale-toggle:focus-visible {
@@ -147,25 +138,33 @@ body {
   box-shadow: 0 0 0 4px rgba(4, 158, 219, 0.18), 0 12px 28px rgba(23, 32, 51, 0.12);
 }
 
-.locale-toggle__label {
-  display: inline-flex;
-  align-items: center;
-  gap: clamp(0.3rem, 1.5vw, 0.45rem);
-  letter-spacing: inherit;
+.locale-toggle__icon {
+  width: 1rem;
+  height: 1rem;
+  margin: 0 0.2rem;
 }
 
-.locale-toggle__icon {
-  display: inline-flex;
+.locale-toggle__option {
+  display: flex;
   align-items: center;
   justify-content: center;
-  font-size: clamp(1rem, 2.8vw, 1.25rem);
-  line-height: 1;
+  min-width: 2.25rem;
+  min-height: 2rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: #607086;
+  cursor: pointer;
 }
 
-.locale-toggle__text {
-  display: inline-flex;
-  align-items: center;
-  line-height: 1;
+.locale-toggle__option[data-active='true'] {
+  background: var(--psychocas-primary);
+  color: white;
+}
+
+.locale-toggle__option:focus-visible {
+  outline: 2px solid var(--psychocas-secondary);
+  outline-offset: 1px;
 }
 
 .psychocas-card:hover {
@@ -270,14 +269,7 @@ body {
   }
 
   .locale-toggle {
-    top: auto;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 5rem);
-    right: 0.75rem;
-    left: auto;
-    transform: none;
-    padding: 0.45rem 0.7rem;
-    font-size: 0.72rem;
-    box-shadow: 0 6px 18px rgba(23, 32, 51, 0.12);
+    min-height: 2.4rem;
   }
 }
 
@@ -287,8 +279,7 @@ body {
   }
 
   .locale-toggle {
-    font-size: 0.7rem;
-    padding: 0.42rem 0.64rem;
+    font-size: 0.68rem;
   }
 }
 

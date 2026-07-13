@@ -1,7 +1,9 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { defaultLocale, supportedLocales, type Locale } from '@/lib/i18n/config';
+import { resolveLocaleFromHeader } from '@/lib/i18n/detect';
+import { translatePilotPhrase } from '@/lib/i18n/pilotPhrases';
 import { getDictionary } from '@/lib/i18n/strings';
 import { formatTemplate, type TranslateFn } from '@/lib/i18n/utils';
 
@@ -9,6 +11,7 @@ interface LocaleContextValue {
   locale: Locale;
   setLocale: (locale: Locale) => void;
   t: TranslateFn;
+  tr: (value: string) => string;
   formatMessage: (path: string, vars: Record<string, string | number>) => string;
 }
 
@@ -31,17 +34,27 @@ interface LocaleProviderProps {
 }
 
 const STORAGE_KEY = 'psychocas.locale';
+const LOCALE_EVENT = 'psychocas:locale-change';
+
+function getClientLocale(): Locale {
+  const stored = window.localStorage?.getItem(STORAGE_KEY);
+  if (stored && supportedLocales.includes(stored as Locale)) {
+    return stored as Locale;
+  }
+  return resolveLocaleFromHeader(window.navigator.languages?.join(',') ?? window.navigator.language);
+}
+
+function subscribeToLocale(onStoreChange: () => void): () => void {
+  window.addEventListener('storage', onStoreChange);
+  window.addEventListener(LOCALE_EVENT, onStoreChange);
+  return () => {
+    window.removeEventListener('storage', onStoreChange);
+    window.removeEventListener(LOCALE_EVENT, onStoreChange);
+  };
+}
 
 export function LocaleProvider({ children }: LocaleProviderProps) {
-  const [locale, setLocale] = useState<Locale>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = window.localStorage?.getItem(STORAGE_KEY);
-      if (stored && supportedLocales.includes(stored as Locale)) {
-        return stored as Locale;
-      }
-    }
-    return defaultLocale;
-  });
+  const locale = useSyncExternalStore(subscribeToLocale, getClientLocale, () => defaultLocale);
 
   const value = useMemo<LocaleContextValue>(() => {
     const dictionary = getDictionary(locale);
@@ -52,12 +65,13 @@ export function LocaleProvider({ children }: LocaleProviderProps) {
         if (!supportedLocales.includes(next)) {
           return;
         }
-        setLocale(next);
         if (typeof window !== 'undefined') {
           window.localStorage?.setItem(STORAGE_KEY, next);
+          window.dispatchEvent(new Event(LOCALE_EVENT));
         }
       },
       t: translate,
+      tr: (value) => translatePilotPhrase(locale, value),
       formatMessage: (path, vars) => formatTemplate(translate(path), vars),
     };
   }, [locale]);
