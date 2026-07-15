@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { WifiOff, Wifi } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import useNetworkStatus from '@/hooks/useNetworkStatus';
@@ -11,25 +11,35 @@ export default function OfflineToast() {
   const [visible, setVisible] = useState<boolean>(false);
   const { t } = useLocale();
   const pathname = usePathname();
-  const quietRoute = pathname === '/' || pathname === '/login' || pathname.startsWith('/demo') || pathname.startsWith('/auth');
+  const quietRoute = pathname === '/' || pathname === '/login' || pathname.startsWith('/auth');
+  const wasOnline = useRef(isOnline);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
       return;
     }
 
-    if (quietRoute) return;
+    const previouslyOnline = wasOnline.current;
+    wasOnline.current = isOnline;
 
-    setVisible(true); // eslint-disable-line react-hooks/set-state-in-effect -- sync toast visibility from network status
-
-    if (isOnline) {
-      const timeout = window.setTimeout(() => setVisible(false), 2500);
-      return () => window.clearTimeout(timeout);
+    if (quietRoute) {
+      setVisible(false); // eslint-disable-line react-hooks/set-state-in-effect -- route transitions must dismiss the network toast
+      return;
     }
 
-    return () => {
-      // keep toast visible while offline
-    };
+    if (!isOnline) {
+      setVisible(true);
+      return;
+    }
+
+    if (previouslyOnline) {
+      setVisible(false);
+      return;
+    }
+
+    setVisible(true);
+    const timeout = window.setTimeout(() => setVisible(false), 2500);
+    return () => window.clearTimeout(timeout);
   }, [isOnline, quietRoute]);
 
   if (quietRoute || !visible) {

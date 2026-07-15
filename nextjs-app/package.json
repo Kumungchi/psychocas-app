@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:browser": "tsx scripts/verifyBrowserMvp.ts",
+    "screenshots": "tsx scripts/screenshot-product.ts",
     "convex:dev": "convex dev",
     "convex:codegen": "convex codegen --typecheck disable",
     "convex:deploy": "convex deploy --typecheck enable --codegen enable",

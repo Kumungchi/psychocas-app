@@ -15,7 +15,6 @@ describe('authentication route policy', () => {
     expect(isProtectedPath('/home')).toBe(true);
     expect(isProtectedPath('/admin/members')).toBe(true);
     expect(isProtectedPath('/v/public-token')).toBe(false);
-    expect(isProtectedPath('/demo/member')).toBe(false);
   });
 
   it('does not protect removed legacy paths', () => {

@@ -1,21 +1,29 @@
 import { chromium } from '@playwright/test';
 
-const baseUrl = process.env.PSYCHOCAS_DEMO_BASE_URL ?? 'http://localhost:3000';
+const baseUrl = process.env.PSYCHOCAS_BASE_URL ?? 'http://localhost:3000';
 const testEmail = process.env.PSYCHOCAS_TEST_EMAIL?.trim();
 const targetHostname = new URL(baseUrl).hostname;
 const isLocalTarget = ['localhost', '127.0.0.1', '::1'].includes(targetHostname);
 
-const routes = [
-  { path: '/', width: 375, height: 667, text: 'Členství, slevy a zpětná vazba' },
-  { path: '/demo/member', width: 360, height: 800, text: 'Digitální členství' },
-  { path: '/demo/member', width: 430, height: 932, text: 'Aktuální výhody' },
-  { path: '/demo/manager', width: 390, height: 844, text: 'Manažerský pohled' },
-  { path: '/demo/board', width: 390, height: 844, text: 'Čeká na rozhodnutí' },
-  { path: '/demo/board', width: 1280, height: 800, text: 'Privacy fronta' },
+const publicRoutes = [
+  { path: '/', width: 320, height: 568, text: 'Členství, slevy a zpětná vazba' },
+  { path: '/', width: 390, height: 844, text: 'Členství, slevy a zpětná vazba' },
+  { path: '/', width: 768, height: 1024, text: 'Členství, slevy a zpětná vazba' },
+  { path: '/', width: 1280, height: 800, text: 'Členství, slevy a zpětná vazba' },
+  { path: '/login', width: 320, height: 568, text: 'Přihlášení členů' },
   { path: '/login', width: 390, height: 844, text: 'Přihlášení členů' },
+  { path: '/login', width: 768, height: 1024, text: 'Přihlášení členů' },
+  { path: '/privacy', width: 320, height: 568, text: 'Ochrana osobních údajů' },
   { path: '/privacy', width: 430, height: 932, text: 'Ochrana osobních údajů' },
+  { path: '/privacy', width: 768, height: 1024, text: 'Ochrana osobních údajů' },
+  { path: '/privacy', width: 1280, height: 800, text: 'Ochrana osobních údajů' },
+  { path: '/v', width: 320, height: 568, text: 'Ověření členské výhody' },
   { path: '/v', width: 390, height: 844, text: 'Ověření členské výhody' },
+  { path: '/v', width: 768, height: 1024, text: 'Ověření členské výhody' },
 ] as const;
+
+const protectedRoutes = ['/home', '/workspace', '/admin'] as const;
+const removedRoutes = ['/demo', '/demo/member', '/demo/manager', '/demo/board'] as const;
 
 async function run() {
   const browser = await chromium.launch();
@@ -59,7 +67,7 @@ async function run() {
       await page.waitForLoadState('domcontentloaded');
     }
 
-    for (const route of routes) {
+    for (const route of publicRoutes) {
       await page.setViewportSize({ width: route.width, height: route.height });
       const response = await page.goto(`${baseUrl}${route.path}`, { waitUntil: 'domcontentloaded' });
       if (!response?.ok()) throw new Error(`${route.path} returned ${response?.status() ?? 'no response'}`);
@@ -69,19 +77,66 @@ async function run() {
         clientWidth: document.documentElement.clientWidth,
         scrollWidth: document.documentElement.scrollWidth,
         scrollHeight: document.documentElement.scrollHeight,
+        clippedControls: Array.from(
+          document.querySelectorAll<HTMLElement>('button, input, select, textarea, [role="dialog"]'),
+        )
+          .filter((element) => element.getClientRects().length > 0)
+          .filter((element) => element.scrollWidth > element.clientWidth + 1)
+          .map((element) => element.getAttribute('aria-label') ?? element.textContent?.trim() ?? element.tagName)
+          .slice(0, 5),
       }));
       if (layout.scrollWidth > layout.clientWidth + 1) {
         throw new Error(`${route.path} overflows horizontally at ${route.width}px`);
+      }
+      if (layout.clippedControls.length > 0) {
+        throw new Error(
+          `${route.path} clips controls at ${route.width}px: ${layout.clippedControls.join(', ')}`,
+        );
       }
       results.push({ route: route.path, viewport: `${route.width}x${route.height}`, ...layout });
       process.stdout.write(`Checked ${route.path} at ${route.width}x${route.height}.\n`);
     }
 
     await page.setViewportSize({ width: 390, height: 844 });
+    for (const path of protectedRoutes) {
+      await page.goto(`${baseUrl}${path}`, { waitUntil: 'domcontentloaded' });
+      await page.waitForURL((url) => url.pathname === '/login');
+      results.push({ route: path, check: 'unauthenticated-redirect', status: 'login' });
+    }
+
+    for (const path of removedRoutes) {
+      const response = await fetch(`${baseUrl}${path}`, { redirect: 'manual' });
+      if (response.status !== 404) {
+        throw new Error(`Removed route ${path} returned ${response.status} instead of 404`);
+      }
+      results.push({ route: path, check: 'removed', status: 404 });
+    }
+
+    await page.goto(`${baseUrl}/v`, { waitUntil: 'domcontentloaded' });
+    const initialRecoveryToast = page.getByText('Připojení obnoveno. Údaje jsou opět aktuální.', {
+      exact: true,
+    });
+    if ((await initialRecoveryToast.count()) > 0) {
+      throw new Error('The recovery toast is visible without a preceding outage');
+    }
+    await context.setOffline(true);
+    await page
+      .getByText('Jste offline. Zobrazuje se poslední dostupná verze.', { exact: true })
+      .waitFor({ state: 'visible' });
+    await context.setOffline(false);
+    await initialRecoveryToast.waitFor({ state: 'visible' });
+    results.push({ check: 'network-status-toast', status: 'offline-and-recovery-only' });
+
+    await page.setViewportSize({ width: 320, height: 568 });
     await page.goto(`${baseUrl}/login`, { waitUntil: 'domcontentloaded' });
     await page.getByRole('button', { name: 'Informace k přihlášení' }).click();
-    await page.getByRole('dialog', { name: 'Informace k přihlášení' }).waitFor({ state: 'visible' });
-    results.push({ check: 'login-info-dialog', status: 'visible' });
+    const infoDialog = page.getByRole('dialog', { name: 'Informace k přihlášení' });
+    await infoDialog.waitFor({ state: 'visible' });
+    const dialogBounds = await infoDialog.boundingBox();
+    if (!dialogBounds || dialogBounds.x < 0 || dialogBounds.x + dialogBounds.width > 321) {
+      throw new Error(`Login information dialog escapes the 320px viewport: ${JSON.stringify(dialogBounds)}`);
+    }
+    results.push({ check: 'login-info-dialog', viewport: '320x568', status: 'visible' });
 
     if (testEmail) {
       await page.getByRole('button', { name: 'Zavřít informace' }).click();

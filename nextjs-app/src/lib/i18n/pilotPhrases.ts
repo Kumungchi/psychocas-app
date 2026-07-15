@@ -9,16 +9,14 @@ const explicitEnglishPhrases: Record<string, string> = {
   'Přepnout aplikaci do angličtiny': 'Switch the app to English',
   'Psychočas úvod': 'Psychočas home',
   'členská aplikace': 'member app',
-  'MVP pro ukázku': 'MVP preview',
+  'Pilotní provoz': 'Pilot release',
   'feedback vítán': 'feedback welcome',
   'Členství, slevy a zpětná vazba v jedné mobilní aplikaci.':
     'Membership, benefits, and feedback in one mobile app.',
   'Psychočas dává členům jednoduchý digitální průkaz, partnerům rychlé ověření a týmu data, podle kterých půjde rozvíjet benefity, které lidé opravdu využijí.':
     'Psychočas gives members a simple digital card, partners a fast verification flow, and the team data for building benefits people actually use.',
-  'Členský pohled': 'Member view',
-  'Členství, QR, výhody, události a profil.': 'Membership, QR, benefits, events, and profile.',
-  'Lokální správa, události a anonymní metriky.': 'Local management, events, and anonymous metrics.',
-  'Schválení, členství, přístupy a privacy fronta.': 'Approvals, memberships, access, and privacy queue.',
+  'Přihlásit se do aplikace': 'Sign in to the app',
+  'Ochrana soukromí': 'Privacy',
   'Digitální členství': 'Digital membership',
   'Jasný stav členství, platnost a lokální pobočka v mobilu.':
     'Clear membership status, validity, and local branch on mobile.',
@@ -31,24 +29,27 @@ const explicitEnglishPhrases: Record<string, string> = {
   'Data pro rozvoj': 'Data for improvement',
   'Tým vidí, které benefity fungují a kde má smysl shánět partnery.':
     'The team can see which benefits work and where new partners are needed.',
-  'stabilní PWA instalace a offline náhled posledních dat':
-    'stable PWA installation and an offline view of the latest data',
-  'správa partnerů, slev a dočasných přístupů přímo v aplikaci':
-    'partner, benefit, and temporary access management inside the app',
-  'sběr zpětné vazby od členů: co chtějí používat a kde chybí partneři':
-    'member feedback on what they want to use and where partners are missing',
-  'Demo Člen': 'Demo Member',
+  'instalace PWA na plochu a bezpečný stav při výpadku připojení':
+    'home-screen PWA installation and a safe state during connectivity loss',
+  'správa partnerů, slev, událostí a přístupů přímo v aplikaci':
+    'partner, benefit, event, and access management inside the app',
+  'zpětná vazba a návrhy partnerů s dohledatelným schválením':
+    'feedback and partner suggestions with traceable approval',
+  'Členský průkaz': 'Membership card',
+  'Pobočka podle členství': 'Branch based on membership',
+  'zabezpečeno': 'secured',
   'aktivní': 'active',
-  'Digitální karta': 'Digital card',
-  'QR připraven': 'QR ready',
+  'Jednorázový QR kód': 'One-time QR code',
+  'Vytvoří se bezpečně až po přihlášení člena.':
+    'Generated securely only after the member signs in.',
   'Partnerství': 'Partnerships',
   'Celostátní i lokální výhody podle pobočky.': 'Nationwide and local benefits based on branch.',
   'Offline režim': 'Offline mode',
-  'Poslední stav zůstane dostupný i bez připojení.':
-    'The latest state remains available without a connection.',
+  'Aplikace oznámí výpadek a citlivá data neukládá do veřejné cache.':
+    'The app reports connectivity loss and keeps sensitive data out of public caches.',
   'Proč aplikace existuje': 'Why the app exists',
-  'Chceme, aby členství mělo viditelnou hodnotu každý týden, ne jen v registračním e-mailu. MVP má ukázat základní tok a otevřít debatu o tom, co členové i pobočky reálně potřebují.':
-    'We want membership to deliver visible value every week, not only in a registration email. The MVP demonstrates the core flow and opens a discussion about what members and branches actually need.',
+  'Chceme, aby členství mělo viditelnou hodnotu každý týden, ne jen v registračním e-mailu. Pilot propojuje členy, pobočky a partnery a pomáhá ověřit, co lidé opravdu potřebují.':
+    'We want membership to deliver visible value every week, not only in a registration email. The pilot connects members, branches, and partners and helps validate what people actually need.',
   'Co chceme zjistit feedbackem': 'What we want to learn from feedback',
   'Které funkce mají největší smysl, jaké slevy lidé opravdu využijí, kde chybí partneři a jak má vypadat správa pro pobočky.':
     'Which features matter most, which benefits people actually use, where partners are missing, and how branch management should work.',
@@ -484,18 +485,11 @@ const explicitEnglishPhrases: Record<string, string> = {
   'Board a admin': 'Board and admin',
   'Schvalování, hromadná správa členství, přístupy a privacy požadavky.':
     'Approvals, bulk membership management, access, and privacy requests.',
-  'Demo hub': 'Demo hub',
-  'Psychočas MVP ukázka': 'Psychočas MVP preview',
-  'Vyberte roli a otevřete připravený náhled bez produkčního přihlášení.':
-    'Choose a role and open a prepared preview without a production sign-in.',
-  'Zpět na pitch': 'Back to pitch',
-  'Otevřít demo': 'Open demo',
   'Manažerský pohled': 'Manager view',
   'Board pohled': 'Board view',
   'Odborné knihy': 'Professional books',
   'Workshopy a kurzy': 'Workshops and courses',
   'Káva a drobné občerstvení': 'Coffee and refreshments',
-  'Zpět na demo': 'Back to demo',
   'Aktivní do 30. června 2027': 'Active until June 30, 2027',
   'Pobočka Praha': 'Prague branch',
   '12 dostupných': '12 available',

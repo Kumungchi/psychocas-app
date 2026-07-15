@@ -598,7 +598,7 @@ Nepřidávat behaviorální doporučování, členské žebříčky ani partner 
 - odstranit `next-pwa` a zavést ruční service worker
 - přidat security/no-store headers
 - opravit přenositelný verify/build skript
-- izolovat demo pouze na `/demo/*`
+- odstranit veřejné demo routy před spuštěním pilotu
 - přidat CI pro lint, typy, testy, build a audit gate
 
 Hotovo, když produkční build nemá otevřený přímý high/critical nález, service worker necachuje personalizované routy a install shell funguje přes HTTPS.

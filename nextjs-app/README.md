@@ -11,6 +11,7 @@ npm run lint                # ESLint
 npm test                    # Vitest
 npm run build               # Pure local production build
 npm run test:browser        # Playwright MVP/PWA checks against a running build
+npm run screenshots         # Responsive screenshots of production public routes
 npm run verify              # Lint, unit tests, and Vercel-like production build
 npm run convex:deploy       # Deploy Convex functions to the project production deployment
 ```
@@ -30,7 +31,7 @@ No email, JWT, QR, push, or deployment secret may use a `NEXT_PUBLIC_*` name.
 
 ## Architecture
 
-- `src/app`: public pitch, auth, member, staff, administration, privacy, demo, and QR verification routes
+- `src/app`: public product overview, auth, member, staff, administration, privacy, and QR verification routes
 - `src/components`: mobile product surfaces and shared providers
 - `src/lib/i18n`: Czech/English dictionaries and pilot copy
 - `convex`: schema, auth, authorization, business workflows, analytics, privacy, audit, and retention

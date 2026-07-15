@@ -2,11 +2,12 @@
 
 import { useRouter } from 'next/navigation';
 import {
-  ArrowRight,
   BadgeCheck,
   BarChart3,
+  LogIn,
   MessageSquareText,
   QrCode,
+  ShieldCheck,
   Smartphone,
   Store,
 } from 'lucide-react';
@@ -14,31 +15,6 @@ import PsychocasLogo from '@/components/PsychocasLogo';
 import useLocale from '@/hooks/useLocale';
 import Button from '@/ui/components/Button';
 import Badge from '@/ui/components/Badge';
-import type { MemberRole } from '@/types/member';
-
-interface DemoOption {
-  role: MemberRole;
-  label: string;
-  description: string;
-}
-
-const demoOptions: DemoOption[] = [
-  {
-    role: 'member',
-    label: 'Členský pohled',
-    description: 'Členství, QR, výhody, události a profil.',
-  },
-  {
-    role: 'manager',
-    label: 'Statistiky',
-    description: 'Lokální správa, události a anonymní metriky.',
-  },
-  {
-    role: 'board',
-    label: 'Správa',
-    description: 'Schválení, členství, přístupy a privacy fronta.',
-  },
-];
 
 const features = [
   {
@@ -64,18 +40,14 @@ const features = [
 ];
 
 const roadmap = [
-  'stabilní PWA instalace a offline náhled posledních dat',
-  'správa partnerů, slev a dočasných přístupů přímo v aplikaci',
-  'sběr zpětné vazby od členů: co chtějí používat a kde chybí partneři',
+  'instalace PWA na plochu a bezpečný stav při výpadku připojení',
+  'správa partnerů, slev, událostí a přístupů přímo v aplikaci',
+  'zpětná vazba a návrhy partnerů s dohledatelným schválením',
 ];
 
 export default function RootPage() {
   const router = useRouter();
   const { tr } = useLocale();
-
-  const openDemo = (option: DemoOption) => {
-    router.push(`/demo/${option.role}`);
-  };
 
   return (
     <main className="min-h-screen bg-[#f6f8fb] text-[#172033]">
@@ -106,7 +78,7 @@ export default function RootPage() {
         <div className="grid items-center gap-8 py-8 lg:grid-cols-[1fr_0.82fr] lg:py-10">
           <div className="max-w-2xl space-y-6">
             <div className="flex flex-wrap gap-2">
-              <Badge tone="info">{tr('MVP pro ukázku')}</Badge>
+              <Badge tone="info">{tr('Pilotní provoz')}</Badge>
               <Badge tone="neutral">{tr('feedback vítán')}</Badge>
             </div>
             <div className="space-y-4">
@@ -118,49 +90,57 @@ export default function RootPage() {
               </p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              {demoOptions.map((option) => (
-                <button
-                  key={option.role}
-                  type="button"
-                  onClick={() => openDemo(option)}
-                  className="group rounded-lg border border-[#d8e5ef] bg-white p-4 text-left shadow-sm transition hover:border-[#9bc7e3] hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#049edb]"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-semibold text-[#12385b]">{tr(option.label)}</span>
-                    <ArrowRight className="h-4 w-4 text-[#1d4f7d] transition group-hover:translate-x-0.5" />
-                  </div>
-                  <p className="mt-2 text-sm leading-5 text-[#607086]">{tr(option.description)}</p>
-                </button>
-              ))}
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Button
+                type="button"
+                size="lg"
+                className="min-h-12 w-full sm:w-auto"
+                onClick={() => router.push('/login')}
+              >
+                <LogIn className="h-5 w-5" aria-hidden />
+                {tr('Přihlásit se do aplikace')}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="lg"
+                className="min-h-12 w-full sm:w-auto"
+                onClick={() => router.push('/privacy')}
+              >
+                <ShieldCheck className="h-5 w-5" aria-hidden />
+                {tr('Ochrana soukromí')}
+              </Button>
             </div>
           </div>
 
           <div className="mx-auto w-full max-w-sm">
             <div className="rounded-[1.8rem] border border-[#d9e4ef] bg-[#172033] p-3 shadow-2xl">
               <div className="rounded-[1.25rem] bg-white p-4">
-                <div className="mb-4 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2">
                     <PsychocasLogo size={38} gradientId="phoneLogo" />
-                    <div>
-                      <p className="text-sm font-semibold text-[#12385b]">{tr('Demo Člen')}</p>
-                      <p className="text-xs text-[#738094]">Praha</p>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#12385b]">{tr('Členský průkaz')}</p>
+                      <p className="text-xs text-[#738094]">{tr('Pobočka podle členství')}</p>
                     </div>
                   </div>
-                  <span className="rounded-full bg-[#DFF4FF] px-2.5 py-1 text-xs font-bold uppercase text-[#1d4f7d]">
-                    {tr('aktivní')}
+                  <span className="shrink-0 rounded-full bg-[#DFF4FF] px-2.5 py-1 text-xs font-bold uppercase text-[#1d4f7d]">
+                    {tr('zabezpečeno')}
                   </span>
                 </div>
                 <div className="rounded-lg border border-[#c8dff5] bg-[#eaf5ff] p-4">
-                  <p className="text-xs font-semibold uppercase text-[#1d4f7d]">
-                    {tr('Digitální karta')}
-                  </p>
-                  <p className="mt-3 font-mono text-2xl font-semibold tracking-[0.14em] text-[#12385b]">
-                    PSYCH-D3M0X7
-                  </p>
-                  <div className="mt-4 flex items-center justify-between text-sm text-[#1d4f7d]">
-                    <span>02:48</span>
-                    <span>{tr('QR připraven')}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-white text-[#12385b]">
+                      <QrCode className="h-11 w-11" aria-hidden />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#12385b]">
+                        {tr('Jednorázový QR kód')}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-[#1d4f7d]">
+                        {tr('Vytvoří se bezpečně až po přihlášení člena.')}
+                      </p>
+                    </div>
                   </div>
                 </div>
                 <div className="mt-4 grid gap-3">
@@ -177,7 +157,7 @@ export default function RootPage() {
                       {tr('Offline režim')}
                     </p>
                     <p className="mt-1 text-sm text-[#172033]">
-                      {tr('Poslední stav zůstane dostupný i bez připojení.')}
+                      {tr('Aplikace oznámí výpadek a citlivá data neukládá do veřejné cache.')}
                     </p>
                   </div>
                 </div>
@@ -206,7 +186,7 @@ export default function RootPage() {
         <div>
           <h2 className="text-2xl font-semibold text-[#12385b]">{tr('Proč aplikace existuje')}</h2>
           <p className="mt-3 leading-7 text-[#536273]">
-            {tr('Chceme, aby členství mělo viditelnou hodnotu každý týden, ne jen v registračním e-mailu. MVP má ukázat základní tok a otevřít debatu o tom, co členové i pobočky reálně potřebují.')}
+            {tr('Chceme, aby členství mělo viditelnou hodnotu každý týden, ne jen v registračním e-mailu. Pilot propojuje členy, pobočky a partnery a pomáhá ověřit, co lidé opravdu potřebují.')}
           </p>
         </div>
         <div className="rounded-lg border border-[#e4ebf2] bg-white p-5">

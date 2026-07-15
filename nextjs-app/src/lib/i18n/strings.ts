@@ -285,10 +285,6 @@ export const dictionaries: LocaleDictionaries = {
         title: '⚠️ Důležité',
         description: 'Kód lze použít pouze jednou. Po uplatnění se automaticky zneplatní.',
       },
-      demo: {
-        disabledAction: 'Generování kódu není v demo režimu dostupné.',
-        notice: 'Ukázkový režim neodesílá požadavky na produkční data – funkce je pouze pro náhled.',
-      },
     },
     stats: {
       heading: 'Statistiky',
@@ -342,7 +338,6 @@ export const dictionaries: LocaleDictionaries = {
         dataLoading: 'Načítám data…',
         dataEmpty: 'Pro zvolené období zatím nejsou dostupná žádná data.',
         noBranchSelected: 'Vyberte pobočku a poté se zobrazí podrobné statistiky.',
-        demoNotice: 'Zobrazují se ukázková data. Funkce je dostupná pouze pro náhled.',
       },
     },
     technician: {
@@ -408,7 +403,6 @@ export const dictionaries: LocaleDictionaries = {
         loadErrorGeneral: 'Nepodařilo se načíst data. Zkuste to prosím znovu.',
         loadErrorMembers: 'Nepodařilo se načíst členy. Zobrazují se pouze dočasné přístupy.',
         loadErrorTrusted: 'Nepodařilo se načíst dočasné přístupy. Zobrazují se pouze členové.',
-        demoNotice: 'Zobrazená data jsou pouze ukázková a nelze je upravovat.',
       },
       info: {
         title: 'ℹ️ Doporučení pro techniky',
@@ -431,7 +425,6 @@ export const dictionaries: LocaleDictionaries = {
         unauthorizedTitle: 'Přístup zamítnut',
         unauthorizedDescription: 'Tuto sekci mohou otevřít pouze členové rady nebo manažeři s e-mailem @psychocas.cz.',
         refresh: 'Obnovit',
-        demoNotice: 'Ukázkový režim: změny se neukládají.',
       },
       members: {
         pendingTitle: 'Čekající schválení ({count})',
@@ -914,10 +907,6 @@ export const dictionaries: LocaleDictionaries = {
         title: '⚠️ Important',
         description: 'The code can be used only once. It is automatically void after redemption.',
       },
-      demo: {
-        disabledAction: 'Token generation is disabled in the demo preview.',
-        notice: 'Demo mode does not contact production data – the feature is for visual preview only.',
-      },
     },
     stats: {
       heading: 'Statistics',
@@ -971,7 +960,6 @@ export const dictionaries: LocaleDictionaries = {
         dataLoading: 'Loading data…',
         dataEmpty: 'No data is available for the selected period yet.',
         noBranchSelected: 'Select a branch to view detailed statistics.',
-        demoNotice: 'Sample data is shown for preview purposes only.',
       },
     },
     technician: {
@@ -1037,7 +1025,6 @@ export const dictionaries: LocaleDictionaries = {
         loadErrorGeneral: 'We could not load any data. Please try again.',
         loadErrorMembers: 'We could not load members. Only temporary access holders are shown.',
         loadErrorTrusted: 'We could not load temporary access holders. Only members are shown.',
-        demoNotice: 'Sample data is displayed for preview purposes and cannot be changed.',
       },
       info: {
         title: 'ℹ️ Tips for technicians',
@@ -1060,7 +1047,6 @@ export const dictionaries: LocaleDictionaries = {
         unauthorizedTitle: 'Access denied',
         unauthorizedDescription: 'Only board members or managers with an @psychocas.cz email can open this section.',
         refresh: 'Refresh',
-        demoNotice: 'Demo mode: changes are not persisted.',
       },
       members: {
         pendingTitle: 'Pending approvals ({count})',
