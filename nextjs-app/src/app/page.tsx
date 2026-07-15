@@ -41,7 +41,7 @@ const features = [
 ];
 
 const roadmap = [
-  'instalace PWA na plochu a bezpečný stav při výpadku připojení',
+  'instalace PWA přímo do mobilu a bezpečný stav při výpadku připojení',
   'správa partnerů, slev, událostí a přístupů přímo v aplikaci',
   'zpětná vazba a návrhy partnerů s dohledatelným schválením',
 ];

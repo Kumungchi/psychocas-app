@@ -17,6 +17,7 @@ import useLocale from '@/hooks/useLocale';
 import usePwaInstallPrompt from '@/hooks/usePwaInstallPrompt';
 import {
   shouldAutoOfferInstall,
+  type InstallBrowser,
   type InstallPlatform,
 } from '@/lib/pwa/installOffer';
 import Button, { type ButtonProps } from '@/ui/components/Button';
@@ -36,18 +37,51 @@ interface InstructionStep {
   text: string;
 }
 
-function installationSteps(platform: InstallPlatform): InstructionStep[] {
+const browserGuide: Record<InstallBrowser, { heading: string; share: string; menu: string }> = {
+  safari: {
+    heading: 'Jak nainstalovat v Safari',
+    share: 'V Safari klepni na Sdílet.',
+    menu: 'V Safari otevři nabídku Sdílet.',
+  },
+  chrome: {
+    heading: 'Jak nainstalovat v Chromu',
+    share: 'V Chromu klepni na Sdílet.',
+    menu: 'V Chromu otevři nabídku se třemi tečkami.',
+  },
+  edge: {
+    heading: 'Jak nainstalovat v Microsoft Edge',
+    share: 'V Microsoft Edge klepni na Sdílet.',
+    menu: 'V Microsoft Edge otevři nabídku prohlížeče.',
+  },
+  firefox: {
+    heading: 'Jak nainstalovat ve Firefoxu',
+    share: 'Ve Firefoxu klepni na Sdílet.',
+    menu: 'Ve Firefoxu otevři nabídku prohlížeče.',
+  },
+  samsung: {
+    heading: 'Jak nainstalovat v Samsung Internet',
+    share: 'V Samsung Internet klepni na Sdílet.',
+    menu: 'V Samsung Internet otevři nabídku prohlížeče.',
+  },
+  other: {
+    heading: 'Jak nainstalovat v tomto prohlížeči',
+    share: 'Klepni na Sdílet v nabídce prohlížeče.',
+    menu: 'Otevři nabídku prohlížeče.',
+  },
+};
+
+function installationSteps(platform: InstallPlatform, browser: InstallBrowser): InstructionStep[] {
   if (platform === 'ios') {
     return [
-      { icon: Share2, text: 'V Safari klepni na Sdílet.' },
-      { icon: SquarePlus, text: 'Vyber Přidat na plochu.' },
+      { icon: Share2, text: browserGuide[browser].share },
+      { icon: SquarePlus, text: 'Vyber Přidat na domovskou obrazovku.' },
       { icon: CheckCircle2, text: 'Potvrď tlačítkem Přidat.' },
     ];
   }
 
   return [
-    { icon: EllipsisVertical, text: 'Otevři nabídku prohlížeče.' },
-    { icon: SquarePlus, text: 'Vyber Instalovat aplikaci nebo Přidat na plochu.' },
+    { icon: EllipsisVertical, text: browserGuide[browser].menu },
+    { icon: SquarePlus, text: 'Vyber Nainstalovat aplikaci nebo přidání na domovskou obrazovku.' },
     { icon: CheckCircle2, text: 'Potvrď instalaci.' },
   ];
 }
@@ -59,13 +93,13 @@ export default function PwaInstallExperience({
   triggerClassName,
 }: PwaInstallExperienceProps) {
   const { tr } = useLocale();
-  const { canInstall, installed, isMobile, platform, ready, promptInstall } =
+  const { browser, canInstall, installed, isMobile, platform, ready, promptInstall } =
     usePwaInstallPrompt();
   const [open, setOpen] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const steps = useMemo(() => installationSteps(platform), [platform]);
+  const steps = useMemo(() => installationSteps(platform, browser), [browser, platform]);
 
   const dismiss = useCallback(() => {
     try {
@@ -190,13 +224,13 @@ export default function PwaInstallExperience({
             </header>
 
             <p className="mt-4 text-sm leading-6" style={{ color: colors.textSecondary }}>
-              {tr('Měj členský průkaz, výhody a události dostupné jedním klepnutím z plochy.')}
+              {tr('Měj členský průkaz, výhody a události vždy po ruce přímo v mobilu.')}
             </p>
 
             {platform === 'ios' || !canInstall ? (
               <div className="mt-5">
                 <h3 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
-                  {tr(platform === 'ios' ? 'Jak nainstalovat na iPhone nebo iPad' : 'Jak nainstalovat v prohlížeči')}
+                  {tr(browserGuide[browser].heading)}
                 </h3>
                 <ol className="mt-3 space-y-3">
                   {steps.map(({ icon: Icon, text }, index) => (
@@ -233,7 +267,7 @@ export default function PwaInstallExperience({
               style={{ borderColor: colors.border, color: colors.textPrimary }}
             >
               {[
-                { icon: Smartphone, text: 'Rychlý přístup z plochy' },
+                { icon: Smartphone, text: 'Rychlý přístup přímo z mobilu' },
                 { icon: Maximize2, text: 'Zobrazení bez adresního řádku' },
                 { icon: BellRing, text: 'Push oznámení jen po tvém souhlasu' },
               ].map(({ icon: Icon, text }) => (

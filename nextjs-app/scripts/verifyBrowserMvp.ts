@@ -167,6 +167,40 @@ async function run() {
       await installContext.close();
     }
 
+    const chromeInstallContext = await browser.newContext({
+      serviceWorkers: 'allow',
+      locale: 'cs-CZ',
+      viewport: { width: 320, height: 568 },
+      isMobile: true,
+      hasTouch: true,
+      userAgent:
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 CriOS/126.0.0 Mobile/15E148 Safari/604.1',
+    });
+    try {
+      const chromeInstallPage = await chromeInstallContext.newPage();
+      await chromeInstallPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+      const chromeInstallDialog = chromeInstallPage.getByRole('dialog', {
+        name: 'Nainstalovat Psychočas',
+      });
+      await chromeInstallDialog.waitFor({ state: 'visible' });
+      const chromeInstallText = await chromeInstallDialog.innerText();
+      if (
+        !chromeInstallText.includes('Jak nainstalovat v Chromu') ||
+        !chromeInstallText.includes('V Chromu klepni na Sdílet') ||
+        chromeInstallText.includes('V Safari klepni na Sdílet')
+      ) {
+        throw new Error(`The Chrome-specific installation steps are incorrect: ${chromeInstallText}`);
+      }
+      results.push({
+        check: 'browser-aware-pwa-install-walkthrough',
+        browser: 'chrome-ios',
+        viewport: '320x568',
+        status: 'chrome-copy-visible',
+      });
+    } finally {
+      await chromeInstallContext.close();
+    }
+
     await page.goto(`${baseUrl}/v`, { waitUntil: 'domcontentloaded' });
     const initialRecoveryToast = page.getByText('Připojení obnoveno. Údaje jsou opět aktuální.', {
       exact: true,

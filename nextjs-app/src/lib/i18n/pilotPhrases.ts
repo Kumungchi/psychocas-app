@@ -20,19 +20,34 @@ const explicitEnglishPhrases: Record<string, string> = {
   'Nainstalovat aplikaci': 'Install app',
   'Nainstalovat Psychočas': 'Install Psychočas',
   'Zavřít nabídku instalace': 'Close installation guide',
-  'Měj členský průkaz, výhody a události dostupné jedním klepnutím z plochy.':
-    'Keep your membership card, benefits, and events one tap away from your home screen.',
-  'Rychlý přístup z plochy': 'Quick access from your home screen',
+  'Měj členský průkaz, výhody a události vždy po ruce přímo v mobilu.':
+    'Keep your membership card, benefits, and events close at hand on your phone.',
+  'Rychlý přístup přímo z mobilu': 'Quick access directly from your phone',
   'Zobrazení bez adresního řádku': 'Full-screen app view',
   'Push oznámení jen po tvém souhlasu': 'Push notifications only with your consent',
-  'Jak nainstalovat na iPhone nebo iPad': 'How to install on iPhone or iPad',
-  'Jak nainstalovat v prohlížeči': 'How to install from your browser',
+  'Jak nainstalovat v Safari': 'How to install in Safari',
+  'Jak nainstalovat v Chromu': 'How to install in Chrome',
+  'Jak nainstalovat v Microsoft Edge': 'How to install in Microsoft Edge',
+  'Jak nainstalovat ve Firefoxu': 'How to install in Firefox',
+  'Jak nainstalovat v Samsung Internet': 'How to install in Samsung Internet',
+  'Jak nainstalovat v tomto prohlížeči': 'How to install in this browser',
   'V Safari klepni na Sdílet.': 'In Safari, tap Share.',
-  'Vyber Přidat na plochu.': 'Choose Add to Home Screen.',
-  'Potvrď tlačítkem Přidat.': 'Confirm by tapping Add.',
+  'V Safari otevři nabídku Sdílet.': 'Open the Share menu in Safari.',
+  'V Chromu klepni na Sdílet.': 'In Chrome, tap Share.',
+  'V Chromu otevři nabídku se třemi tečkami.': 'Open the three-dot menu in Chrome.',
+  'V Microsoft Edge klepni na Sdílet.': 'In Microsoft Edge, tap Share.',
+  'V Microsoft Edge otevři nabídku prohlížeče.': 'Open the browser menu in Microsoft Edge.',
+  'Ve Firefoxu klepni na Sdílet.': 'In Firefox, tap Share.',
+  'Ve Firefoxu otevři nabídku prohlížeče.': 'Open the browser menu in Firefox.',
+  'V Samsung Internet klepni na Sdílet.': 'In Samsung Internet, tap Share.',
+  'V Samsung Internet otevři nabídku prohlížeče.':
+    'Open the browser menu in Samsung Internet.',
+  'Klepni na Sdílet v nabídce prohlížeče.': 'Tap Share in the browser menu.',
   'Otevři nabídku prohlížeče.': 'Open the browser menu.',
-  'Vyber Instalovat aplikaci nebo Přidat na plochu.':
-    'Choose Install app or Add to Home Screen.',
+  'Vyber Přidat na domovskou obrazovku.': 'Choose Add to Home Screen.',
+  'Potvrď tlačítkem Přidat.': 'Confirm by tapping Add.',
+  'Vyber Nainstalovat aplikaci nebo přidání na domovskou obrazovku.':
+    'Choose Install app or add it to your Home Screen.',
   'Potvrď instalaci.': 'Confirm the installation.',
   'Otevírám instalaci…': 'Opening installation…',
   'Nainstalovat teď': 'Install now',
@@ -53,8 +68,8 @@ const explicitEnglishPhrases: Record<string, string> = {
   'Data pro rozvoj': 'Data for improvement',
   'Tým vidí, které benefity fungují a kde má smysl shánět partnery.':
     'The team can see which benefits work and where new partners are needed.',
-  'instalace PWA na plochu a bezpečný stav při výpadku připojení':
-    'home-screen PWA installation and a safe state during connectivity loss',
+  'instalace PWA přímo do mobilu a bezpečný stav při výpadku připojení':
+    'PWA installation directly on your phone and a safe state during connectivity loss',
   'správa partnerů, slev, událostí a přístupů přímo v aplikaci':
     'partner, benefit, event, and access management inside the app',
   'zpětná vazba a návrhy partnerů s dohledatelným schválením':
@@ -198,7 +213,7 @@ const explicitEnglishPhrases: Record<string, string> = {
   'Název podniku nebo organizace': 'Business or organisation name',
   'Návrh se nepodařilo odeslat.': 'The suggestion could not be submitted.',
   'Odeslat návrh': 'Submit suggestion',
-  'Přidat Psychočas na plochu': 'Add Psychočas to home screen',
+  'Přidat Psychočas do mobilu': 'Add Psychočas to your phone',
   'Informace o zpracování údajů': 'Data processing information',
   'Odhlásit se': 'Sign out',
   'Hlavní navigace': 'Main navigation',

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { computeStandaloneMode } from '@/lib/pwa/displayMode';
 import {
+  detectInstallBrowser,
   detectInstallPlatform,
   isLikelyMobileInstallDevice,
+  type InstallBrowser,
   type InstallPlatform,
 } from '@/lib/pwa/installOffer';
 
@@ -18,6 +20,7 @@ interface InstallResult {
 export default function usePwaInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [installed, setInstalled] = useState(false);
+  const [browser, setBrowser] = useState<InstallBrowser>('other');
   const [platform, setPlatform] = useState<InstallPlatform>('other');
   const [isMobile, setIsMobile] = useState(false);
   const [ready, setReady] = useState(false);
@@ -37,6 +40,7 @@ export default function usePwaInstallPrompt() {
           navigatorStandalone: navigatorWithStandalone.standalone,
         }),
       );
+      setBrowser(detectInstallBrowser(device));
       setPlatform(detectInstallPlatform(device));
       setIsMobile(isLikelyMobileInstallDevice(device));
       setReady(true);
@@ -90,6 +94,7 @@ export default function usePwaInstallPrompt() {
 
   return {
     canInstall: !!deferredPrompt,
+    browser,
     installed,
     isMobile,
     platform,

@@ -1,4 +1,5 @@
 export type InstallPlatform = 'ios' | 'android' | 'other';
+export type InstallBrowser = 'safari' | 'chrome' | 'edge' | 'firefox' | 'samsung' | 'other';
 
 export const INSTALL_OFFER_COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -14,6 +15,15 @@ export function detectInstallPlatform({
   if (/android/i.test(userAgent)) return 'android';
   if (/iPad|iPhone|iPod/i.test(userAgent)) return 'ios';
   if (/Macintosh/i.test(userAgent) && maxTouchPoints > 1) return 'ios';
+  return 'other';
+}
+
+export function detectInstallBrowser({ userAgent }: DeviceDetectionInput): InstallBrowser {
+  if (/SamsungBrowser/i.test(userAgent)) return 'samsung';
+  if (/EdgiOS|EdgA|Edg\//i.test(userAgent)) return 'edge';
+  if (/FxiOS|Firefox\//i.test(userAgent)) return 'firefox';
+  if (/CriOS|Chrome\//i.test(userAgent)) return 'chrome';
+  if (/Safari\//i.test(userAgent) && /Version\//i.test(userAgent)) return 'safari';
   return 'other';
 }
 

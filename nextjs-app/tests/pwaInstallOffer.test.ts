@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   INSTALL_OFFER_COOLDOWN_MS,
+  detectInstallBrowser,
   detectInstallPlatform,
   isLikelyMobileInstallDevice,
   shouldAutoOfferInstall,
@@ -42,6 +43,39 @@ describe('PWA install offer', () => {
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
       }),
     ).toBe(false);
+  });
+
+  it('detects the mobile browser independently from the operating system', () => {
+    expect(
+      detectInstallBrowser({
+        userAgent:
+          'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1',
+      }),
+    ).toBe('safari');
+    expect(
+      detectInstallBrowser({
+        userAgent:
+          'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 CriOS/126.0.0 Mobile/15E148 Safari/604.1',
+      }),
+    ).toBe('chrome');
+    expect(
+      detectInstallBrowser({
+        userAgent:
+          'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 EdgiOS/126.0 Mobile/15E148 Safari/605.1.15',
+      }),
+    ).toBe('edge');
+    expect(
+      detectInstallBrowser({
+        userAgent:
+          'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 FxiOS/127.0 Mobile/15E148 Safari/605.1.15',
+      }),
+    ).toBe('firefox');
+    expect(
+      detectInstallBrowser({
+        userAgent:
+          'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/126.0 Mobile Safari/537.36 SamsungBrowser/26.0',
+      }),
+    ).toBe('samsung');
   });
 
   it('respects installed mode and the dismissal cooldown', () => {
