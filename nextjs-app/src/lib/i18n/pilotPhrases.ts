@@ -17,6 +17,30 @@ const explicitEnglishPhrases: Record<string, string> = {
     'Psychočas gives members a simple digital card, partners a fast verification flow, and the team data for building benefits people actually use.',
   'Přihlásit se do aplikace': 'Sign in to the app',
   'Ochrana soukromí': 'Privacy',
+  'Nainstalovat aplikaci': 'Install app',
+  'Nainstalovat Psychočas': 'Install Psychočas',
+  'Zavřít nabídku instalace': 'Close installation guide',
+  'Měj členský průkaz, výhody a události dostupné jedním klepnutím z plochy.':
+    'Keep your membership card, benefits, and events one tap away from your home screen.',
+  'Rychlý přístup z plochy': 'Quick access from your home screen',
+  'Zobrazení bez adresního řádku': 'Full-screen app view',
+  'Push oznámení jen po tvém souhlasu': 'Push notifications only with your consent',
+  'Jak nainstalovat na iPhone nebo iPad': 'How to install on iPhone or iPad',
+  'Jak nainstalovat v prohlížeči': 'How to install from your browser',
+  'V Safari klepni na Sdílet.': 'In Safari, tap Share.',
+  'Vyber Přidat na plochu.': 'Choose Add to Home Screen.',
+  'Potvrď tlačítkem Přidat.': 'Confirm by tapping Add.',
+  'Otevři nabídku prohlížeče.': 'Open the browser menu.',
+  'Vyber Instalovat aplikaci nebo Přidat na plochu.':
+    'Choose Install app or Add to Home Screen.',
+  'Potvrď instalaci.': 'Confirm the installation.',
+  'Otevírám instalaci…': 'Opening installation…',
+  'Nainstalovat teď': 'Install now',
+  'Instalace byla zrušena. Můžeš ji spustit znovu.':
+    'Installation was dismissed. You can start it again.',
+  'Instalace je volitelná. Psychočas dál funguje i v prohlížeči.':
+    'Installation is optional. Psychočas continues to work in your browser.',
+  'Teď ne': 'Not now',
   'Digitální členství': 'Digital membership',
   'Jasný stav členství, platnost a lokální pobočka v mobilu.':
     'Clear membership status, validity, and local branch on mobile.',

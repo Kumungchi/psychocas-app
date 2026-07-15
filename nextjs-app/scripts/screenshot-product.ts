@@ -58,12 +58,38 @@ async function takeScreenshots() {
         await context.close();
       }
     }
+
+    const installContext = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      locale: 'cs-CZ',
+      serviceWorkers: 'block',
+      isMobile: true,
+      hasTouch: true,
+      userAgent:
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1',
+    });
+    const installPage = await installContext.newPage();
+    const installResponse = await installPage.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+    if (!installResponse?.ok()) {
+      throw new Error(`/ returned ${installResponse?.status() ?? 'no response'}`);
+    }
+    await installPage
+      .getByRole('dialog', { name: 'Nainstalovat Psychočas' })
+      .waitFor({ state: 'visible' });
+    const installFilename = 'pwa-install-mobile.png';
+    await installPage.screenshot({
+      path: path.join(screenshotsDirectory, installFilename),
+      fullPage: false,
+    });
+    savedCount += 1;
+    process.stdout.write(`Saved ${installFilename}\n`);
+    await installContext.close();
   } finally {
     await browser.close();
   }
 
-  if (savedCount !== 11) {
-    throw new Error(`Expected 11 screenshots, saved ${savedCount}`);
+  if (savedCount !== 12) {
+    throw new Error(`Expected 12 screenshots, saved ${savedCount}`);
   }
 }
 

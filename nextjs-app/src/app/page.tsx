@@ -12,6 +12,7 @@ import {
   Store,
 } from 'lucide-react';
 import PsychocasLogo from '@/components/PsychocasLogo';
+import PwaInstallExperience from '@/components/PwaInstallExperience';
 import useLocale from '@/hooks/useLocale';
 import Button from '@/ui/components/Button';
 import Badge from '@/ui/components/Badge';
@@ -90,26 +91,32 @@ export default function RootPage() {
               </p>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Button
-                type="button"
-                size="lg"
-                className="min-h-12 w-full sm:w-auto"
-                onClick={() => router.push('/login')}
-              >
-                <LogIn className="h-5 w-5" aria-hidden />
-                {tr('Přihlásit se do aplikace')}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="lg"
-                className="min-h-12 w-full sm:w-auto"
-                onClick={() => router.push('/privacy')}
+            <div className="max-w-xl space-y-2">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <PwaInstallExperience
+                  autoOffer
+                  triggerVariant="primary"
+                  triggerSize="lg"
+                  triggerClassName="min-h-12 w-full"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="lg"
+                  className="min-h-12 w-full"
+                  onClick={() => router.push('/login')}
+                >
+                  <LogIn className="h-5 w-5" aria-hidden />
+                  {tr('Přihlásit se do aplikace')}
+                </Button>
+              </div>
+              <a
+                href="/privacy"
+                className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#1d4f7d] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#049edb]"
               >
                 <ShieldCheck className="h-5 w-5" aria-hidden />
                 {tr('Ochrana soukromí')}
-              </Button>
+              </a>
             </div>
           </div>
 

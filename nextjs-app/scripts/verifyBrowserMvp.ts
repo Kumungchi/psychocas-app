@@ -112,6 +112,61 @@ async function run() {
       results.push({ route: path, check: 'removed', status: 404 });
     }
 
+    const installContext = await browser.newContext({
+      serviceWorkers: 'allow',
+      locale: 'cs-CZ',
+      viewport: { width: 320, height: 568 },
+      isMobile: true,
+      hasTouch: true,
+      userAgent:
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1',
+    });
+    try {
+      const installPage = await installContext.newPage();
+      const installErrors: string[] = [];
+      installPage.on('pageerror', (error) => installErrors.push(`pageerror: ${error.message}`));
+      installPage.on('console', (message) => {
+        if (message.type() === 'error') installErrors.push(`console: ${message.text()}`);
+      });
+
+      await installPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+      const installDialog = installPage.getByRole('dialog', { name: 'Nainstalovat Psychočas' });
+      await installDialog.waitFor({ state: 'visible' });
+      const installDialogText = await installDialog.innerText();
+      if (!installDialogText.includes('V Safari klepni na Sdílet.')) {
+        throw new Error(`The iOS installation steps are missing: ${installDialogText}`);
+      }
+      const installLayout = await installPage.evaluate(() => ({
+        clientWidth: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+      }));
+      if (installLayout.scrollWidth > installLayout.clientWidth + 1) {
+        throw new Error('The PWA install walkthrough overflows at 320px');
+      }
+
+      await installPage.getByRole('button', { name: 'Zavřít nabídku instalace' }).click();
+      await installPage.reload({ waitUntil: 'domcontentloaded' });
+      await installPage.waitForTimeout(1900);
+      if ((await installPage.getByRole('dialog', { name: 'Nainstalovat Psychočas' }).count()) > 0) {
+        throw new Error('The dismissed PWA install offer appeared again during its cooldown');
+      }
+
+      await installPage.getByRole('button', { name: 'Nainstalovat aplikaci' }).click();
+      await installPage
+        .getByRole('dialog', { name: 'Nainstalovat Psychočas' })
+        .waitFor({ state: 'visible' });
+      if (installErrors.length > 0) {
+        throw new Error(`PWA install walkthrough errors:\n${installErrors.join('\n')}`);
+      }
+      results.push({
+        check: 'mobile-pwa-install-walkthrough',
+        viewport: '320x568',
+        status: 'auto-offer-dismissal-and-manual-reopen',
+      });
+    } finally {
+      await installContext.close();
+    }
+
     await page.goto(`${baseUrl}/v`, { waitUntil: 'domcontentloaded' });
     const initialRecoveryToast = page.getByText('Připojení obnoveno. Údaje jsou opět aktuální.', {
       exact: true,

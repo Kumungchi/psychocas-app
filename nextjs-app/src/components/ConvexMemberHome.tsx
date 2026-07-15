@@ -11,7 +11,6 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronRight,
-  Download,
   ExternalLink,
   FileJson,
   Globe2,
@@ -34,9 +33,9 @@ import {
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import PsychocasLogo from '@/components/PsychocasLogo';
+import PwaInstallExperience from '@/components/PwaInstallExperience';
 import useLocale from '@/hooks/useLocale';
 import useNetworkStatus from '@/hooks/useNetworkStatus';
-import usePwaInstallPrompt from '@/hooks/usePwaInstallPrompt';
 import { getDateLocale } from '@/lib/i18n/utils';
 import type { Locale } from '@/lib/i18n/config';
 import {
@@ -230,7 +229,6 @@ export default function ConvexMemberHome() {
   const submitPrivacyRequest = useMutation(api.privacy.submitRequest);
   const subscribePush = useMutation(api.notifications.subscribe);
   const unsubscribePush = useMutation(api.notifications.unsubscribe);
-  const { canInstall, installed, promptInstall } = usePwaInstallPrompt();
   const isOnline = useNetworkStatus();
   const [activeTab, setActiveTab] = useState<AppTab>('home');
   const [offerFilter, setOfferFilter] = useState<OfferFilter>('all');
@@ -661,7 +659,11 @@ export default function ConvexMemberHome() {
               <button type="button" disabled={suggestionName.trim().length < 2} onClick={() => void submitSuggestion({ partnerName: suggestionName, branchId: member.branchId ?? undefined }).then(() => { setSuggestionName(''); setMessage(null); }).catch(() => setMessage('Návrh se nepodařilo odeslat.'))} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 border font-semibold" style={{ borderColor: colors.brandPrimary, borderRadius: radii.md, color: colors.brandPrimary }}><Store size={18} /> {tr('Odeslat návrh')}</button>
             </AppSection>
 
-            {canInstall && !installed && <button type="button" onClick={() => void promptInstall()} className="flex min-h-12 w-full items-center justify-center gap-2 border bg-white font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md, color: colors.brandPrimary }}><Download size={19} /> {tr('Přidat Psychočas na plochu')}</button>}
+            <PwaInstallExperience
+              triggerVariant="secondary"
+              triggerSize="lg"
+              triggerClassName="min-h-12 w-full"
+            />
             <a href="/privacy" className="flex min-h-11 items-center justify-center gap-2 text-sm font-semibold" style={{ color: colors.brandPrimary }}><ExternalLink size={16} /> {tr('Informace o zpracování údajů')}</a>
             <button type="button" onClick={() => void handleSignOut()} className="flex min-h-12 w-full items-center justify-center gap-2 border bg-white font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md, color: colors.dangerStrong }}><LogOut size={19} /> {tr('Odhlásit se')}</button>
           </div>
