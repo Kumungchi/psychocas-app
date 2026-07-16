@@ -3,6 +3,7 @@ import { query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { requireCapability } from "./authz";
 import { getDefaultOrganization } from "./organization";
+import { aggregateQrAnalytics } from "./analyticsModel";
 
 export const summary = query({
   args: {
@@ -24,31 +25,43 @@ export const summary = query({
       ? await ctx.db
           .query("analyticsDaily")
           .withIndex("by_branch_date", (q) => q.eq("branchId", args.branchId))
+          .order("desc")
           .take(1500)
-      : await ctx.db.query("analyticsDaily").withIndex("by_date").take(3000);
+      : await ctx.db.query("analyticsDaily").withIndex("by_date").order("desc").take(3000);
     const filtered = rows.filter(
       (row) =>
         (!args.fromDate || row.dateKey >= args.fromDate) &&
         (!args.toDate || row.dateKey <= args.toDate),
     );
-    const totals = filtered.reduce(
-      (result, row) => ({
-        generated: result.generated + row.generatedCount,
-        scanned: result.scanned + row.scannedCount,
-        valid: result.valid + row.validCount,
-        expired: result.expired + row.expiredCount,
-        duplicate: result.duplicate + row.duplicateScanCount,
-      }),
-      { generated: 0, scanned: 0, valid: 0, expired: 0, duplicate: 0 },
-    );
+    const aggregate = aggregateQrAnalytics(filtered);
 
-    const byOffer = new Map<Id<"offers">, { generated: number; valid: number; scanned: number }>();
+    const byOffer = new Map<
+      Id<"offers">,
+      {
+        generated: number;
+        scanned: number;
+        valid: number;
+        expired: number;
+        duplicate: number;
+        rejected: number;
+      }
+    >();
     for (const row of filtered) {
       if (!row.offerId) continue;
-      const current = byOffer.get(row.offerId) ?? { generated: 0, valid: 0, scanned: 0 };
+      const current = byOffer.get(row.offerId) ?? {
+        generated: 0,
+        scanned: 0,
+        valid: 0,
+        expired: 0,
+        duplicate: 0,
+        rejected: 0,
+      };
       current.generated += row.generatedCount;
-      current.valid += row.validCount;
       current.scanned += row.scannedCount;
+      current.valid += row.validCount;
+      current.expired += row.expiredCount;
+      current.duplicate += row.duplicateScanCount;
+      current.rejected += row.rejectedCount ?? 0;
       byOffer.set(row.offerId, current);
     }
     const topEntries = Array.from(byOffer.entries())
@@ -59,26 +72,23 @@ export const summary = query({
         const offer = await ctx.db.get(offerId);
         const partner = offer ? await ctx.db.get(offer.partnerId) : null;
         return offer && partner
-          ? { offerId, title: offer.title, partnerName: partner.name, ...counts }
+          ? {
+              offerId,
+              title: offer.title,
+              partnerName: partner.name,
+              ...counts,
+              validationRate: counts.scanned > 0 ? counts.valid / counts.scanned : 0,
+            }
           : null;
       }),
     );
 
     return {
-      totals,
-      validationRate: totals.generated > 0 ? totals.valid / totals.generated : 0,
+      totals: aggregate.totals,
+      validationRate: aggregate.validationRate,
+      redemptionRate: aggregate.redemptionRate,
       topOffers: topOffers.filter((row): row is NonNullable<typeof row> => Boolean(row)),
-      daily: Array.from(
-        filtered
-          .reduce((map, row) => {
-          const current = map.get(row.dateKey) ?? { dateKey: row.dateKey, generated: 0, valid: 0 };
-          current.generated += row.generatedCount;
-          current.valid += row.validCount;
-          map.set(row.dateKey, current);
-          return map;
-          }, new Map<string, { dateKey: string; generated: number; valid: number }>())
-          .values(),
-      ).sort((a, b) => a.dateKey.localeCompare(b.dateKey)),
+      daily: aggregate.daily,
     };
   },
 });

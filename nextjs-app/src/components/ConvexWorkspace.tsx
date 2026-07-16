@@ -6,24 +6,31 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   BarChart3,
+  CheckCircle2,
   BellRing,
   CalendarDays,
   Check,
   ClipboardCheck,
+  Clock3,
   Globe2,
   Loader2,
   MapPin,
   Megaphone,
   Pause,
+  Percent,
   Plus,
+  QrCode,
   RefreshCcw,
+  Repeat2,
   Save,
+  ScanLine,
   Send,
   Store,
   Tags,
   UserCheck,
   Users,
   X,
+  type LucideIcon,
 } from 'lucide-react';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
@@ -34,6 +41,7 @@ import { colors, radii, shadows } from '@/ui/theme';
 
 type WorkspaceTab = 'support' | 'partners' | 'offers' | 'campaigns' | 'events' | 'approvals' | 'metrics' | 'privacy';
 type Scope = 'national' | 'local';
+type MetricRange = '7d' | '30d' | '90d' | 'all';
 type PartnerCategory = 'cafe' | 'shop' | 'publisher' | 'practice' | 'event' | 'service' | 'other';
 type OfferStatus = 'draft' | 'pending_approval' | 'published' | 'active' | 'paused' | 'archived';
 
@@ -62,6 +70,27 @@ function fieldStyle(): React.CSSProperties {
 
 function Panel({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return <section className={`border bg-white ${className}`} style={{ borderColor: colors.border, borderRadius: radii.md, boxShadow: shadows.sm }}>{children}</section>;
+}
+
+function MetricCard({ label, value, Icon }: { label: string; value: number; Icon: LucideIcon }) {
+  return (
+    <Panel className="flex min-h-28 flex-col justify-between px-4 py-4">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-xs leading-5" style={{ color: colors.textSecondary }}>{label}</p>
+        <Icon className="h-4 w-4 shrink-0" style={{ color: colors.brandPrimary }} aria-hidden />
+      </div>
+      <p className="mt-3 text-2xl font-bold" style={{ color: colors.textPrimary }}>{value}</p>
+    </Panel>
+  );
+}
+
+function analyticsDateRange(range: MetricRange, now: number): { fromDate?: string; toDate?: string } {
+  if (range === 'all') return {};
+  const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
+  return {
+    fromDate: new Date(now - (days - 1) * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    toDate: new Date(now).toISOString().slice(0, 10),
+  };
 }
 
 function statusLabel(status: OfferStatus): string {
@@ -122,6 +151,8 @@ export default function ConvexWorkspace() {
   const [eventForm, setEventForm] = useState({ title: '', description: '', location: '', capacity: '', startsAt: '', endsAt: '' });
   const [selectedEventId, setSelectedEventId] = useState<Id<'events'> | ''>('');
   const [eventCheckInSearch, setEventCheckInSearch] = useState('');
+  const [metricRange, setMetricRange] = useState<MetricRange>('30d');
+  const [metricsNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (viewer?.status !== 'ready' || bootstrappedRef.current) return;
@@ -153,6 +184,10 @@ export default function ConvexWorkspace() {
   const scopeArgs = queryScopeReady
     ? { scope, branchId: scope === 'local' ? (branchId as Id<'branches'>) : undefined }
     : null;
+  const metricDateRange = useMemo(
+    () => analyticsDateRange(metricRange, metricsNow),
+    [metricRange, metricsNow],
+  );
   const canDraftPartner = capabilitySet.has('partner.draft');
   const canApprovePartner = capabilitySet.has('partner.approve');
   const canDraftOffer = capabilitySet.has('offer.draft');
@@ -179,7 +214,7 @@ export default function ConvexWorkspace() {
   );
   const metrics = useQuery(
     api.analytics.summary,
-    canReadMetrics && scopeArgs ? scopeArgs : 'skip',
+    canReadMetrics && scopeArgs ? { ...scopeArgs, ...metricDateRange } : 'skip',
   );
   const directory = useQuery(
     api.support.directory,
@@ -344,6 +379,22 @@ export default function ConvexWorkspace() {
   const effectiveTab = visibleTabs.some((tab) => tab.id === activeTab)
     ? activeTab
     : visibleTabs[0].id;
+  const metricTotals = metrics?.totals ?? {
+    generated: 0,
+    scanned: 0,
+    valid: 0,
+    expired: 0,
+    duplicate: 0,
+    rejected: 0,
+  };
+  const metricTrend = metrics?.daily.slice(-14) ?? [];
+  const metricTrendMaximum = Math.max(1, ...metricTrend.map((day) => day.scanned));
+  const metricFunnelMaximum = Math.max(
+    1,
+    metricTotals.generated,
+    metricTotals.scanned,
+    metricTotals.valid,
+  );
 
   return (
     <main className="min-h-screen pb-10" style={{ background: colors.backgroundMuted, color: colors.textPrimary }}>
@@ -496,10 +547,76 @@ export default function ConvexWorkspace() {
 
         {effectiveTab === 'metrics' && canReadMetrics && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {[{ label: 'Vydané kódy', value: metrics?.totals.generated ?? 0 }, { label: 'Validní použití', value: metrics?.totals.valid ?? 0 }, { label: 'Skeny', value: metrics?.totals.scanned ?? 0 }, { label: 'Úspěšnost', value: `${Math.round((metrics?.validationRate ?? 0) * 100)} %` }].map((metric) => <Panel key={metric.label} className="px-4 py-4"><p className="text-xs" style={{ color: colors.textSecondary }}>{tr(metric.label)}</p><p className="mt-1 text-2xl font-bold" style={{ color: colors.brandPrimary }}>{metric.value}</p></Panel>)}
+            <div>
+              <h2 className="text-xl font-semibold">{tr('QR statistiky')}</h2>
+              <p className="mt-1 text-sm leading-6" style={{ color: colors.textSecondary }}>{tr('Agregované využití členských výhod bez účtů provozovatelů a bez historie jednotlivých členů.')}</p>
             </div>
-            <Panel className="overflow-hidden"><div className="border-b px-4 py-4" style={{ borderColor: colors.border }}><h2 className="font-semibold">{tr('Nejpoužívanější nabídky')}</h2><p className="text-sm" style={{ color: colors.textSecondary }}>{tr('Pouze agregovaná data, bez historie členů.')}</p></div><div className="divide-y" style={{ borderColor: colors.border }}>{metrics?.topOffers.map((offer, index) => <div key={offer.offerId} className="flex items-center gap-3 px-4 py-3"><span className="flex h-8 w-8 items-center justify-center text-sm font-bold" style={{ borderRadius: radii.md, background: colors.brandSurface, color: colors.brandPrimary }}>{index + 1}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{offer.title}</p><p className="truncate text-xs" style={{ color: colors.textSecondary }}>{offer.partnerName}</p></div><p className="text-sm font-bold" style={{ color: colors.success }}>{offer.valid} {tr('použití')}</p></div>)}{metrics?.topOffers.length === 0 && <p className="px-4 py-10 text-center text-sm" style={{ color: colors.textSecondary }}>{tr('Metriky vzniknou po prvních QR ověřeních.')}</p>}</div></Panel>
+
+            <div className="grid grid-cols-4 gap-1 border bg-white p-1" style={{ borderColor: colors.border, borderRadius: radii.md }} aria-label={tr('Období statistik')}>
+              {(['7d', '30d', '90d', 'all'] as MetricRange[]).map((range) => (
+                <button key={range} type="button" onClick={() => setMetricRange(range)} className="min-h-10 px-1 text-xs font-semibold sm:text-sm" aria-pressed={metricRange === range} style={{ borderRadius: radii.sm, background: metricRange === range ? colors.brandPrimary : colors.background, color: metricRange === range ? colors.background : colors.textSecondary }}>
+                  {tr(range === '7d' ? '7 dní' : range === '30d' ? '30 dní' : range === '90d' ? '90 dní' : 'Vše')}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+              <MetricCard label={tr('Vygenerované QR')} value={metricTotals.generated} Icon={QrCode} />
+              <MetricCard label={tr('Rozpoznané skeny')} value={metricTotals.scanned} Icon={ScanLine} />
+              <MetricCard label={tr('Platná použití')} value={metricTotals.valid} Icon={CheckCircle2} />
+              <MetricCard label={tr('Expirované skeny')} value={metricTotals.expired} Icon={Clock3} />
+              <MetricCard label={tr('Opakované skeny')} value={metricTotals.duplicate} Icon={Repeat2} />
+              <MetricCard label={tr('Zamítnuté skeny')} value={metricTotals.rejected} Icon={X} />
+            </div>
+
+            <Panel className="overflow-hidden">
+              <div className="border-b px-4 py-4" style={{ borderColor: colors.border }}>
+                <div className="flex items-center gap-2"><Percent className="h-5 w-5" style={{ color: colors.brandPrimary }} /><h3 className="font-semibold">{tr('QR funnel')}</h3></div>
+                <p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>{tr('Cesta od vytvoření kódu k platnému využití výhody.')}</p>
+              </div>
+              <div className="grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0" style={{ borderColor: colors.border }}>
+                <div className="px-4 py-4"><p className="text-xs" style={{ color: colors.textSecondary }}>{tr('Úspěšnost skenů')}</p><p className="mt-1 text-2xl font-bold" style={{ color: colors.success }}>{Math.round((metrics?.validationRate ?? 0) * 100)} %</p><p className="mt-1 text-xs leading-5" style={{ color: colors.textSecondary }}>{tr('Podíl platných použití ze všech rozpoznaných skenů.')}</p></div>
+                <div className="px-4 py-4"><p className="text-xs" style={{ color: colors.textSecondary }}>{tr('Využití vydaných kódů')}</p><p className="mt-1 text-2xl font-bold" style={{ color: colors.brandPrimary }}>{Math.round((metrics?.redemptionRate ?? 0) * 100)} %</p><p className="mt-1 text-xs leading-5" style={{ color: colors.textSecondary }}>{tr('Podíl platných použití ze všech vygenerovaných kódů.')}</p></div>
+              </div>
+              <div className="space-y-4 border-t px-4 py-4" style={{ borderColor: colors.border }}>
+                {[
+                  { label: 'Vygenerované QR', value: metricTotals.generated, color: colors.brandPrimary },
+                  { label: 'Rozpoznané skeny', value: metricTotals.scanned, color: '#0f766e' },
+                  { label: 'Platná použití', value: metricTotals.valid, color: colors.success },
+                ].map((row) => (
+                  <div key={row.label}>
+                    <div className="mb-1.5 flex items-center justify-between gap-3 text-sm"><span>{tr(row.label)}</span><strong>{row.value}</strong></div>
+                    <div className="h-2 overflow-hidden" style={{ borderRadius: radii.sm, background: colors.backgroundMuted }}><div className="h-full" style={{ width: `${Math.max(0, Math.min(100, row.value / metricFunnelMaximum * 100))}%`, background: row.color }} /></div>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+
+            <Panel className="overflow-hidden">
+              <div className="border-b px-4 py-4" style={{ borderColor: colors.border }}><h3 className="font-semibold">{tr('Denní aktivita QR')}</h3><p className="text-sm" style={{ color: colors.textSecondary }}>{tr('Posledních 14 aktivních dní ve vybraném období.')}</p></div>
+              <div className="divide-y px-4" style={{ borderColor: colors.border }}>
+                {metricTrend.map((day) => (
+                  <div key={day.dateKey} className="grid grid-cols-[3.5rem_1fr_auto] items-center gap-3 py-3">
+                    <time className="text-xs font-semibold" dateTime={day.dateKey} style={{ color: colors.textSecondary }}>{new Date(`${day.dateKey}T12:00:00Z`).toLocaleDateString(getDateLocale(locale), { day: 'numeric', month: 'numeric' })}</time>
+                    <div className="h-2 overflow-hidden" aria-label={tr('{valid} platných z {scanned} skenů').replace('{valid}', String(day.valid)).replace('{scanned}', String(day.scanned))} style={{ borderRadius: radii.sm, background: colors.backgroundMuted }}>
+                      <div className="flex h-full" style={{ width: `${day.scanned / metricTrendMaximum * 100}%` }}><span className="h-full" style={{ width: `${day.scanned > 0 ? day.valid / day.scanned * 100 : 0}%`, background: colors.success }} /><span className="h-full flex-1" style={{ background: colors.accent }} /></div>
+                    </div>
+                    <span className="text-xs font-semibold tabular-nums">{day.valid} / {day.scanned}</span>
+                  </div>
+                ))}
+                {metricTrend.length === 0 && <p className="py-10 text-center text-sm" style={{ color: colors.textSecondary }}>{tr('Metriky vzniknou po prvních QR ověřeních.')}</p>}
+              </div>
+            </Panel>
+
+            <Panel className="overflow-hidden">
+              <div className="border-b px-4 py-4" style={{ borderColor: colors.border }}><h3 className="font-semibold">{tr('Nejpoužívanější nabídky')}</h3><p className="text-sm" style={{ color: colors.textSecondary }}>{tr('Pouze agregovaná data, bez historie členů.')}</p></div>
+              <div className="divide-y" style={{ borderColor: colors.border }}>
+                {metrics?.topOffers.map((offer, index) => <div key={offer.offerId} className="flex items-center gap-3 px-4 py-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center text-sm font-bold" style={{ borderRadius: radii.md, background: colors.brandSurface, color: colors.brandPrimary }}>{index + 1}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{offer.title}</p><p className="truncate text-xs" style={{ color: colors.textSecondary }}>{offer.partnerName} · {tr('{valid} z {scanned} skenů').replace('{valid}', String(offer.valid)).replace('{scanned}', String(offer.scanned))}</p></div><p className="shrink-0 text-sm font-bold" style={{ color: colors.success }}>{Math.round(offer.validationRate * 100)} %</p></div>)}
+                {metrics?.topOffers.length === 0 && <p className="px-4 py-10 text-center text-sm" style={{ color: colors.textSecondary }}>{tr('Metriky vzniknou po prvních QR ověřeních.')}</p>}
+              </div>
+            </Panel>
+
+            <p className="px-1 text-xs leading-5" style={{ color: colors.textSecondary }}>{tr('Skeny zahrnují rozpoznané platné, expirované, opakované a zamítnuté QR. Náhodné neplatné vstupy se do statistik nezapočítávají.')}</p>
           </div>
         )}
 

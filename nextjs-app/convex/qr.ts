@@ -14,6 +14,7 @@ type AnalyticsIncrement = Partial<
     | "validCount"
     | "expiredCount"
     | "duplicateScanCount"
+    | "rejectedCount"
   >
 >;
 
@@ -55,6 +56,7 @@ async function incrementAnalytics(
       validCount: add("validCount", existing.validCount),
       expiredCount: add("expiredCount", existing.expiredCount),
       duplicateScanCount: add("duplicateScanCount", existing.duplicateScanCount),
+      rejectedCount: add("rejectedCount", existing.rejectedCount ?? 0),
       updatedAt: input.timestamp,
     });
     return;
@@ -70,6 +72,7 @@ async function incrementAnalytics(
     validCount: input.increment.validCount ?? 0,
     expiredCount: input.increment.expiredCount ?? 0,
     duplicateScanCount: input.increment.duplicateScanCount ?? 0,
+    rejectedCount: input.increment.rejectedCount ?? 0,
     updatedAt: input.timestamp,
   });
 }
@@ -232,6 +235,13 @@ export const validatePublic = internalMutation({
         eventType: "revoked_result",
         createdAt: now,
       });
+      await incrementAnalytics(ctx, {
+        timestamp: now,
+        branchId,
+        partnerId: partner._id,
+        offerId: offer._id,
+        increment: { scannedCount: 1, rejectedCount: 1 },
+      });
       return { status: "revoked" as const, checkedAt: now, ...publicOffer };
     }
 
@@ -262,6 +272,13 @@ export const validatePublic = internalMutation({
         eventType: "revoked_result",
         result: "membership_or_offer_inactive",
         createdAt: now,
+      });
+      await incrementAnalytics(ctx, {
+        timestamp: now,
+        branchId,
+        partnerId: partner._id,
+        offerId: offer._id,
+        increment: { scannedCount: 1, rejectedCount: 1 },
       });
       return { status: "invalid" as const, checkedAt: now, ...publicOffer };
     }

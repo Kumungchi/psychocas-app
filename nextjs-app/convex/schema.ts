@@ -323,6 +323,7 @@ export default defineSchema({
     validCount: v.number(),
     expiredCount: v.number(),
     duplicateScanCount: v.number(),
+    rejectedCount: v.optional(v.number()),
     updatedAt: v.number(),
   })
     .index("by_date", ["dateKey"])

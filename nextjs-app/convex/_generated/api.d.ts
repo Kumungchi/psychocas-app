@@ -11,6 +11,7 @@
 import type * as ResendOTP from "../ResendOTP.js";
 import type * as access from "../access.js";
 import type * as analytics from "../analytics.js";
+import type * as analyticsModel from "../analyticsModel.js";
 import type * as approvals from "../approvals.js";
 import type * as auth from "../auth.js";
 import type * as authAccess from "../authAccess.js";
@@ -48,6 +49,7 @@ declare const fullApi: ApiFromModules<{
   ResendOTP: typeof ResendOTP;
   access: typeof access;
   analytics: typeof analytics;
+  analyticsModel: typeof analyticsModel;
   approvals: typeof approvals;
   auth: typeof auth;
   authAccess: typeof authAccess;

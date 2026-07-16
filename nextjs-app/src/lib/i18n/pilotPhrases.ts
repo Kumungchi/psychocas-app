@@ -337,6 +337,35 @@ const explicitEnglishPhrases: Record<string, string> = {
   'použití': 'uses',
   'Metriky vzniknou po prvních QR ověřeních.':
     'Metrics will appear after the first QR verifications.',
+  'QR statistiky': 'QR statistics',
+  'Agregované využití členských výhod bez účtů provozovatelů a bez historie jednotlivých členů.':
+    'Aggregated member benefit usage without operator accounts or individual member history.',
+  'Období statistik': 'Statistics period',
+  '7 dní': '7 days',
+  '30 dní': '30 days',
+  '90 dní': '90 days',
+  'Vygenerované QR': 'Generated QR codes',
+  'Rozpoznané skeny': 'Recognised scans',
+  'Platná použití': 'Valid uses',
+  'Expirované skeny': 'Expired scans',
+  'Opakované skeny': 'Repeated scans',
+  'Zamítnuté skeny': 'Rejected scans',
+  'QR funnel': 'QR funnel',
+  'Cesta od vytvoření kódu k platnému využití výhody.':
+    'The journey from code creation to valid benefit redemption.',
+  'Úspěšnost skenů': 'Scan success rate',
+  'Podíl platných použití ze všech rozpoznaných skenů.':
+    'The share of valid redemptions among all recognised scans.',
+  'Využití vydaných kódů': 'Issued code redemption',
+  'Podíl platných použití ze všech vygenerovaných kódů.':
+    'The share of valid redemptions among all generated codes.',
+  'Denní aktivita QR': 'Daily QR activity',
+  'Posledních 14 aktivních dní ve vybraném období.':
+    'The last 14 active days in the selected period.',
+  '{valid} platných z {scanned} skenů': '{valid} valid out of {scanned} scans',
+  '{valid} z {scanned} skenů': '{valid} out of {scanned} scans',
+  'Skeny zahrnují rozpoznané platné, expirované, opakované a zamítnuté QR. Náhodné neplatné vstupy se do statistik nezapočítávají.':
+    'Scans include recognised valid, expired, repeated, and rejected QR codes. Random invalid input is not included in statistics.',
   'Privacy požadavky': 'Privacy requests',
   'Neaktivní účet': 'Inactive account',
   'Řeší se': 'In review',
