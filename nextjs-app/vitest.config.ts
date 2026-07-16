@@ -3,9 +3,26 @@ import path from "path";
 
 export default defineConfig({
   test: {
-    include: ["tests/**/*.test.ts"],
-    environment: "node",
-    globals: true,
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "convex",
+          include: ["convex/**/*.test.ts"],
+          environment: "edge-runtime",
+          globals: true,
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "unit",
+          include: ["tests/**/*.test.ts"],
+          environment: "node",
+          globals: true,
+        },
+      },
+    ],
   },
   resolve: {
     alias: {
