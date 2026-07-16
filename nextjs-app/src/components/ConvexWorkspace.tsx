@@ -17,6 +17,7 @@ import {
   MapPin,
   Megaphone,
   Pause,
+  Pencil,
   Percent,
   Plus,
   QrCode,
@@ -44,6 +45,15 @@ type Scope = 'national' | 'local';
 type MetricRange = '7d' | '30d' | '90d' | 'all';
 type PartnerCategory = 'cafe' | 'shop' | 'publisher' | 'practice' | 'event' | 'service' | 'other';
 type OfferStatus = 'draft' | 'pending_approval' | 'published' | 'active' | 'paused' | 'archived';
+type PartnerFormState = { id: Id<'partners'> | ''; name: string; category: PartnerCategory; website: string; description: string };
+type OfferFormState = { id: Id<'offers'> | ''; partnerId: Id<'partners'> | ''; title: string; value: string; description: string; validFrom: string; validUntil: string };
+type CampaignFormState = { id: Id<'campaigns'> | ''; title: string; description: string; validFrom: string; validUntil: string };
+type EventFormState = { id: Id<'events'> | ''; title: string; description: string; location: string; capacity: string; startsAt: string; endsAt: string };
+
+const emptyPartnerForm = (): PartnerFormState => ({ id: '', name: '', category: 'other', website: '', description: '' });
+const emptyOfferForm = (): OfferFormState => ({ id: '', partnerId: '', title: '', value: '', description: '', validFrom: '', validUntil: '' });
+const emptyCampaignForm = (): CampaignFormState => ({ id: '', title: '', description: '', validFrom: '', validUntil: '' });
+const emptyEventForm = (): EventFormState => ({ id: '', title: '', description: '', location: '', capacity: '', startsAt: '', endsAt: '' });
 
 const categoryLabels: Record<PartnerCategory, string> = {
   cafe: 'Kavárna',
@@ -68,8 +78,22 @@ function fieldStyle(): React.CSSProperties {
   };
 }
 
-function Panel({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <section className={`border bg-white ${className}`} style={{ borderColor: colors.border, borderRadius: radii.md, boxShadow: shadows.sm }}>{children}</section>;
+function dateInputValue(timestamp: number | null | undefined): string {
+  return timestamp ? new Date(timestamp).toISOString().slice(0, 10) : '';
+}
+
+function dateTimeInputValue(timestamp: number | null | undefined): string {
+  if (!timestamp) return '';
+  const date = new Date(timestamp);
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
+
+function scrollToEditor(id: string) {
+  window.requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+}
+
+function Panel({ children, className = '', style, ...props }: React.ComponentPropsWithoutRef<'section'>) {
+  return <section {...props} className={`border bg-white ${className}`} style={{ borderColor: colors.border, borderRadius: radii.md, boxShadow: shadows.sm, ...style }}>{children}</section>;
 }
 
 function MetricCard({ label, value, Icon }: { label: string; value: number; Icon: LucideIcon }) {
@@ -145,10 +169,10 @@ export default function ConvexWorkspace() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [directorySearch, setDirectorySearch] = useState('');
   const [saving, setSaving] = useState(false);
-  const [partnerForm, setPartnerForm] = useState({ name: '', category: 'other' as PartnerCategory, website: '', description: '' });
-  const [offerForm, setOfferForm] = useState({ partnerId: '' as Id<'partners'> | '', title: '', value: '', description: '', validFrom: '', validUntil: '' });
-  const [campaignForm, setCampaignForm] = useState({ title: '', description: '', validFrom: '', validUntil: '' });
-  const [eventForm, setEventForm] = useState({ title: '', description: '', location: '', capacity: '', startsAt: '', endsAt: '' });
+  const [partnerForm, setPartnerForm] = useState<PartnerFormState>(() => emptyPartnerForm());
+  const [offerForm, setOfferForm] = useState<OfferFormState>(() => emptyOfferForm());
+  const [campaignForm, setCampaignForm] = useState<CampaignFormState>(() => emptyCampaignForm());
+  const [eventForm, setEventForm] = useState<EventFormState>(() => emptyEventForm());
   const [selectedEventId, setSelectedEventId] = useState<Id<'events'> | ''>('');
   const [eventCheckInSearch, setEventCheckInSearch] = useState('');
   const [metricRange, setMetricRange] = useState<MetricRange>('30d');
@@ -264,6 +288,65 @@ export default function ConvexWorkspace() {
     if (!selectedEventId && events?.length) setSelectedEventId(events[0]._id);
   }, [events, selectedEventId]);
 
+  useEffect(() => {
+    setPartnerForm(emptyPartnerForm());
+    setOfferForm(emptyOfferForm());
+    setCampaignForm(emptyCampaignForm());
+    setEventForm(emptyEventForm());
+  }, [scope, branchId]);
+
+  const editPartner = (partner: NonNullable<typeof partners>[number]) => {
+    setPartnerForm({
+      id: partner.id,
+      name: partner.name,
+      category: partner.category,
+      website: partner.website ?? '',
+      description: partner.description ?? '',
+    });
+    setMessage(null);
+    scrollToEditor('partner-editor');
+  };
+
+  const editOffer = (offer: NonNullable<typeof offers>[number]) => {
+    setOfferForm({
+      id: offer.id,
+      partnerId: offer.partner.id,
+      title: offer.title,
+      value: offer.value,
+      description: offer.description ?? '',
+      validFrom: dateInputValue(offer.validFrom),
+      validUntil: dateInputValue(offer.validUntil),
+    });
+    setMessage(null);
+    scrollToEditor('offer-editor');
+  };
+
+  const editCampaign = (campaign: NonNullable<typeof campaigns>[number]) => {
+    setCampaignForm({
+      id: campaign._id,
+      title: campaign.title,
+      description: campaign.description ?? '',
+      validFrom: dateTimeInputValue(campaign.validFrom),
+      validUntil: dateTimeInputValue(campaign.validUntil),
+    });
+    setMessage(null);
+    scrollToEditor('campaign-editor');
+  };
+
+  const editEvent = (item: NonNullable<typeof events>[number]) => {
+    setEventForm({
+      id: item._id,
+      title: item.title,
+      description: item.description ?? '',
+      location: item.location ?? '',
+      capacity: item.capacity ? String(item.capacity) : '',
+      startsAt: dateTimeInputValue(item.startsAt),
+      endsAt: dateTimeInputValue(item.endsAt),
+    });
+    setMessage(null);
+    scrollToEditor('event-editor');
+  };
+
   const handlePartnerSave = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!scopeArgs) return;
@@ -271,13 +354,14 @@ export default function ConvexWorkspace() {
     setMessage(null);
     try {
       await upsertPartner({
+        id: partnerForm.id || undefined,
         name: partnerForm.name,
         category: partnerForm.category,
         website: partnerForm.website || undefined,
         description: partnerForm.description || undefined,
         ...scopeArgs,
       });
-      setPartnerForm({ name: '', category: 'other', website: '', description: '' });
+      setPartnerForm(emptyPartnerForm());
       setMessage({ type: 'success', text: 'Partner byl uložen.' });
     } catch {
       setMessage({ type: 'error', text: 'Partnera se nepodařilo uložit. Zkontroluj scope a údaje.' });
@@ -293,6 +377,7 @@ export default function ConvexWorkspace() {
     setMessage(null);
     try {
       await upsertOffer({
+        id: offerForm.id || undefined,
         partnerId: offerForm.partnerId,
         title: offerForm.title,
         value: offerForm.value,
@@ -301,7 +386,7 @@ export default function ConvexWorkspace() {
         validUntil: offerForm.validUntil ? new Date(`${offerForm.validUntil}T23:59:59`).getTime() : undefined,
         ...scopeArgs,
       });
-      setOfferForm((current) => ({ ...current, title: '', value: '', description: '', validFrom: '', validUntil: '' }));
+      setOfferForm((current) => ({ ...emptyOfferForm(), partnerId: current.partnerId }));
       setMessage({ type: 'success', text: 'Draft nabídky byl uložen.' });
     } catch {
       setMessage({ type: 'error', text: 'Nabídku se nepodařilo uložit. Zkontroluj partnera, termín a scope.' });
@@ -317,13 +402,14 @@ export default function ConvexWorkspace() {
     setMessage(null);
     try {
       await upsertCampaign({
+        id: campaignForm.id || undefined,
         ...scopeArgs,
         title: campaignForm.title,
         description: campaignForm.description || undefined,
         validFrom: campaignForm.validFrom ? new Date(campaignForm.validFrom).getTime() : undefined,
         validUntil: campaignForm.validUntil ? new Date(campaignForm.validUntil).getTime() : undefined,
       });
-      setCampaignForm({ title: '', description: '', validFrom: '', validUntil: '' });
+      setCampaignForm(emptyCampaignForm());
       setMessage({ type: 'success', text: 'Draft kampaně byl uložen.' });
     } catch {
       setMessage({ type: 'error', text: 'Kampaň se nepodařilo uložit. Zkontroluj termíny a scope.' });
@@ -339,6 +425,7 @@ export default function ConvexWorkspace() {
     setMessage(null);
     try {
       await upsertEvent({
+        id: eventForm.id || undefined,
         ...scopeArgs,
         title: eventForm.title,
         description: eventForm.description || undefined,
@@ -347,7 +434,7 @@ export default function ConvexWorkspace() {
         startsAt: new Date(eventForm.startsAt).getTime(),
         endsAt: eventForm.endsAt ? new Date(eventForm.endsAt).getTime() : undefined,
       });
-      setEventForm({ title: '', description: '', location: '', capacity: '', startsAt: '', endsAt: '' });
+      setEventForm(emptyEventForm());
       setMessage({ type: 'success', text: 'Draft události byl uložen.' });
     } catch {
       setMessage({ type: 'error', text: 'Událost se nepodařilo uložit. Zkontroluj termín, kapacitu a scope.' });
@@ -446,18 +533,27 @@ export default function ConvexWorkspace() {
             <Panel className="overflow-hidden">
               <div className="border-b px-4 py-4" style={{ borderColor: colors.border }}><h2 className="font-semibold">{tr('Partneři')}</h2><p className="text-sm" style={{ color: colors.textSecondary }}>{partners ? tr('{count} záznamů').replace('{count}', String(partners.length)) : tr('Načítám…')}</p></div>
               <div className="divide-y" style={{ borderColor: colors.border }}>
-                {partners?.map((partner) => <article key={partner.id} className="flex items-center gap-3 px-4 py-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center" style={{ borderRadius: radii.md, background: colors.brandSurface, color: colors.brandPrimary }}><Store size={18} /></span><div className="min-w-0 flex-1"><h3 className="truncate text-sm font-semibold">{partner.name}</h3><p className="text-xs" style={{ color: colors.textSecondary }}>{tr(categoryLabels[partner.category])} · {tr(partner.scope === 'national' ? 'národní' : 'lokální')}</p></div><span className="text-xs font-semibold" style={{ color: partner.active ? colors.success : colors.textSecondary }}>{tr(partner.active ? 'Aktivní' : 'Archiv')}</span>{canApprovePartner && <button type="button" onClick={() => void setPartnerActive({ id: partner.id, active: !partner.active }).catch(() => setMessage({ type: 'error', text: 'Stav partnera se nepodařilo změnit.' }))} className="flex h-10 w-10 items-center justify-center border" aria-label={tr(partner.active ? 'Archivovat partnera' : 'Obnovit partnera')} title={tr(partner.active ? 'Archivovat' : 'Obnovit')} style={{ borderColor: colors.border, borderRadius: radii.md }}>{partner.active ? <Pause size={17} /> : <Check size={17} />}</button>}</article>)}
+                {partners?.map((partner) => (
+                  <article key={partner.id} className="flex items-center gap-3 px-4 py-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center" style={{ borderRadius: radii.md, background: colors.brandSurface, color: colors.brandPrimary }}><Store size={18} /></span>
+                    <div className="min-w-0 flex-1"><h3 className="truncate text-sm font-semibold">{partner.name}</h3><p className="text-xs" style={{ color: colors.textSecondary }}>{tr(categoryLabels[partner.category])} · {tr(partner.scope === 'national' ? 'národní' : 'lokální')}</p></div>
+                    <span className="text-xs font-semibold" style={{ color: partner.active ? colors.success : colors.textSecondary }}>{tr(partner.active ? 'Aktivní' : 'Archiv')}</span>
+                    <button type="button" onClick={() => editPartner(partner)} className="flex h-10 w-10 shrink-0 items-center justify-center border" aria-label={tr('Upravit partnera')} title={tr('Upravit')} style={{ borderColor: colors.border, borderRadius: radii.md }}><Pencil size={17} /></button>
+                    {canApprovePartner && <button type="button" onClick={() => void setPartnerActive({ id: partner.id, active: !partner.active }).then(() => setMessage({ type: 'success', text: partner.active ? 'Partner byl archivován.' : 'Partner byl obnoven.' })).catch(() => setMessage({ type: 'error', text: 'Stav partnera se nepodařilo změnit.' }))} className="flex h-10 w-10 shrink-0 items-center justify-center border" aria-label={tr(partner.active ? 'Archivovat partnera' : 'Obnovit partnera')} title={tr(partner.active ? 'Archivovat' : 'Obnovit')} style={{ borderColor: colors.border, borderRadius: radii.md }}>{partner.active ? <Pause size={17} /> : <Check size={17} />}</button>}
+                  </article>
+                ))}
                 {partners?.length === 0 && <p className="px-4 py-10 text-center text-sm" style={{ color: colors.textSecondary }}>{tr('V tomto scope zatím není partner.')}</p>}
               </div>
             </Panel>
-            <Panel className="h-max p-4 lg:sticky lg:top-20">
-              <div className="mb-4 flex items-center gap-2"><Plus size={18} style={{ color: colors.brandPrimary }} /><h2 className="font-semibold">{tr('Nový partner')}</h2></div>
+            <Panel id="partner-editor" className="h-max scroll-mt-24 p-4 lg:sticky lg:top-20">
+              <div className="mb-4 flex items-center gap-2">{partnerForm.id ? <Pencil size={18} style={{ color: colors.brandPrimary }} /> : <Plus size={18} style={{ color: colors.brandPrimary }} />}<h2 className="font-semibold">{tr(partnerForm.id ? 'Upravit partnera' : 'Nový partner')}</h2></div>
               <form onSubmit={handlePartnerSave} className="space-y-3">
                 <input value={partnerForm.name} onChange={(event) => setPartnerForm((current) => ({ ...current, name: event.target.value }))} placeholder={tr('Název partnera')} required style={fieldStyle()} />
                 <select value={partnerForm.category} onChange={(event) => setPartnerForm((current) => ({ ...current, category: event.target.value as PartnerCategory }))} style={fieldStyle()}>{Object.entries(categoryLabels).map(([value, label]) => <option key={value} value={value}>{tr(label)}</option>)}</select>
                 <input value={partnerForm.website} onChange={(event) => setPartnerForm((current) => ({ ...current, website: event.target.value }))} placeholder="https://partner.cz" inputMode="url" style={fieldStyle()} />
                 <textarea value={partnerForm.description} onChange={(event) => setPartnerForm((current) => ({ ...current, description: event.target.value }))} placeholder={tr('Krátký popis')} rows={3} style={{ ...fieldStyle(), resize: 'vertical' }} />
                 <button type="submit" disabled={saving || !partnerForm.name.trim()} className="flex min-h-11 w-full items-center justify-center gap-2 font-semibold text-white" style={{ borderRadius: radii.md, background: saving ? colors.textSecondary : colors.brandPrimary }}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save size={17} />} {tr('Uložit partnera')}</button>
+                {partnerForm.id && <button type="button" onClick={() => setPartnerForm(emptyPartnerForm())} className="flex min-h-11 w-full items-center justify-center gap-2 font-semibold" style={{ color: colors.textSecondary }}><X size={17} /> {tr('Zrušit úpravu')}</button>}
               </form>
             </Panel>
           </div>
@@ -468,19 +564,31 @@ export default function ConvexWorkspace() {
             <Panel className="overflow-hidden">
               <div className="border-b px-4 py-4" style={{ borderColor: colors.border }}><h2 className="font-semibold">{tr('Nabídky')}</h2><p className="text-sm" style={{ color: colors.textSecondary }}>{offers ? tr('{count} záznamů').replace('{count}', String(offers.length)) : tr('Načítám…')}</p></div>
               <div className="divide-y" style={{ borderColor: colors.border }}>
-                {offers?.map((offer) => <article key={offer.id} className="px-4 py-4"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center" style={{ borderRadius: radii.md, background: colors.accentMuted, color: colors.brandPrimary }}><Tags size={18} /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{offer.title}</h3><span className="px-2 py-1 text-xs font-semibold" style={{ borderRadius: radii.sm, background: colors.neutralSurface, color: colors.textSecondary }}>{tr(statusLabel(offer.status))}</span></div><p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>{offer.partner.name} · <strong style={{ color: colors.brandPrimary }}>{offer.value}</strong></p></div></div><div className="mt-3 flex flex-wrap gap-2">{offer.status === 'draft' && <button type="button" onClick={() => void submitOffer({ id: offer.id }).then(() => setMessage({ type: 'success', text: 'Nabídka čeká na schválení.' })).catch(() => setMessage({ type: 'error', text: 'Nabídku nelze odeslat ke schválení.' }))} className="flex min-h-10 items-center gap-2 border px-3 text-sm font-semibold" style={{ borderColor: colors.brandPrimary, borderRadius: radii.md, color: colors.brandPrimary }}><Send size={16} /> {tr('Ke schválení')}</button>}{(offer.status === 'published' || offer.status === 'active') && canPublishOffer && <button type="button" onClick={() => void setOfferPaused({ id: offer.id, paused: true })} className="flex min-h-10 items-center gap-2 border px-3 text-sm font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md }}><Pause size={16} /> {tr('Pozastavit')}</button>}{offer.status === 'paused' && canPublishOffer && <button type="button" onClick={() => void setOfferPaused({ id: offer.id, paused: false })} className="flex min-h-10 items-center gap-2 border px-3 text-sm font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md }}><Check size={16} /> {tr('Obnovit')}</button>}</div></article>)}
+                {offers?.map((offer) => (
+                  <article key={offer.id} className="px-4 py-4">
+                    <div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center" style={{ borderRadius: radii.md, background: colors.accentMuted, color: colors.brandPrimary }}><Tags size={18} /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{offer.title}</h3><span className="px-2 py-1 text-xs font-semibold" style={{ borderRadius: radii.sm, background: colors.neutralSurface, color: colors.textSecondary }}>{tr(statusLabel(offer.status))}</span></div><p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>{offer.partner.name} · <strong style={{ color: colors.brandPrimary }}>{offer.value}</strong></p></div></div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button type="button" onClick={() => editOffer(offer)} className="flex min-h-10 items-center gap-2 border px-3 text-sm font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md }}><Pencil size={16} /> {tr('Upravit')}</button>
+                      {offer.status === 'draft' && <button type="button" onClick={() => void submitOffer({ id: offer.id }).then(() => setMessage({ type: 'success', text: 'Nabídka čeká na schválení.' })).catch(() => setMessage({ type: 'error', text: 'Nabídku nelze odeslat ke schválení.' }))} className="flex min-h-10 items-center gap-2 border px-3 text-sm font-semibold" style={{ borderColor: colors.brandPrimary, borderRadius: radii.md, color: colors.brandPrimary }}><Send size={16} /> {tr('Ke schválení')}</button>}
+                      {(offer.status === 'published' || offer.status === 'active') && canPublishOffer && <button type="button" onClick={() => void setOfferPaused({ id: offer.id, paused: true }).then(() => setMessage({ type: 'success', text: 'Nabídka byla pozastavena.' })).catch(() => setMessage({ type: 'error', text: 'Stav nabídky se nepodařilo změnit.' }))} className="flex min-h-10 items-center gap-2 border px-3 text-sm font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md }}><Pause size={16} /> {tr('Pozastavit')}</button>}
+                      {offer.status === 'paused' && canPublishOffer && <button type="button" onClick={() => void setOfferPaused({ id: offer.id, paused: false }).then(() => setMessage({ type: 'success', text: 'Nabídka byla obnovena.' })).catch(() => setMessage({ type: 'error', text: 'Stav nabídky se nepodařilo změnit.' }))} className="flex min-h-10 items-center gap-2 border px-3 text-sm font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md }}><Check size={16} /> {tr('Obnovit')}</button>}
+                    </div>
+                  </article>
+                ))}
                 {offers?.length === 0 && <p className="px-4 py-10 text-center text-sm" style={{ color: colors.textSecondary }}>{tr('V tomto scope zatím není nabídka.')}</p>}
               </div>
             </Panel>
-            <Panel className="h-max p-4 lg:sticky lg:top-20">
-              <div className="mb-4 flex items-center gap-2"><Plus size={18} style={{ color: colors.brandPrimary }} /><h2 className="font-semibold">{tr('Nový draft')}</h2></div>
+            <Panel id="offer-editor" className="h-max scroll-mt-24 p-4 lg:sticky lg:top-20">
+              <div className="mb-4 flex items-center gap-2">{offerForm.id ? <Pencil size={18} style={{ color: colors.brandPrimary }} /> : <Plus size={18} style={{ color: colors.brandPrimary }} />}<h2 className="font-semibold">{tr(offerForm.id ? 'Upravit nabídku' : 'Nový draft')}</h2></div>
               <form onSubmit={handleOfferSave} className="space-y-3">
                 <select value={offerForm.partnerId} onChange={(event) => setOfferForm((current) => ({ ...current, partnerId: event.target.value as Id<'partners'> }))} required style={fieldStyle()}><option value="" disabled>{tr('Vyber partnera')}</option>{partners?.filter((partner) => partner.active).map((partner) => <option key={partner.id} value={partner.id}>{partner.name}</option>)}</select>
                 <input value={offerForm.title} onChange={(event) => setOfferForm((current) => ({ ...current, title: event.target.value }))} placeholder={tr('Název nabídky')} required style={fieldStyle()} />
                 <input value={offerForm.value} onChange={(event) => setOfferForm((current) => ({ ...current, value: event.target.value }))} placeholder={tr('15 %, 2+1, zdarma…')} required style={fieldStyle()} />
                 <textarea value={offerForm.description} onChange={(event) => setOfferForm((current) => ({ ...current, description: event.target.value }))} placeholder={tr('Podmínky nabídky')} rows={3} style={{ ...fieldStyle(), resize: 'vertical' }} />
                 <div className="grid grid-cols-2 gap-2"><label className="text-xs" style={{ color: colors.textSecondary }}>{tr('Platí od')}<input type="date" value={offerForm.validFrom} onChange={(event) => setOfferForm((current) => ({ ...current, validFrom: event.target.value }))} className="mt-1" style={fieldStyle()} /></label><label className="text-xs" style={{ color: colors.textSecondary }}>{tr('Platí do')}<input type="date" value={offerForm.validUntil} onChange={(event) => setOfferForm((current) => ({ ...current, validUntil: event.target.value }))} className="mt-1" style={fieldStyle()} /></label></div>
+                {offerForm.id && offers?.find((offer) => offer.id === offerForm.id)?.status !== 'draft' && <p className="text-xs leading-5" style={{ color: '#92400e' }}>{tr('Po uložení se záznam vrátí do draftu a bude potřeba ho znovu publikovat.')}</p>}
                 <button type="submit" disabled={saving || !offerForm.partnerId || !offerForm.title.trim() || !offerForm.value.trim()} className="flex min-h-11 w-full items-center justify-center gap-2 font-semibold text-white" style={{ borderRadius: radii.md, background: saving ? colors.textSecondary : colors.brandPrimary }}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save size={17} />} {tr('Uložit draft')}</button>
+                {offerForm.id && <button type="button" onClick={() => setOfferForm(emptyOfferForm())} className="flex min-h-11 w-full items-center justify-center gap-2 font-semibold" style={{ color: colors.textSecondary }}><X size={17} /> {tr('Zrušit úpravu')}</button>}
               </form>
             </Panel>
           </div>
@@ -491,18 +599,29 @@ export default function ConvexWorkspace() {
             <Panel className="overflow-hidden">
               <div className="border-b px-4 py-4" style={{ borderColor: colors.border }}><h2 className="font-semibold">{tr('Kampaně a oznámení')}</h2><p className="text-sm" style={{ color: colors.textSecondary }}>{campaigns ? tr('{count} záznamů').replace('{count}', String(campaigns.length)) : tr('Načítám…')}</p></div>
               <div className="divide-y" style={{ borderColor: colors.border }}>
-                {campaigns?.map((campaign) => <article key={campaign._id} className="px-4 py-4"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center" style={{ borderRadius: radii.md, background: colors.brandSurface, color: colors.brandPrimary }}><Megaphone size={18} /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{campaign.title}</h3><span className="px-2 py-1 text-xs font-semibold" style={{ borderRadius: radii.sm, background: colors.neutralSurface, color: colors.textSecondary }}>{tr(workflowStatusLabel(campaign.status))}</span></div>{campaign.description && <p className="mt-1 text-sm leading-6" style={{ color: colors.textSecondary }}>{campaign.description}</p>}</div></div>{canSendCampaign && <div className="mt-3 flex flex-wrap gap-2">{campaign.status === 'draft' && <button type="button" onClick={() => void publishCampaign({ id: campaign._id }).then(() => setMessage({ type: 'success', text: 'Kampaň byla publikována.' })).catch(() => setMessage({ type: 'error', text: 'Kampaň se nepodařilo publikovat.' }))} className="flex min-h-10 items-center gap-2 border px-3 text-sm font-semibold" style={{ borderColor: colors.brandPrimary, borderRadius: radii.md, color: colors.brandPrimary }}><Check size={16} /> {tr('Publikovat')}</button>}{(campaign.status === 'active' || campaign.status === 'scheduled') && <button type="button" onClick={() => void queueCampaign({ campaignId: campaign._id }).then((result) => setMessage({ type: 'success', text: tr('Do fronty bylo zařazeno {count} oznámení.').replace('{count}', String(result.queuedCount)) })).catch(() => setMessage({ type: 'error', text: 'Push není nakonfigurovaný nebo už byla kampaň zařazena.' }))} className="flex min-h-10 items-center gap-2 px-3 text-sm font-semibold text-white" style={{ borderRadius: radii.md, background: colors.brandPrimary }}><BellRing size={16} /> {tr('Zařadit push')}</button>}</div>}</article>)}
+                {campaigns?.map((campaign) => (
+                  <article key={campaign._id} className="px-4 py-4">
+                    <div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center" style={{ borderRadius: radii.md, background: colors.brandSurface, color: colors.brandPrimary }}><Megaphone size={18} /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{campaign.title}</h3><span className="px-2 py-1 text-xs font-semibold" style={{ borderRadius: radii.sm, background: colors.neutralSurface, color: colors.textSecondary }}>{tr(workflowStatusLabel(campaign.status))}</span></div>{campaign.description && <p className="mt-1 text-sm leading-6" style={{ color: colors.textSecondary }}>{campaign.description}</p>}</div></div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button type="button" onClick={() => editCampaign(campaign)} className="flex min-h-10 items-center gap-2 border px-3 text-sm font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md }}><Pencil size={16} /> {tr('Upravit')}</button>
+                      {canSendCampaign && campaign.status === 'draft' && <button type="button" onClick={() => void publishCampaign({ id: campaign._id }).then(() => setMessage({ type: 'success', text: 'Kampaň byla publikována.' })).catch(() => setMessage({ type: 'error', text: 'Kampaň se nepodařilo publikovat.' }))} className="flex min-h-10 items-center gap-2 border px-3 text-sm font-semibold" style={{ borderColor: colors.brandPrimary, borderRadius: radii.md, color: colors.brandPrimary }}><Check size={16} /> {tr('Publikovat')}</button>}
+                      {canSendCampaign && (campaign.status === 'active' || campaign.status === 'scheduled') && <button type="button" onClick={() => void queueCampaign({ campaignId: campaign._id }).then((result) => setMessage({ type: 'success', text: tr('Do fronty bylo zařazeno {count} oznámení.').replace('{count}', String(result.queuedCount)) })).catch(() => setMessage({ type: 'error', text: 'Push není nakonfigurovaný nebo už byla kampaň zařazena.' }))} className="flex min-h-10 items-center gap-2 px-3 text-sm font-semibold text-white" style={{ borderRadius: radii.md, background: colors.brandPrimary }}><BellRing size={16} /> {tr('Zařadit push')}</button>}
+                    </div>
+                  </article>
+                ))}
                 {campaigns?.length === 0 && <p className="px-4 py-10 text-center text-sm" style={{ color: colors.textSecondary }}>{tr('V tomto scope zatím není kampaň.')}</p>}
               </div>
             </Panel>
-            <Panel className="h-max p-4 lg:sticky lg:top-20">
-              <div className="mb-4 flex items-center gap-2"><Plus size={18} style={{ color: colors.brandPrimary }} /><h2 className="font-semibold">{tr('Nová kampaň')}</h2></div>
+            <Panel id="campaign-editor" className="h-max scroll-mt-24 p-4 lg:sticky lg:top-20">
+              <div className="mb-4 flex items-center gap-2">{campaignForm.id ? <Pencil size={18} style={{ color: colors.brandPrimary }} /> : <Plus size={18} style={{ color: colors.brandPrimary }} />}<h2 className="font-semibold">{tr(campaignForm.id ? 'Upravit kampaň' : 'Nová kampaň')}</h2></div>
               <form onSubmit={handleCampaignSave} className="space-y-3">
                 <input value={campaignForm.title} onChange={(event) => setCampaignForm((current) => ({ ...current, title: event.target.value }))} placeholder={tr('Název kampaně')} required style={fieldStyle()} />
                 <textarea value={campaignForm.description} onChange={(event) => setCampaignForm((current) => ({ ...current, description: event.target.value }))} placeholder={tr('Text oznámení')} rows={4} style={{ ...fieldStyle(), resize: 'vertical' }} />
                 <label className="block text-xs" style={{ color: colors.textSecondary }}>{tr('Začátek')}<input type="datetime-local" value={campaignForm.validFrom} onChange={(event) => setCampaignForm((current) => ({ ...current, validFrom: event.target.value }))} className="mt-1" style={fieldStyle()} /></label>
                 <label className="block text-xs" style={{ color: colors.textSecondary }}>{tr('Konec')}<input type="datetime-local" value={campaignForm.validUntil} onChange={(event) => setCampaignForm((current) => ({ ...current, validUntil: event.target.value }))} className="mt-1" style={fieldStyle()} /></label>
+                {campaignForm.id && campaigns?.find((campaign) => campaign._id === campaignForm.id)?.status !== 'draft' && <p className="text-xs leading-5" style={{ color: '#92400e' }}>{tr('Po uložení se záznam vrátí do draftu a bude potřeba ho znovu publikovat.')}</p>}
                 <button type="submit" disabled={saving || campaignForm.title.trim().length < 2} className="flex min-h-11 w-full items-center justify-center gap-2 font-semibold text-white" style={{ borderRadius: radii.md, background: saving ? colors.textSecondary : colors.brandPrimary }}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save size={17} />} {tr('Uložit draft')}</button>
+                {campaignForm.id && <button type="button" onClick={() => setCampaignForm(emptyCampaignForm())} className="flex min-h-11 w-full items-center justify-center gap-2 font-semibold" style={{ color: colors.textSecondary }}><X size={17} /> {tr('Zrušit úpravu')}</button>}
               </form>
             </Panel>
           </div>
@@ -514,12 +633,21 @@ export default function ConvexWorkspace() {
               <Panel className="overflow-hidden">
                 <div className="border-b px-4 py-4" style={{ borderColor: colors.border }}><h2 className="font-semibold">{tr('Události')}</h2><p className="text-sm" style={{ color: colors.textSecondary }}>{events ? tr('{count} záznamů').replace('{count}', String(events.length)) : tr('Načítám…')}</p></div>
                 <div className="divide-y" style={{ borderColor: colors.border }}>
-                  {events?.map((event) => <article key={event._id} className="px-4 py-4"><div className="flex items-start gap-3"><CalendarDays className="mt-0.5 h-5 w-5 shrink-0" style={{ color: colors.brandPrimary }} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{event.title}</h3><span className="px-2 py-1 text-xs font-semibold" style={{ borderRadius: radii.sm, background: colors.neutralSurface, color: colors.textSecondary }}>{tr(workflowStatusLabel(event.status))}</span></div><p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>{new Date(event.startsAt).toLocaleString(getDateLocale(locale))}{event.location ? ` · ${event.location}` : ''}</p><p className="mt-1 text-xs" style={{ color: colors.textSecondary }}>{event.checkInCount}{event.capacity ? ` / ${event.capacity}` : ''} check-in</p></div></div><div className="mt-3 flex flex-wrap gap-2">{event.status === 'draft' && <button type="button" onClick={() => void publishEvent({ id: event._id }).then(() => setMessage({ type: 'success', text: 'Událost byla publikována.' })).catch(() => setMessage({ type: 'error', text: 'Událost se nepodařilo publikovat.' }))} className="flex min-h-10 items-center gap-2 border px-3 text-sm font-semibold" style={{ borderColor: colors.brandPrimary, borderRadius: radii.md, color: colors.brandPrimary }}><Check size={16} /> {tr('Publikovat')}</button>}{canCheckIn && (event.status === 'active' || event.status === 'scheduled') && <button type="button" onClick={() => { setSelectedEventId(event._id); setEventCheckInSearch(''); }} className="flex min-h-10 items-center gap-2 border px-3 text-sm font-semibold" style={{ borderColor: selectedEventId === event._id ? colors.brandPrimary : colors.border, borderRadius: radii.md, color: colors.brandPrimary }}><UserCheck size={16} /> Check-in</button>}</div></article>)}
+                  {events?.map((event) => (
+                    <article key={event._id} className="px-4 py-4">
+                      <div className="flex items-start gap-3"><CalendarDays className="mt-0.5 h-5 w-5 shrink-0" style={{ color: colors.brandPrimary }} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{event.title}</h3><span className="px-2 py-1 text-xs font-semibold" style={{ borderRadius: radii.sm, background: colors.neutralSurface, color: colors.textSecondary }}>{tr(workflowStatusLabel(event.status))}</span></div><p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>{new Date(event.startsAt).toLocaleString(getDateLocale(locale))}{event.location ? ` · ${event.location}` : ''}</p><p className="mt-1 text-xs" style={{ color: colors.textSecondary }}>{event.checkInCount}{event.capacity ? ` / ${event.capacity}` : ''} check-in</p></div></div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button type="button" onClick={() => editEvent(event)} className="flex min-h-10 items-center gap-2 border px-3 text-sm font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md }}><Pencil size={16} /> {tr('Upravit')}</button>
+                        {event.status === 'draft' && <button type="button" onClick={() => void publishEvent({ id: event._id }).then(() => setMessage({ type: 'success', text: 'Událost byla publikována.' })).catch(() => setMessage({ type: 'error', text: 'Událost se nepodařilo publikovat.' }))} className="flex min-h-10 items-center gap-2 border px-3 text-sm font-semibold" style={{ borderColor: colors.brandPrimary, borderRadius: radii.md, color: colors.brandPrimary }}><Check size={16} /> {tr('Publikovat')}</button>}
+                        {canCheckIn && (event.status === 'active' || event.status === 'scheduled') && <button type="button" onClick={() => { setSelectedEventId(event._id); setEventCheckInSearch(''); }} className="flex min-h-10 items-center gap-2 border px-3 text-sm font-semibold" style={{ borderColor: selectedEventId === event._id ? colors.brandPrimary : colors.border, borderRadius: radii.md, color: colors.brandPrimary }}><UserCheck size={16} /> Check-in</button>}
+                      </div>
+                    </article>
+                  ))}
                   {events?.length === 0 && <p className="px-4 py-10 text-center text-sm" style={{ color: colors.textSecondary }}>{tr('V tomto scope zatím není událost.')}</p>}
                 </div>
               </Panel>
-              <Panel className="h-max p-4 lg:sticky lg:top-20">
-                <div className="mb-4 flex items-center gap-2"><Plus size={18} style={{ color: colors.brandPrimary }} /><h2 className="font-semibold">{tr('Nová událost')}</h2></div>
+              <Panel id="event-editor" className="h-max scroll-mt-24 p-4 lg:sticky lg:top-20">
+                <div className="mb-4 flex items-center gap-2">{eventForm.id ? <Pencil size={18} style={{ color: colors.brandPrimary }} /> : <Plus size={18} style={{ color: colors.brandPrimary }} />}<h2 className="font-semibold">{tr(eventForm.id ? 'Upravit událost' : 'Nová událost')}</h2></div>
                 <form onSubmit={handleEventSave} className="space-y-3">
                   <input value={eventForm.title} onChange={(event) => setEventForm((current) => ({ ...current, title: event.target.value }))} placeholder={tr('Název události')} required style={fieldStyle()} />
                   <textarea value={eventForm.description} onChange={(event) => setEventForm((current) => ({ ...current, description: event.target.value }))} placeholder={tr('Popis')} rows={3} style={{ ...fieldStyle(), resize: 'vertical' }} />
@@ -527,7 +655,9 @@ export default function ConvexWorkspace() {
                   <input type="number" min="1" max="10000" value={eventForm.capacity} onChange={(event) => setEventForm((current) => ({ ...current, capacity: event.target.value }))} placeholder={tr('Kapacita (volitelné)')} style={fieldStyle()} />
                   <label className="block text-xs" style={{ color: colors.textSecondary }}>{tr('Začátek')}<input type="datetime-local" value={eventForm.startsAt} onChange={(event) => setEventForm((current) => ({ ...current, startsAt: event.target.value }))} required className="mt-1" style={fieldStyle()} /></label>
                   <label className="block text-xs" style={{ color: colors.textSecondary }}>{tr('Konec')}<input type="datetime-local" value={eventForm.endsAt} onChange={(event) => setEventForm((current) => ({ ...current, endsAt: event.target.value }))} className="mt-1" style={fieldStyle()} /></label>
+                  {eventForm.id && events?.find((event) => event._id === eventForm.id)?.status !== 'draft' && <p className="text-xs leading-5" style={{ color: '#92400e' }}>{tr('Po uložení se záznam vrátí do draftu a bude potřeba ho znovu publikovat.')}</p>}
                   <button type="submit" disabled={saving || eventForm.title.trim().length < 2 || !eventForm.startsAt} className="flex min-h-11 w-full items-center justify-center gap-2 font-semibold text-white" style={{ borderRadius: radii.md, background: saving ? colors.textSecondary : colors.brandPrimary }}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save size={17} />} {tr('Uložit draft')}</button>
+                  {eventForm.id && <button type="button" onClick={() => setEventForm(emptyEventForm())} className="flex min-h-11 w-full items-center justify-center gap-2 font-semibold" style={{ color: colors.textSecondary }}><X size={17} /> {tr('Zrušit úpravu')}</button>}
                 </form>
               </Panel>
             </div>
@@ -539,7 +669,7 @@ export default function ConvexWorkspace() {
           <Panel className="overflow-hidden">
             <div className="border-b px-4 py-4" style={{ borderColor: colors.border }}><h2 className="font-semibold">{tr('Čeká na schválení')}</h2><p className="text-sm" style={{ color: colors.textSecondary }}>{approvals ? tr('{count} požadavků').replace('{count}', String(approvals.length)) : tr('Načítám…')}</p></div>
             <div className="divide-y" style={{ borderColor: colors.border }}>
-              {approvals?.map((approval) => <article key={approval.id} className="px-4 py-4"><div className="flex items-start gap-3"><ClipboardCheck className="mt-0.5 h-5 w-5 shrink-0" style={{ color: colors.brandPrimary }} /><div className="min-w-0 flex-1"><h3 className="font-semibold">{approval.offer?.title ?? approval.entityType}</h3><p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>{approval.offer?.value} · {tr('připravil/a')} {approval.requestedBy}</p></div></div>{approval.entityType === 'offer' && <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => void reviewOffer({ id: approval.entityId as Id<'offers'>, approve: false, comment: 'Vráceno k doplnění.' }).then(() => setMessage({ type: 'success', text: 'Nabídka byla vrácena do draftu.' }))} className="min-h-10 border font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md, color: colors.dangerStrong }}>{tr('Vrátit')}</button><button type="button" onClick={() => void reviewOffer({ id: approval.entityId as Id<'offers'>, approve: true }).then(() => setMessage({ type: 'success', text: 'Nabídka byla publikována.' }))} className="flex min-h-10 items-center justify-center gap-2 font-semibold text-white" style={{ borderRadius: radii.md, background: colors.brandPrimary }}><Check size={17} /> {tr('Publikovat')}</button></div>}</article>)}
+              {approvals?.map((approval) => <article key={approval.id} className="px-4 py-4"><div className="flex items-start gap-3"><ClipboardCheck className="mt-0.5 h-5 w-5 shrink-0" style={{ color: colors.brandPrimary }} /><div className="min-w-0 flex-1"><h3 className="font-semibold">{approval.offer?.title ?? approval.entityType}</h3><p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>{approval.offer?.value} · {tr('připravil/a')} {approval.requestedBy}</p></div></div>{approval.entityType === 'offer' && <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => void reviewOffer({ id: approval.entityId as Id<'offers'>, approve: false, comment: 'Vráceno k doplnění.' }).then(() => setMessage({ type: 'success', text: 'Nabídka byla vrácena do draftu.' })).catch(() => setMessage({ type: 'error', text: 'Schválení nabídky se nepodařilo změnit.' }))} className="min-h-10 border font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md, color: colors.dangerStrong }}>{tr('Vrátit')}</button><button type="button" onClick={() => void reviewOffer({ id: approval.entityId as Id<'offers'>, approve: true }).then(() => setMessage({ type: 'success', text: 'Nabídka byla publikována.' })).catch(() => setMessage({ type: 'error', text: 'Schválení nabídky se nepodařilo změnit.' }))} className="flex min-h-10 items-center justify-center gap-2 font-semibold text-white" style={{ borderRadius: radii.md, background: colors.brandPrimary }}><Check size={17} /> {tr('Publikovat')}</button></div>}</article>)}
               {approvals?.length === 0 && <p className="px-4 py-10 text-center text-sm" style={{ color: colors.textSecondary }}>{tr('Fronta je prázdná.')}</p>}
             </div>
           </Panel>
@@ -624,7 +754,7 @@ export default function ConvexWorkspace() {
           <Panel className="overflow-hidden">
             <div className="border-b px-4 py-4" style={{ borderColor: colors.border }}><h2 className="font-semibold">{tr('Privacy požadavky')}</h2><p className="text-sm" style={{ color: colors.textSecondary }}>{privacyRequests ? tr('{count} záznamů').replace('{count}', String(privacyRequests.length)) : tr('Načítám…')}</p></div>
             <div className="divide-y" style={{ borderColor: colors.border }}>
-              {privacyRequests?.map((request) => <article key={request.id} className="px-4 py-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="truncate font-semibold">{request.member?.fullName ?? tr('Neaktivní účet')}</h3><p className="truncate text-sm" style={{ color: colors.textSecondary }}>{request.member?.email}</p></div><span className="px-2 py-1 text-xs font-semibold" style={{ borderRadius: radii.sm, background: colors.neutralSurface }}>{tr(privacyTypeLabel(request.type))} · {tr(workflowStatusLabel(request.status))}</span></div>{request.message && <p className="mt-3 text-sm leading-6" style={{ color: colors.textSecondary }}>{request.message}</p>}{(request.status === 'submitted' || request.status === 'in_review') && <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => void resolvePrivacyRequest({ id: request.id, status: 'in_review' })} className="min-h-10 border font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md }}>{tr('Řeší se')}</button><button type="button" onClick={() => void resolvePrivacyRequest({ id: request.id, status: 'completed', resolution: 'Požadavek byl zpracován odpovědnou osobou.' })} className="min-h-10 font-semibold text-white" style={{ borderRadius: radii.md, background: colors.brandPrimary }}>{tr('Dokončit')}</button></div>}</article>)}
+              {privacyRequests?.map((request) => <article key={request.id} className="px-4 py-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="truncate font-semibold">{request.member?.fullName ?? tr('Neaktivní účet')}</h3><p className="truncate text-sm" style={{ color: colors.textSecondary }}>{request.member?.email}</p></div><span className="px-2 py-1 text-xs font-semibold" style={{ borderRadius: radii.sm, background: colors.neutralSurface }}>{tr(privacyTypeLabel(request.type))} · {tr(workflowStatusLabel(request.status))}</span></div>{request.message && <p className="mt-3 text-sm leading-6" style={{ color: colors.textSecondary }}>{request.message}</p>}{(request.status === 'submitted' || request.status === 'in_review') && <div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => void resolvePrivacyRequest({ id: request.id, status: 'in_review' }).then(() => setMessage({ type: 'success', text: 'Privacy požadavek je v řešení.' })).catch(() => setMessage({ type: 'error', text: 'Privacy požadavek se nepodařilo změnit.' }))} className="min-h-10 border font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md }}>{tr('Řeší se')}</button><button type="button" onClick={() => void resolvePrivacyRequest({ id: request.id, status: 'completed', resolution: 'Požadavek byl zpracován odpovědnou osobou.' }).then(() => setMessage({ type: 'success', text: 'Privacy požadavek byl dokončen.' })).catch(() => setMessage({ type: 'error', text: 'Privacy požadavek se nepodařilo změnit.' }))} className="min-h-10 font-semibold text-white" style={{ borderRadius: radii.md, background: colors.brandPrimary }}>{tr('Dokončit')}</button></div>}</article>)}
               {privacyRequests?.length === 0 && <p className="px-4 py-10 text-center text-sm" style={{ color: colors.textSecondary }}>{tr('Žádný privacy požadavek.')}</p>}
             </div>
           </Panel>

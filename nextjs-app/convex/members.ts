@@ -11,6 +11,7 @@ import {
 import { isAuthAccessError, syncAuthUserToAccessGrant } from "./authMembership";
 
 const accessGrantFields = {
+  id: v.optional(v.id("accessGrants")),
   email: v.string(),
   fullName: v.string(),
   role: memberRole,
@@ -214,10 +215,18 @@ export const upsertAccessGrant = mutation({
     const actor = await requireBoardOrAdmin(ctx);
     const now = Date.now();
     const email = normalizeEmail(args.email);
-    const existing = await ctx.db
+    const existingByEmail = await ctx.db
       .query("accessGrants")
       .withIndex("by_email", (q) => q.eq("email", email))
       .unique();
+    const existing = args.id ? await ctx.db.get(args.id) : existingByEmail;
+    if (args.id && !existing) throw new ConvexError("access_grant_not_found");
+    if (args.id && existingByEmail && existingByEmail._id !== args.id) {
+      throw new ConvexError("email_already_allowed");
+    }
+    if (args.id && existing && normalizeEmail(existing.email) !== email) {
+      throw new ConvexError("access_grant_email_immutable");
+    }
 
     const payload = {
       email,

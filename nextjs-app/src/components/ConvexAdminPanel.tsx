@@ -48,6 +48,7 @@ type FilterState = {
 };
 
 type GrantFormState = {
+  id: Id<'accessGrants'> | '';
   email: string;
   fullName: string;
   role: MemberRole;
@@ -100,6 +101,7 @@ const statusLabels: Record<AccessStatus, string> = {
 };
 
 const defaultGrantForm = (): GrantFormState => ({
+  id: '',
   email: '',
   fullName: '',
   role: 'member',
@@ -301,6 +303,7 @@ export default function ConvexAdminPanel() {
 
   const fillGrantForm = (grant: NonNullable<typeof accessGrants>[number]) => {
     setGrantForm({
+      id: grant.id,
       email: grant.email,
       fullName: grant.fullName,
       role: grant.role,
@@ -325,6 +328,7 @@ export default function ConvexAdminPanel() {
     setSaving(true);
     try {
       const payload: {
+        id?: Id<'accessGrants'>;
         email: string;
         fullName: string;
         role: MemberRole;
@@ -340,6 +344,7 @@ export default function ConvexAdminPanel() {
         status: grantForm.status,
       };
 
+      if (grantForm.id) payload.id = grantForm.id;
       if (grantForm.branchId) payload.branchId = grantForm.branchId;
       if (grantForm.notes.trim()) payload.notes = grantForm.notes;
 
@@ -894,11 +899,13 @@ export default function ConvexAdminPanel() {
                   <input
                     type="email"
                     value={grantForm.email}
+                    disabled={Boolean(grantForm.id)}
                     onChange={(event) => setGrantForm((prev) => ({ ...prev, email: event.target.value }))}
                     placeholder="jmeno@example.cz"
                     autoComplete="email"
-                    style={fieldStyle()}
+                    style={{ ...fieldStyle(), background: grantForm.id ? colors.neutralSurface : colors.background }}
                   />
+                  {grantForm.id && <span className="block text-xs" style={{ color: colors.textSecondary }}>{tr('Email nelze při úpravě změnit.')}</span>}
                 </label>
                 <label className="block space-y-1 text-sm">
                   <span style={{ color: colors.textSecondary }}>{tr('Jméno')}</span>

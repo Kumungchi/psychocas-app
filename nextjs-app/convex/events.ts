@@ -153,6 +153,15 @@ export const upsertDraft = mutation({
         branchId: existing.branchId,
       });
       await ctx.db.patch(args.id, payload);
+      await ctx.db.insert("auditLogs", {
+        actorMemberId: actor._id,
+        action: "event.updateDraft",
+        entityType: "event",
+        entityId: args.id,
+        before: { title: existing.title, branchId: existing.branchId, startsAt: existing.startsAt, status: existing.status },
+        after: { title, branchId: args.branchId, startsAt: args.startsAt, status: "draft" },
+        createdAt: now,
+      });
       return { status: "updated" as const, id: args.id };
     }
     const id = await ctx.db.insert("events", { ...payload, createdBy: actor._id, createdAt: now });

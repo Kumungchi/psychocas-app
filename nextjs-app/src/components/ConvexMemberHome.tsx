@@ -382,6 +382,8 @@ export default function ConvexMemberHome() {
   const [privacyType, setPrivacyType] = useState<'access' | 'correction' | 'deletion' | 'restriction' | 'objection'>('access');
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushWorking, setPushWorking] = useState(false);
+  const [profileAction, setProfileAction] = useState<string | null>(null);
+  const [profileNotice, setProfileNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const syncStartedRef = useRef(false);
   const signOutStartedRef = useRef(false);
   const iamStartedRef = useRef(false);
@@ -589,6 +591,70 @@ export default function ConvexMemberHome() {
     }
   };
 
+  const handlePreferenceToggle = async (key: keyof typeof preferenceLabels, checked: boolean) => {
+    if (profileAction) return;
+    setProfileAction(`preference-${key}`);
+    setProfileNotice(null);
+    try {
+      await updatePreferences({
+        ...(privacy?.preferences ?? { membershipReminders: false, newOffers: false, events: false }),
+        [key]: checked,
+      });
+      setProfileNotice({ type: 'success', text: 'Preference byly uloženy.' });
+    } catch {
+      setProfileNotice({ type: 'error', text: 'Preference se nepodařilo uložit.' });
+    } finally {
+      setProfileAction(null);
+    }
+  };
+
+  const handlePrivacyRequest = async () => {
+    if (profileAction) return;
+    setProfileAction('privacy');
+    setProfileNotice(null);
+    try {
+      await submitPrivacyRequest({ type: privacyType });
+      setProfileNotice({ type: 'success', text: 'Žádost byla odeslána.' });
+    } catch {
+      setProfileNotice({ type: 'error', text: 'Žádost už je otevřená nebo ji nyní nelze odeslat.' });
+    } finally {
+      setProfileAction(null);
+    }
+  };
+
+  const handleFeedbackSubmit = async () => {
+    if (profileAction || feedbackText.trim().length < 10) return;
+    setProfileAction('feedback');
+    setProfileNotice(null);
+    try {
+      await submitFeedback({ category: 'app', message: feedbackText });
+      setFeedbackText('');
+      setProfileNotice({ type: 'success', text: 'Feedback byl odeslán.' });
+    } catch {
+      setProfileNotice({ type: 'error', text: 'Feedback se nepodařilo odeslat.' });
+    } finally {
+      setProfileAction(null);
+    }
+  };
+
+  const handleSuggestionSubmit = async () => {
+    if (profileAction || suggestionName.trim().length < 2) return;
+    setProfileAction('suggestion');
+    setProfileNotice(null);
+    try {
+      await submitSuggestion({
+        partnerName: suggestionName,
+        branchId: viewer?.status === 'ready' ? viewer.member.branchId ?? undefined : undefined,
+      });
+      setSuggestionName('');
+      setProfileNotice({ type: 'success', text: 'Návrh partnera byl odeslán.' });
+    } catch {
+      setProfileNotice({ type: 'error', text: 'Návrh se nepodařilo odeslat.' });
+    } finally {
+      setProfileAction(null);
+    }
+  };
+
   if (authLoading || !viewer || viewer.status !== 'ready' || !iamReady) {
     return (
       <main className="flex min-h-screen items-center justify-center px-5" style={{ background: colors.backgroundMuted }}>
@@ -768,6 +834,7 @@ export default function ConvexMemberHome() {
               <h1 className="text-2xl font-semibold" style={{ color: colors.textPrimary }}>{tr('Profil a soukromí')}</h1>
               <p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>{tr('Členství, preference a kontakt s Psychočasem.')}</p>
             </div>
+            {profileNotice && <div className="border px-4 py-3 text-sm" role="status" aria-live="polite" style={{ borderColor: profileNotice.type === 'success' ? '#A7F3D0' : '#FECACA', borderRadius: radii.md, background: profileNotice.type === 'success' ? colors.successSurface : colors.dangerSurface, color: profileNotice.type === 'success' ? colors.success : colors.dangerStrong }}>{tr(profileNotice.text)}</div>}
             <AppSection className="divide-y px-4">
               <div className="flex items-center gap-3 py-4"><UserRound size={19} style={{ color: colors.brandPrimary }} /><div className="min-w-0"><p className="truncate text-sm font-semibold">{member.fullName}</p><p className="truncate text-xs" style={{ color: colors.textSecondary }}>{member.email}</p></div></div>
               <div className="flex items-center gap-3 py-4"><Building2 size={19} style={{ color: colors.brandPrimary }} /><p className="text-sm">{member.branch?.name ?? tr('Bez pobočky')}</p></div>
@@ -779,7 +846,7 @@ export default function ConvexMemberHome() {
               <div className="space-y-2">
                 {(Object.keys(preferenceLabels) as Array<keyof typeof preferenceLabels>).map((key) => {
                   const checked = privacy?.preferences[key] ?? false;
-                  return <label key={key} className="flex min-h-11 items-center justify-between gap-3 border-t first:border-t-0" style={{ borderColor: colors.border }}><span className="text-sm">{tr(preferenceLabels[key])}</span><input type="checkbox" checked={checked} onChange={(event) => void updatePreferences({ ...(privacy?.preferences ?? { membershipReminders: false, newOffers: false, events: false }), [key]: event.target.checked })} className="h-5 w-5" /></label>;
+                  return <label key={key} className="flex min-h-11 items-center justify-between gap-3 border-t first:border-t-0" style={{ borderColor: colors.border }}><span className="text-sm">{tr(preferenceLabels[key])}</span><input type="checkbox" checked={checked} disabled={Boolean(profileAction)} onChange={(event) => void handlePreferenceToggle(key, event.target.checked)} className="h-5 w-5" /></label>;
                 })}
               </div>
               <button type="button" disabled={pushWorking || !notificationConfig?.pushConfigured} onClick={() => void handlePushToggle()} className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 border font-semibold" style={{ borderColor: colors.brandPrimary, borderRadius: radii.md, color: notificationConfig?.pushConfigured ? colors.brandPrimary : colors.textSecondary }}>
@@ -793,7 +860,7 @@ export default function ConvexMemberHome() {
               <button type="button" onClick={() => void handlePrivacyExport()} className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 border font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md, color: colors.brandPrimary }}><FileJson size={18} /> {tr('Exportovat moje údaje')}</button>
               <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
                 <select value={privacyType} onChange={(event) => setPrivacyType(event.target.value as typeof privacyType)} className="min-h-11 border bg-white px-3 text-base" style={{ borderColor: colors.border, borderRadius: radii.md }}><option value="access">{tr('Přístup k údajům')}</option><option value="correction">{tr('Oprava údajů')}</option><option value="deletion">{tr('Žádost o výmaz')}</option><option value="restriction">{tr('Omezení zpracování')}</option><option value="objection">{tr('Námitka')}</option></select>
-                <button type="button" onClick={() => void submitPrivacyRequest({ type: privacyType }).then(() => setMessage(null)).catch(() => setMessage('Žádost už je otevřená nebo ji nyní nelze odeslat.'))} className="min-h-11 px-4 font-semibold text-white" style={{ borderRadius: radii.md, background: colors.brandPrimary }}>{tr('Odeslat žádost')}</button>
+                <button type="button" disabled={Boolean(profileAction)} onClick={() => void handlePrivacyRequest()} className="inline-flex min-h-11 items-center justify-center gap-2 px-4 font-semibold text-white" style={{ borderRadius: radii.md, background: profileAction ? colors.textSecondary : colors.brandPrimary }}>{profileAction === 'privacy' && <Loader2 className="h-4 w-4 animate-spin" />}{tr('Odeslat žádost')}</button>
               </div>
               {(privacy?.requests.length ?? 0) > 0 && <p className="mt-3 text-xs" style={{ color: colors.textSecondary }}>{tr('Poslední žádost:')} {tr(privacy?.requests[0].status === 'submitted' ? 'Odesláno' : privacy?.requests[0].status === 'in_review' ? 'V posouzení' : privacy?.requests[0].status === 'completed' ? 'Dokončeno' : 'Zamítnuto')}</p>}
             </AppSection>
@@ -801,13 +868,13 @@ export default function ConvexMemberHome() {
             <AppSection className="px-4 py-4">
               <div className="mb-3 flex items-center gap-2"><MessageSquareText size={19} style={{ color: colors.brandPrimary }} /><h2 className="text-base font-semibold">{tr('Zpětná vazba')}</h2></div>
               <textarea value={feedbackText} onChange={(event) => setFeedbackText(event.target.value)} rows={3} maxLength={2000} placeholder={tr('Co by ti v aplikaci pomohlo? Nevkládej citlivé osobní údaje.')} className="w-full resize-y border p-3 text-base" style={{ borderColor: colors.border, borderRadius: radii.md }} />
-              <button type="button" disabled={feedbackText.trim().length < 10} onClick={() => void submitFeedback({ category: 'app', message: feedbackText }).then(() => { setFeedbackText(''); setMessage(null); }).catch(() => setMessage('Feedback se nepodařilo odeslat.'))} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 font-semibold text-white" style={{ borderRadius: radii.md, background: feedbackText.trim().length < 10 ? colors.textSecondary : colors.brandPrimary }}><Send size={18} /> {tr('Odeslat feedback')}</button>
+              <button type="button" disabled={Boolean(profileAction) || feedbackText.trim().length < 10} onClick={() => void handleFeedbackSubmit()} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 font-semibold text-white" style={{ borderRadius: radii.md, background: profileAction || feedbackText.trim().length < 10 ? colors.textSecondary : colors.brandPrimary }}>{profileAction === 'feedback' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send size={18} />} {tr('Odeslat feedback')}</button>
             </AppSection>
 
             <AppSection className="px-4 py-4">
               <div className="mb-3 flex items-center gap-2"><Lightbulb size={19} style={{ color: colors.brandPrimary }} /><h2 className="text-base font-semibold">{tr('Navrhnout partnera')}</h2></div>
               <input value={suggestionName} onChange={(event) => setSuggestionName(event.target.value)} placeholder={tr('Název podniku nebo organizace')} className="min-h-11 w-full border px-3 text-base" style={{ borderColor: colors.border, borderRadius: radii.md }} />
-              <button type="button" disabled={suggestionName.trim().length < 2} onClick={() => void submitSuggestion({ partnerName: suggestionName, branchId: member.branchId ?? undefined }).then(() => { setSuggestionName(''); setMessage(null); }).catch(() => setMessage('Návrh se nepodařilo odeslat.'))} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 border font-semibold" style={{ borderColor: colors.brandPrimary, borderRadius: radii.md, color: colors.brandPrimary }}><Store size={18} /> {tr('Odeslat návrh')}</button>
+              <button type="button" disabled={Boolean(profileAction) || suggestionName.trim().length < 2} onClick={() => void handleSuggestionSubmit()} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 border font-semibold" style={{ borderColor: colors.brandPrimary, borderRadius: radii.md, color: profileAction ? colors.textSecondary : colors.brandPrimary }}>{profileAction === 'suggestion' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Store size={18} />} {tr('Odeslat návrh')}</button>
             </AppSection>
 
             <PwaInstallExperience
