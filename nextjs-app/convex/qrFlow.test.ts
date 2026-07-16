@@ -1,6 +1,6 @@
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
-import { api, internal } from "./_generated/api";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { api } from "./_generated/api";
 import schema from "./schema";
 import { modules } from "./test.setup";
 
@@ -88,16 +88,22 @@ async function seedQrFlow() {
 }
 
 describe("member QR redemption flow", () => {
+  beforeEach(() => {
+    vi.stubEnv("QR_TOKEN_PEPPER", "test-only-qr-token-pepper-32-characters");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("moves an authenticated member token to redeemed after one public scan", async () => {
     const { t, userId, otherUserId, offerId } = await seedQrFlow();
     const asMember = t.withIdentity({ subject: userId });
     const asOtherMember = t.withIdentity({ subject: otherUserId });
 
-    const issued = await asMember.mutation(internal.qr.issueInternal, {
-      offerId,
-      publicHash: "public-hash",
-      shortCodeHash: "short-code-hash",
-    });
+    const issued = await asMember.action(api.qrActions.issue, { offerId });
+    expect(issued.verificationPath).toBe(`/v#t=${issued.secret}`);
+    expect(issued.shortCode).toHaveLength(8);
 
     await expect(asMember.query(api.qr.statusForMember, { tokenId: issued.tokenId })).resolves.toMatchObject({
       status: "active",
@@ -105,7 +111,14 @@ describe("member QR redemption flow", () => {
     });
     await expect(asOtherMember.query(api.qr.statusForMember, { tokenId: issued.tokenId })).resolves.toBeNull();
 
-    const firstScan = await t.mutation(internal.qr.validatePublic, { publicHash: "public-hash" });
+    const firstResponse = await t.fetch("/qr/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ secret: issued.secret }),
+    });
+    expect(firstResponse.status).toBe(200);
+    expect(firstResponse.headers.get("Cache-Control")).toContain("no-store");
+    const firstScan = await firstResponse.json();
     expect(firstScan).toMatchObject({
       status: "valid",
       offerTitle: "Pilot benefit",
@@ -117,7 +130,13 @@ describe("member QR redemption flow", () => {
     expect(memberStatus).toMatchObject({ status: "redeemed" });
     expect(memberStatus?.redeemedAt).toBeTypeOf("number");
 
-    const secondScan = await t.mutation(internal.qr.validatePublic, { publicHash: "public-hash" });
+    const secondResponse = await t.fetch("/qr/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ secret: issued.secret }),
+    });
+    expect(secondResponse.status).toBe(200);
+    const secondScan = await secondResponse.json();
     expect(secondScan).toMatchObject({
       status: "already_validated",
       validatedAt: memberStatus?.redeemedAt,
