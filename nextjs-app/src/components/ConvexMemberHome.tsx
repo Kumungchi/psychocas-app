@@ -38,6 +38,7 @@ import useLocale from '@/hooks/useLocale';
 import useNetworkStatus from '@/hooks/useNetworkStatus';
 import { getDateLocale } from '@/lib/i18n/utils';
 import type { Locale } from '@/lib/i18n/config';
+import { resolveMemberTokenUiState } from '@/lib/qr/memberTokenState';
 import {
   clearMemberSnapshot,
   loadMemberSnapshot,
@@ -113,7 +114,7 @@ function OfferRow({
   offer,
   onSelect,
 }: {
-  offer: OfflineOffer & { description?: string | null };
+  offer: OfflineOffer;
   onSelect: () => void;
 }) {
   return (
@@ -150,16 +151,164 @@ function OfferRow({
   );
 }
 
-function TokenView({ token, onRegenerate }: { token: IssuedToken; onRegenerate: () => void }) {
-  const { tr } = useLocale();
+function safeExternalUrl(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function OfferDetail({
+  offer,
+  isOnline,
+  issuing,
+  hasActiveToken,
+  onRedeem,
+  onChangeOffer,
+}: {
+  offer: OfflineOffer;
+  isOnline: boolean;
+  issuing: boolean;
+  hasActiveToken: boolean;
+  onRedeem: () => void;
+  onChangeOffer: () => void;
+}) {
+  const { locale, tr } = useLocale();
+  const website = safeExternalUrl(offer.partnerWebsite);
+
+  return (
+    <AppSection className="overflow-hidden">
+      <div className="border-b px-5 py-5" style={{ borderColor: colors.border, background: colors.brandSurface }}>
+        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold" style={{ color: colors.brandOnSurface }}>
+          <span className="flex items-center gap-1.5">
+            {offer.scope === 'national' ? <Globe2 size={15} /> : <MapPin size={15} />}
+            {tr(offer.scope === 'national' ? 'Celostátní výhoda' : 'Výhoda pro tvoji pobočku')}
+          </span>
+          <span aria-hidden="true">·</span>
+          <span>{offer.category}</span>
+        </div>
+        <p className="mt-4 text-sm font-semibold" style={{ color: colors.brandPrimary }}>{offer.partnerName}</p>
+        <h2 className="mt-1 text-xl font-semibold leading-7" style={{ color: colors.textPrimary }}>{offer.title}</h2>
+        <p className="mt-3 text-3xl font-bold" style={{ color: colors.brandPrimary }}>{offer.value}</p>
+      </div>
+
+      <div className="space-y-5 px-5 py-5">
+        <section>
+          <h3 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>{tr('Podmínky nabídky')}</h3>
+          <p className="mt-2 whitespace-pre-line text-sm leading-6" style={{ color: colors.textSecondary }}>
+            {offer.description || tr('Podmínky této nabídky budou upřesněny partnerem.')}
+          </p>
+        </section>
+
+        {(offer.validFrom || offer.validUntil) && (
+          <div className="grid gap-3 border-y py-4 text-sm sm:grid-cols-2" style={{ borderColor: colors.border }}>
+            {offer.validFrom && (
+              <div className="flex items-start gap-2">
+                <CalendarDays className="mt-0.5 h-4 w-4 shrink-0" style={{ color: colors.brandPrimary }} />
+                <div><p className="text-xs" style={{ color: colors.textSecondary }}>{tr('Platí od')}</p><p className="mt-0.5 font-semibold">{formatDate(offer.validFrom, locale)}</p></div>
+              </div>
+            )}
+            {offer.validUntil && (
+              <div className="flex items-start gap-2">
+                <CalendarDays className="mt-0.5 h-4 w-4 shrink-0" style={{ color: colors.brandPrimary }} />
+                <div><p className="text-xs" style={{ color: colors.textSecondary }}>{tr('Platí do')}</p><p className="mt-0.5 font-semibold">{formatDate(offer.validUntil, locale)}</p></div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {(offer.partnerDescription || website) && (
+          <section>
+            <h3 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>{tr('O partnerovi')}</h3>
+            {offer.partnerDescription && <p className="mt-2 text-sm leading-6" style={{ color: colors.textSecondary }}>{offer.partnerDescription}</p>}
+            {website && (
+              <a href={website} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-11 items-center gap-2 font-semibold" style={{ color: colors.brandPrimary }}>
+                {tr('Web partnera')} <ExternalLink size={17} />
+              </a>
+            )}
+          </section>
+        )}
+
+        {hasActiveToken && <p className="text-xs leading-5" style={{ color: colors.textSecondary }}>{tr('Předchozí kód je aktivní na jiném zobrazení. Nový kód ho bezpečně nahradí.')}</p>}
+        <button type="button" onClick={onRedeem} disabled={!isOnline || issuing} className="inline-flex min-h-12 w-full items-center justify-center gap-2 px-4 font-semibold text-white" style={{ borderRadius: radii.md, background: !isOnline || issuing ? colors.textSecondary : colors.brandPrimary }}>
+          {issuing ? <Loader2 className="h-5 w-5 animate-spin" /> : <QrCode size={20} />}
+          {tr(isOnline ? 'Uplatnit slevu' : 'QR vyžaduje připojení')}
+        </button>
+        <p className="flex items-start gap-2 text-xs leading-5" style={{ color: colors.textSecondary }}>
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" style={{ color: colors.success }} />
+          {tr('Bezpečný kód platí 3 minuty a lze ho použít jen jednou.')}
+        </p>
+        <button type="button" onClick={onChangeOffer} className="min-h-11 w-full font-semibold" style={{ color: colors.brandPrimary }}>
+          {tr('Vybrat jinou výhodu')}
+        </button>
+      </div>
+    </AppSection>
+  );
+}
+
+function TokenView({ token, onRegenerate, onDone }: { token: IssuedToken; onRegenerate: () => void; onDone: () => void }) {
+  const { locale, tr } = useLocale();
   const [now, setNow] = useState(() => Date.now());
+  const tokenStatus = useQuery(api.qr.statusForMember, { tokenId: token.tokenId });
+  const redemptionAnnounced = useRef(false);
   const verificationUrl = typeof window === 'undefined' ? token.verificationPath : `${window.location.origin}${token.verificationPath}`;
-  const seconds = Math.max(0, Math.ceil((token.expiresAt - now) / 1000));
+  const expiresAt = tokenStatus?.expiresAt ?? token.expiresAt;
+  const seconds = Math.max(0, Math.ceil((expiresAt - now) / 1000));
+  const uiState = resolveMemberTokenUiState(tokenStatus?.status, expiresAt, now);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (tokenStatus?.status !== 'redeemed' || redemptionAnnounced.current) return;
+    redemptionAnnounced.current = true;
+    navigator.vibrate?.([80, 40, 120]);
+  }, [tokenStatus?.status]);
+
+  if (uiState === 'redeemed') {
+    const redeemedAt = tokenStatus?.redeemedAt ?? tokenStatus?.scannedAt;
+    const verifiedTime = redeemedAt
+      ? new Intl.DateTimeFormat(getDateLocale(locale), { hour: '2-digit', minute: '2-digit' }).format(new Date(redeemedAt))
+      : null;
+    return (
+      <AppSection className="overflow-hidden text-center">
+        <div className="px-5 py-8" role="status" aria-live="polite" style={{ background: colors.successSurface }}>
+          <span className="mx-auto flex h-14 w-14 items-center justify-center" style={{ borderRadius: radii.full, background: colors.background, color: colors.success }}>
+            <CheckCircle2 size={32} />
+          </span>
+          <h2 className="mt-4 text-xl font-semibold" style={{ color: colors.textPrimary }}>{tr('Sleva byla ověřena')}</h2>
+          <p className="mt-2 text-sm" style={{ color: colors.textSecondary }}>{tr('Výhoda je úspěšně uplatněná.')}</p>
+          {verifiedTime && <p className="mt-2 text-xs font-semibold" style={{ color: colors.success }}>{tr('Ověřeno v {time}').replace('{time}', verifiedTime)}</p>}
+        </div>
+        <div className="border-t px-5 py-5" style={{ borderColor: colors.border }}>
+          <p className="text-sm font-semibold" style={{ color: colors.brandPrimary }}>{token.partner.name}</p>
+          <p className="mt-1 text-base font-semibold" style={{ color: colors.textPrimary }}>{token.offer.title}</p>
+          <p className="mt-1 text-2xl font-bold" style={{ color: colors.brandPrimary }}>{token.offer.value}</p>
+          <button type="button" onClick={onDone} className="mt-5 min-h-12 w-full px-4 font-semibold text-white" style={{ borderRadius: radii.md, background: colors.brandPrimary }}>
+            {tr('Použít další výhodu')}
+          </button>
+        </div>
+      </AppSection>
+    );
+  }
+
+  if (uiState === 'expired' || uiState === 'revoked') {
+    return (
+      <AppSection className="px-5 py-10 text-center">
+        <WifiOff className="mx-auto h-8 w-8" style={{ color: colors.textSecondary }} />
+        <p className="mt-3 font-semibold" style={{ color: colors.textPrimary }}>{tr(uiState === 'revoked' ? 'Kód byl zneplatněn' : 'Kód vypršel')}</p>
+        <p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>{tr('Vytvoř nový kód a zkus ověření znovu.')}</p>
+        <button type="button" onClick={onRegenerate} className="mt-5 min-h-11 px-4 font-semibold text-white" style={{ borderRadius: radii.md, background: colors.brandPrimary }}>
+          {tr('Vytvořit nový kód')}
+        </button>
+      </AppSection>
+    );
+  }
 
   return (
     <AppSection className="overflow-hidden">
@@ -175,32 +324,22 @@ function TokenView({ token, onRegenerate }: { token: IssuedToken; onRegenerate: 
         </p>
       </div>
       <div className="flex flex-col items-center px-5 py-5">
-        {seconds > 0 ? (
-          <>
-            <div className="bg-white p-3" style={{ borderRadius: radii.md }}>
-              <QRCode value={verificationUrl} size={210} bgColor="#FFFFFF" fgColor="#172033" />
-            </div>
-            <p className="mt-4 font-mono text-xl font-semibold tracking-[0.12em]" style={{ color: colors.textPrimary }}>
-              {token.shortCode}
-            </p>
-            <div className="mt-3 flex items-center gap-2 text-sm font-semibold" style={{ color: seconds <= 30 ? colors.dangerStrong : colors.success }}>
-              <CalendarDays size={17} />
-              {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
-            </div>
-            <p className="mt-3 max-w-xs text-center text-xs leading-5" style={{ color: colors.textSecondary }}>
-              {tr('Obsluha naskenuje QR běžným fotoaparátem telefonu. Zobrazí se pouze platnost členství a nabídky.')}
-            </p>
-          </>
-        ) : (
-          <div className="py-10 text-center">
-            <WifiOff className="mx-auto h-8 w-8" style={{ color: colors.textSecondary }} />
-            <p className="mt-3 font-semibold" style={{ color: colors.textPrimary }}>{tr('Kód vypršel')}</p>
-            <p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>{tr('Vytvoř si nový kód pro další ověření.')}</p>
-            <button type="button" onClick={onRegenerate} className="mt-5 min-h-11 px-4 font-semibold text-white" style={{ borderRadius: radii.md, background: colors.brandPrimary }}>
-              {tr('Vytvořit nový kód')}
-            </button>
-          </div>
-        )}
+        <div className="bg-white p-3" style={{ borderRadius: radii.md }}>
+          <QRCode value={verificationUrl} size={210} bgColor="#FFFFFF" fgColor="#172033" />
+        </div>
+        <p className="mt-4 font-mono text-xl font-semibold tracking-[0.12em]" style={{ color: colors.textPrimary }}>
+          {token.shortCode}
+        </p>
+        <div className="mt-3 flex items-center gap-2 text-sm font-semibold" style={{ color: seconds <= 30 ? colors.dangerStrong : colors.success }}>
+          <CalendarDays size={17} />
+          {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
+        </div>
+        <p className="mt-3 max-w-xs text-center text-xs leading-5" role="status" aria-live="polite" style={{ color: colors.textSecondary }}>
+          {tr('Čekáme na naskenování obsluhou. Stav se aktualizuje automaticky.')}
+        </p>
+        <p className="mt-1 max-w-xs text-center text-xs leading-5" style={{ color: colors.textSecondary }}>
+          {tr('Obsluha naskenuje QR běžným fotoaparátem telefonu. Zobrazí se pouze platnost členství a nabídky.')}
+        </p>
       </div>
     </AppSection>
   );
@@ -299,6 +438,10 @@ export default function ConvexMemberHome() {
         scope: offer.scope,
         partnerName: offer.partner.name,
         category: offer.partner.category,
+        description: offer.description,
+        partnerWebsite: offer.partner.website,
+        partnerDescription: offer.partner.description,
+        validFrom: offer.validFrom,
         validUntil: offer.validUntil,
       }));
     }
@@ -319,6 +462,10 @@ export default function ConvexMemberHome() {
       scope: offer.scope,
       partnerName: offer.partner.name,
       category: offer.partner.category,
+      description: offer.description,
+      partnerWebsite: offer.partner.website,
+      partnerDescription: offer.partner.description,
+      validFrom: offer.validFrom,
       validUntil: offer.validUntil,
     }));
     void saveMemberSnapshot({
@@ -342,6 +489,11 @@ export default function ConvexMemberHome() {
   }, [offerFilter, offerSearch, offers]);
 
   const selectedOffer = offers.find((offer) => offer.id === selectedOfferId) ?? null;
+  const openOfferDetail = (offerId: Id<'offers'>) => {
+    setSelectedOfferId(offerId);
+    setIssuedToken(null);
+    setActiveTab('card');
+  };
   const canOpenWorkspace = Boolean(
     access?.capabilities.some((capability) =>
       [
@@ -523,7 +675,7 @@ export default function ConvexMemberHome() {
               </div>
               <AppSection className="overflow-hidden">
                 {offers.slice(0, 3).map((offer) => (
-                  <OfferRow key={offer.id} offer={offer} onSelect={() => { setSelectedOfferId(offer.id as Id<'offers'>); setActiveTab('card'); }} />
+                  <OfferRow key={offer.id} offer={offer} onSelect={() => openOfferDetail(offer.id as Id<'offers'>)} />
                 ))}
                 {offers.length === 0 && <p className="px-5 py-8 text-center text-sm" style={{ color: colors.textSecondary }}>{tr('Zatím nejsou publikované žádné výhody.')}</p>}
               </AppSection>
@@ -573,7 +725,7 @@ export default function ConvexMemberHome() {
               ))}
             </div>
             <AppSection className="overflow-hidden">
-              {filteredOffers.map((offer) => <OfferRow key={offer.id} offer={offer} onSelect={() => { setSelectedOfferId(offer.id as Id<'offers'>); setActiveTab('card'); }} />)}
+              {filteredOffers.map((offer) => <OfferRow key={offer.id} offer={offer} onSelect={() => openOfferDetail(offer.id as Id<'offers'>)} />)}
               {filteredOffers.length === 0 && <p className="px-5 py-10 text-center text-sm" style={{ color: colors.textSecondary }}>{tr('Žádná výhoda neodpovídá výběru.')}</p>}
             </AppSection>
           </div>
@@ -587,23 +739,22 @@ export default function ConvexMemberHome() {
             </div>
             {offers.length > 0 ? (
               <>
-                <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
-                  {tr('Vybraná výhoda')}
-                  <select value={selectedOfferId ?? ''} onChange={(event) => { setSelectedOfferId(event.target.value as Id<'offers'>); setIssuedToken(null); }} className="mt-2 min-h-12 w-full border bg-white px-3 text-base" style={{ borderColor: colors.border, borderRadius: radii.md }}>
-                    {offers.map((offer) => <option key={offer.id} value={offer.id}>{offer.partnerName} - {offer.value}</option>)}
-                  </select>
-                </label>
-                {issuedToken ? <TokenView token={issuedToken} onRegenerate={() => { setIssuedToken(null); window.setTimeout(() => void handleIssueToken(), 0); }} /> : (
-                  <AppSection className="px-5 py-8 text-center">
-                    <QrCode className="mx-auto h-10 w-10" style={{ color: colors.brandPrimary }} />
-                    <h2 className="mt-3 text-lg font-semibold" style={{ color: colors.textPrimary }}>{selectedOffer?.title}</h2>
-                    <p className="mt-1 text-2xl font-bold" style={{ color: colors.brandPrimary }}>{selectedOffer?.value}</p>
-                    {currentToken && <p className="mt-3 text-xs" style={{ color: colors.textSecondary }}>{tr('Předchozí kód je aktivní na jiném zobrazení. Nový kód ho bezpečně nahradí.')}</p>}
-                    <button type="button" onClick={() => void handleIssueToken()} disabled={!isOnline || issuing} className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 px-4 font-semibold text-white" style={{ borderRadius: radii.md, background: !isOnline || issuing ? colors.textSecondary : colors.brandPrimary }}>
-                      {issuing ? <Loader2 className="h-5 w-5 animate-spin" /> : <QrCode size={20} />} {tr(isOnline ? 'Vytvořit QR kód' : 'QR vyžaduje připojení')}
-                    </button>
-                  </AppSection>
-                )}
+                {issuedToken ? (
+                  <TokenView
+                    token={issuedToken}
+                    onRegenerate={() => { setIssuedToken(null); window.setTimeout(() => void handleIssueToken(), 0); }}
+                    onDone={() => { setIssuedToken(null); setActiveTab('offers'); }}
+                  />
+                ) : selectedOffer ? (
+                  <OfferDetail
+                    offer={selectedOffer}
+                    isOnline={isOnline}
+                    issuing={issuing}
+                    hasActiveToken={Boolean(currentToken)}
+                    onRedeem={() => void handleIssueToken()}
+                    onChangeOffer={() => setActiveTab('offers')}
+                  />
+                ) : null}
               </>
             ) : (
               <AppSection className="px-5 py-10 text-center"><Tags className="mx-auto h-9 w-9" style={{ color: colors.textSecondary }} /><p className="mt-3 text-sm" style={{ color: colors.textSecondary }}>{tr('Nejdřív musí být publikovaná alespoň jedna nabídka.')}</p></AppSection>

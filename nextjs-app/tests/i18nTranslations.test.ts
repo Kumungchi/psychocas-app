@@ -76,6 +76,8 @@ describe('i18n dictionaries', () => {
       'Informace k přihlášení',
       'Ověření členské výhody',
       'Kód není platný',
+      'Uplatnit slevu',
+      'Sleva byla ověřena',
       'Správa členství',
       'Ochrana osobních údajů',
       'Verze informací pro pilot: 13. 7. 2026. Změny účelů, retenčních lhůt nebo zpracovatelů zveřejníme před jejich účinností.',

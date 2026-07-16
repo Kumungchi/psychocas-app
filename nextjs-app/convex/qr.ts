@@ -159,6 +159,23 @@ export const current = query({
   },
 });
 
+export const statusForMember = query({
+  args: { tokenId: v.id("tokens") },
+  handler: async (ctx, args) => {
+    const member = await requireActiveMember(ctx);
+    const token = await ctx.db.get(args.tokenId);
+    if (!token || token.memberId !== member._id) return null;
+
+    return {
+      status: token.status,
+      expiresAt: token.expiresAt,
+      scannedAt: token.scannedAt ?? null,
+      redeemedAt: token.redeemedAt ?? null,
+      revokedAt: token.revokedAt ?? null,
+    };
+  },
+});
+
 export const revoke = mutation({
   args: { tokenId: v.id("tokens") },
   handler: async (ctx, args) => {

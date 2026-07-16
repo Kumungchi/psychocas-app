@@ -134,7 +134,14 @@ const explicitEnglishPhrases: Record<string, string> = {
     'Staff scan the QR with a regular phone camera. Only membership and offer validity are shown.',
   'Kód vypršel': 'Code expired',
   'Vytvoř si nový kód pro další ověření.': 'Create a new code for another verification.',
+  'Vytvoř nový kód a zkus ověření znovu.': 'Create a new code and try the verification again.',
   'Vytvořit nový kód': 'Create new code',
+  'Čekáme na naskenování obsluhou. Stav se aktualizuje automaticky.':
+    'Waiting for staff to scan the code. The status updates automatically.',
+  'Sleva byla ověřena': 'The benefit was verified',
+  'Výhoda je úspěšně uplatněná.': 'The benefit has been redeemed successfully.',
+  'Ověřeno v {time}': 'Verified at {time}',
+  'Použít další výhodu': 'Use another benefit',
   'Organizační data se nepodařilo připravit. Zkus stránku obnovit.':
     'The organisation data could not be prepared. Refresh the page.',
   'QR kód se nepodařilo vytvořit. Ověř připojení a platnost nabídky.':
@@ -172,9 +179,19 @@ const explicitEnglishPhrases: Record<string, string> = {
   'Jednorázové bezpečné ověření konkrétní výhody.':
     'Secure one-time verification of a specific benefit.',
   'Vybraná výhoda': 'Selected benefit',
+  'Celostátní výhoda': 'Nationwide benefit',
+  'Výhoda pro tvoji pobočku': 'Benefit for your branch',
+  'Podmínky této nabídky budou upřesněny partnerem.':
+    'The partner will provide the terms for this offer.',
+  'O partnerovi': 'About the partner',
+  'Web partnera': 'Partner website',
   'Předchozí kód je aktivní na jiném zobrazení. Nový kód ho bezpečně nahradí.':
     'The previous code is active in another view. A new code will replace it securely.',
   'Vytvořit QR kód': 'Create QR code',
+  'Uplatnit slevu': 'Redeem benefit',
+  'Bezpečný kód platí 3 minuty a lze ho použít jen jednou.':
+    'The secure code is valid for 3 minutes and can only be used once.',
+  'Vybrat jinou výhodu': 'Choose another benefit',
   'QR vyžaduje připojení': 'QR requires a connection',
   'Nejdřív musí být publikovaná alespoň jedna nabídka.':
     'At least one offer must be published first.',
