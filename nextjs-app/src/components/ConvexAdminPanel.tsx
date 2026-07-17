@@ -25,6 +25,7 @@ import useLocale from '@/hooks/useLocale';
 import type { Locale } from '@/lib/i18n/config';
 import { getDateLocale } from '@/lib/i18n/utils';
 import { colors, radii, shadows, typography } from '@/ui/theme';
+import MemberCsvImport from '@/components/MemberCsvImport';
 
 type AccessStatus = 'active' | 'inactive' | 'expired' | 'revoked';
 type MemberRole = 'member' | 'manager' | 'board' | 'admin';
@@ -585,6 +586,8 @@ export default function ConvexAdminPanel() {
         {activeTab === 'members' && (
           <section className="grid gap-5 lg:grid-cols-[minmax(0,0.86fr)_minmax(22rem,0.44fr)]">
             <div className="space-y-5">
+              {branches && <MemberCsvImport branches={branches} />}
+
               <section
                 className="rounded-lg border bg-white p-4 sm:p-5"
                 style={{ borderColor: colors.border, boxShadow: shadows.sm }}

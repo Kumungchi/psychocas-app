@@ -20,8 +20,13 @@ Email bez aktivního přístupu se nesmí přihlásit ani při znalosti dříve 
 2. Seznam `accessGrants` lze filtrovat a označovat.
 3. Jednotlivý záznam se vytvoří nebo upraví přes `members.upsertAccessGrant`.
 4. Hromadná změna používá `members.bulkUpdateAccessGrants` a explicitní patch.
-5. Server vyžaduje `membership.manage` a auditovaně uloží změnu.
-6. Efektivní stav bere v úvahu ruční status i `membershipUntil`.
+5. CSV import přijímá nejvýše 250 řádků se sloupci `email`, `fullName`, `branch`, `role`, `membershipUntil`, `status` a `notes`.
+6. Klientský parser podporuje čárku i středník, české/anglické hlavičky a před potvrzením ukáže chyby, duplicity a nové/existující emaily.
+7. `members.importAccessGrants` celý vstup znovu validuje, atomicky vytvoří nebo explicitně aktualizuje záznamy a chrání právě přihlášený admin účet před hromadným přepsáním.
+8. Server vyžaduje board/admin oprávnění a uloží souhrnný audit bez obsahu celého CSV.
+9. Efektivní stav bere v úvahu ruční status i `membershipUntil`.
+
+CSV se po zpracování nikam neukládá. Pro import je doporučený formát data `RRRR-MM-DD`; prázdná role/stav použije bezpečný default `member`/`active`. Existující emaily jsou bez explicitního zaškrtnutí přeskočeny.
 
 Staff assignment je samostatný od členství. Změna assignmentu nesmí nechtěně prodloužit nebo aktivovat členství.
 

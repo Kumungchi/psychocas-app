@@ -48,6 +48,7 @@ Board a admin zde spravují:
 - allowlist a stav členského přístupu,
 - platnost členství,
 - role a pobočku,
+- CSV import s kontrolním náhledem a bezpečným přeskočením nebo aktualizací existujících emailů,
 - hromadné změny vybraných členů,
 - pobočky,
 - staff preset, national/local scope a revokaci assignmentu.

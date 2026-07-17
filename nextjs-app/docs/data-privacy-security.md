@@ -65,6 +65,7 @@ Aktuální validátory, indexy a optional pole jsou vždy v `convex/schema.ts`.
 - Issue fronta nevrací identitu autora hlášení.
 - Push payload nesmí obsahovat citlivé údaje vhodné pro profilování na lock screenu.
 - Volné texty mají délkové limity a UI upozorňuje nevkládat citlivé osobní údaje.
+- Zdrojový CSV soubor členů se parsuje v prohlížeči a neukládá se; Convex dostane pouze validované strukturované řádky a do auditu zapisuje jen souhrn importu.
 
 ## Implementovaná retence
 

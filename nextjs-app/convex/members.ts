@@ -29,6 +29,32 @@ const accessGrantPatch = {
   notes: v.optional(v.string()),
 };
 
+const accessGrantImportRow = {
+  email: v.string(),
+  fullName: v.string(),
+  role: memberRole,
+  branchId: v.optional(v.id("branches")),
+  membershipUntil: v.number(),
+  status: accessStatus,
+  notes: v.optional(v.string()),
+};
+
+const MAX_IMPORT_ROWS = 250;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function validatedImportEmail(value: string): string {
+  const email = normalizeEmail(value);
+  if (!email || email.length > 254 || !EMAIL_PATTERN.test(email)) {
+    throw new ConvexError("invalid_import_email");
+  }
+  return email;
+}
+
+function validateImportBatchSize(length: number): void {
+  if (length === 0) throw new ConvexError("empty_import");
+  if (length > MAX_IMPORT_ROWS) throw new ConvexError("too_many_import_rows");
+}
+
 function presentMember(
   member: Doc<"members">,
   accessGrant: Doc<"accessGrants">,
@@ -271,6 +297,183 @@ export const upsertAccessGrant = mutation({
     });
 
     return { status: "created" as const, id };
+  },
+});
+
+export const previewAccessGrantImport = query({
+  args: {
+    emails: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireBoardOrAdmin(ctx);
+    validateImportBatchSize(args.emails.length);
+
+    const normalizedEmails = args.emails.map(validatedImportEmail);
+    if (new Set(normalizedEmails).size !== normalizedEmails.length) {
+      throw new ConvexError("duplicate_import_email");
+    }
+
+    const existingEmails: string[] = [];
+    for (const email of normalizedEmails) {
+      const existing = await ctx.db
+        .query("accessGrants")
+        .withIndex("by_email", (q) => q.eq("email", email))
+        .unique();
+      if (existing) existingEmails.push(email);
+    }
+
+    return {
+      totalCount: normalizedEmails.length,
+      newCount: normalizedEmails.length - existingEmails.length,
+      existingCount: existingEmails.length,
+      existingEmails,
+    };
+  },
+});
+
+export const importAccessGrants = mutation({
+  args: {
+    rows: v.array(v.object(accessGrantImportRow)),
+    updateExisting: v.boolean(),
+    reason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const actor = await requireBoardOrAdmin(ctx);
+    validateImportBatchSize(args.rows.length);
+
+    const now = Date.now();
+    const reason = args.reason?.trim();
+    if (reason && reason.length > 300) throw new ConvexError("import_reason_too_long");
+
+    const seenEmails = new Set<string>();
+    const branchCache = new Map<Id<"branches">, Doc<"branches">>();
+    const prepared: Array<{
+      email: string;
+      fullName: string;
+      role: Doc<"accessGrants">["role"];
+      branchId?: Id<"branches">;
+      membershipUntil: number;
+      status: Doc<"accessGrants">["status"];
+      notes?: string;
+      existing: Doc<"accessGrants"> | null;
+    }> = [];
+
+    for (const row of args.rows) {
+      const email = validatedImportEmail(row.email);
+      if (seenEmails.has(email)) throw new ConvexError("duplicate_import_email");
+      seenEmails.add(email);
+
+      const fullName = row.fullName.trim();
+      const notes = row.notes?.trim() || undefined;
+      if (!fullName || fullName.length > 120) throw new ConvexError("invalid_import_name");
+      if (notes && notes.length > 500) throw new ConvexError("import_notes_too_long");
+      if (!Number.isFinite(row.membershipUntil) || row.membershipUntil <= 0) {
+        throw new ConvexError("invalid_import_membership_date");
+      }
+      if (row.status === "active" && row.membershipUntil < now) {
+        throw new ConvexError("active_import_membership_expired");
+      }
+
+      if (row.branchId) {
+        let branch = branchCache.get(row.branchId);
+        if (!branch) {
+          branch = (await ctx.db.get(row.branchId)) ?? undefined;
+          if (!branch) throw new ConvexError("import_branch_not_found");
+          branchCache.set(row.branchId, branch);
+        }
+        if (row.status === "active" && !branch.active) {
+          throw new ConvexError("import_branch_inactive");
+        }
+      }
+
+      const existing = await ctx.db
+        .query("accessGrants")
+        .withIndex("by_email", (q) => q.eq("email", email))
+        .unique();
+
+      prepared.push({
+        email,
+        fullName,
+        role: row.role,
+        branchId: row.branchId,
+        membershipUntil: row.membershipUntil,
+        status: row.status,
+        notes,
+        existing,
+      });
+    }
+
+    let createdCount = 0;
+    let updatedCount = 0;
+    let skippedCount = 0;
+    let protectedCount = 0;
+
+    for (const row of prepared) {
+      const payload = {
+        email: row.email,
+        fullName: row.fullName,
+        role: row.role,
+        branchId: row.branchId,
+        membershipUntil: row.membershipUntil,
+        status: row.status,
+        notes: row.notes,
+        source: "import" as const,
+        updatedBy: actor._id,
+        updatedAt: now,
+      };
+
+      if (row.existing) {
+        if (!args.updateExisting) {
+          skippedCount += 1;
+          continue;
+        }
+        if (
+          actor.accessGrantId === row.existing._id ||
+          normalizeEmail(actor.email) === row.email
+        ) {
+          protectedCount += 1;
+          continue;
+        }
+        await ctx.db.patch(row.existing._id, payload);
+        updatedCount += 1;
+        continue;
+      }
+
+      await ctx.db.insert("accessGrants", {
+        ...payload,
+        createdBy: actor._id,
+        createdAt: now,
+      });
+      createdCount += 1;
+    }
+
+    await ctx.db.insert("auditLogs", {
+      actorMemberId: actor._id,
+      action: "accessGrant.csvImport",
+      entityType: "accessGrant",
+      entityId: "csv-import",
+      after: {
+        totalCount: prepared.length,
+        createdCount,
+        updatedCount,
+        skippedCount,
+        protectedCount,
+        updateExisting: args.updateExisting,
+      },
+      summary:
+        reason ||
+        `CSV import: ${createdCount} created, ${updatedCount} updated, ${skippedCount + protectedCount} skipped`,
+      createdAt: now,
+    });
+
+    return {
+      status: "completed" as const,
+      totalCount: prepared.length,
+      createdCount,
+      updatedCount,
+      skippedCount,
+      protectedCount,
+    };
   },
 });
 
