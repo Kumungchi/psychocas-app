@@ -27,6 +27,7 @@ import type * as iam from "../iam.js";
 import type * as members from "../members.js";
 import type * as notifications from "../notifications.js";
 import type * as notificationsNode from "../notificationsNode.js";
+import type * as offerEngagement from "../offerEngagement.js";
 import type * as offers from "../offers.js";
 import type * as organization from "../organization.js";
 import type * as otp from "../otp.js";
@@ -65,6 +66,7 @@ declare const fullApi: ApiFromModules<{
   members: typeof members;
   notifications: typeof notifications;
   notificationsNode: typeof notificationsNode;
+  offerEngagement: typeof offerEngagement;
   offers: typeof offers;
   organization: typeof organization;
   otp: typeof otp;

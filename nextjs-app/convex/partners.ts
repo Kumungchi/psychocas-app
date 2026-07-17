@@ -37,6 +37,7 @@ function presentPartner(partner: Doc<"partners">) {
     category: partner.category,
     website: partner.website ?? null,
     description: partner.description ?? null,
+    address: partner.address ?? null,
     scope: partner.branchId ? ("local" as const) : ("national" as const),
     branchId: partner.branchId ?? null,
     active: partner.active,
@@ -84,6 +85,7 @@ export const upsert = mutation({
     category: partnerCategory,
     website: v.optional(v.string()),
     description: v.optional(v.string()),
+    address: v.optional(v.string()),
     scope: v.union(v.literal("national"), v.literal("local")),
     branchId: v.optional(v.id("branches")),
   },
@@ -96,6 +98,7 @@ export const upsert = mutation({
     if (args.description && args.description.length > 1200) {
       throw new ConvexError("partner_description_too_long");
     }
+    if (args.address && args.address.length > 240) throw new ConvexError("partner_address_too_long");
 
     if (args.branchId) {
       const branch = await ctx.db.get(args.branchId);
@@ -115,6 +118,7 @@ export const upsert = mutation({
       category: args.category,
       website: normalizeWebsite(args.website),
       description: args.description?.trim() || undefined,
+      address: args.address?.trim() || undefined,
       branchId: args.branchId,
       updatedBy: actor._id,
       updatedAt: now,

@@ -9,9 +9,11 @@ export const runOperationalCleanup = internalMutation({
     const tokenEventCutoff = startedAt - 30 * DAY_MS;
     const tokenCutoff = startedAt - 31 * DAY_MS;
     const deliveryCutoff = startedAt - 90 * DAY_MS;
+    const engagementIdentityCutoff = startedAt - 90 * DAY_MS;
     const otpCutoff = startedAt - DAY_MS;
     let processedCount = 0;
     let deletedCount = 0;
+    let anonymizedCount = 0;
 
     const oldTokenEvents = await ctx.db
       .query("tokenEvents")
@@ -64,15 +66,37 @@ export const runOperationalCleanup = internalMutation({
       }
     }
 
+    const oldRedemptionFeedback = await ctx.db
+      .query("redemptionFeedback")
+      .withIndex("by_createdAt", (q) => q.lt("createdAt", engagementIdentityCutoff))
+      .take(5000);
+    processedCount += oldRedemptionFeedback.length;
+    for (const row of oldRedemptionFeedback) {
+      if (!row.memberId && !row.tokenId) continue;
+      await ctx.db.patch(row._id, { memberId: undefined, tokenId: undefined });
+      anonymizedCount += 1;
+    }
+
+    const oldIssueReports = await ctx.db
+      .query("offerIssueReports")
+      .withIndex("by_createdAt", (q) => q.lt("createdAt", engagementIdentityCutoff))
+      .take(5000);
+    processedCount += oldIssueReports.length;
+    for (const row of oldIssueReports) {
+      if (!row.memberId) continue;
+      await ctx.db.patch(row._id, { memberId: undefined });
+      anonymizedCount += 1;
+    }
+
     const finishedAt = Date.now();
     await ctx.db.insert("retentionRuns", {
       policy: "operational-v1",
       processedCount,
       deletedCount,
-      anonymizedCount: 0,
+      anonymizedCount,
       startedAt,
       finishedAt,
     });
-    return { processedCount, deletedCount, finishedAt };
+    return { processedCount, deletedCount, anonymizedCount, finishedAt };
   },
 });

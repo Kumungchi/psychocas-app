@@ -1,7 +1,7 @@
 const DB_NAME = 'psychocas-pwa';
 const STORE_NAME = 'member-snapshots';
 const SNAPSHOT_KEY = 'current';
-const VERSION = 2;
+const VERSION = 3;
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 export type OfflineOffer = {
@@ -12,10 +12,16 @@ export type OfflineOffer = {
   partnerName: string;
   category: string;
   description: string | null;
+  redemptionInstructions: string | null;
+  terms: string | null;
   partnerWebsite: string | null;
   partnerDescription: string | null;
+  partnerAddress: string | null;
   validFrom: number | null;
   validUntil: number | null;
+  lastVerifiedAt: number | null;
+  updatedAt: number;
+  favorite: boolean;
 };
 
 export type MemberOfflineSnapshot = {

@@ -68,6 +68,23 @@ const tokenEventType = v.union(
 const reviewStatus = v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected"), v.literal("archived"));
 export const campaignStatus = v.union(v.literal("draft"), v.literal("scheduled"), v.literal("active"), v.literal("finished"), v.literal("archived"));
 const feedbackStatus = v.union(v.literal("open"), v.literal("reviewing"), v.literal("closed"));
+export const offerIssueReason = v.union(
+  v.literal("unavailable"),
+  v.literal("terms_mismatch"),
+  v.literal("staff_unaware"),
+  v.literal("wrong_info"),
+  v.literal("other"),
+);
+export const offerIssueStatus = v.union(
+  v.literal("open"),
+  v.literal("reviewing"),
+  v.literal("resolved"),
+);
+export const redemptionExperience = v.union(
+  v.literal("accepted"),
+  v.literal("not_accepted"),
+  v.literal("problem"),
+);
 const approvalStatus = v.union(
   v.literal("pending"),
   v.literal("approved"),
@@ -207,6 +224,7 @@ export default defineSchema({
     category: partnerCategory,
     website: v.optional(v.string()),
     description: v.optional(v.string()),
+    address: v.optional(v.string()),
     logoStorageId: v.optional(v.id("_storage")),
     branchId: v.optional(v.id("branches")),
     active: v.boolean(),
@@ -246,12 +264,15 @@ export default defineSchema({
     title: v.string(),
     value: v.string(),
     description: v.optional(v.string()),
+    redemptionInstructions: v.optional(v.string()),
+    terms: v.optional(v.string()),
     scope: offerScope,
     branchId: v.optional(v.id("branches")),
     status: offerStatus,
     validFrom: v.optional(v.number()),
     validUntil: v.optional(v.number()),
     campaignId: v.optional(v.id("campaigns")),
+    lastVerifiedAt: v.optional(v.number()),
     createdBy: v.id("members"),
     updatedBy: v.optional(v.id("members")),
     ...timestamps,
@@ -266,6 +287,50 @@ export default defineSchema({
       searchField: "title",
       filterFields: ["status", "scope", "branchId"],
     }),
+
+  offerFavorites: defineTable({
+    memberId: v.id("members"),
+    offerId: v.id("offers"),
+    createdAt: v.number(),
+  })
+    .index("by_member", ["memberId"])
+    .index("by_member_offer", ["memberId", "offerId"])
+    .index("by_offer", ["offerId"]),
+
+  offerIssueReports: defineTable({
+    memberId: v.optional(v.id("members")),
+    organizationId: v.id("organizations"),
+    branchId: v.optional(v.id("branches")),
+    offerId: v.id("offers"),
+    reason: offerIssueReason,
+    note: v.optional(v.string()),
+    status: offerIssueStatus,
+    resolvedBy: v.optional(v.id("members")),
+    resolvedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_member_offer", ["memberId", "offerId"])
+    .index("by_organization_status", ["organizationId", "status"])
+    .index("by_branch_status", ["branchId", "status"])
+    .index("by_offer_status", ["offerId", "status"])
+    .index("by_createdAt", ["createdAt"]),
+
+  redemptionFeedback: defineTable({
+    memberId: v.optional(v.id("members")),
+    tokenId: v.optional(v.id("tokens")),
+    organizationId: v.id("organizations"),
+    branchId: v.optional(v.id("branches")),
+    offerId: v.id("offers"),
+    experience: redemptionExperience,
+    createdAt: v.number(),
+  })
+    .index("by_token", ["tokenId"])
+    .index("by_member_createdAt", ["memberId", "createdAt"])
+    .index("by_createdAt", ["createdAt"])
+    .index("by_organization_createdAt", ["organizationId", "createdAt"])
+    .index("by_branch_createdAt", ["branchId", "createdAt"])
+    .index("by_offer_createdAt", ["offerId", "createdAt"]),
 
   approvalRequests: defineTable({
     organizationId: v.id("organizations"),

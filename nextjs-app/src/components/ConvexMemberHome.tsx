@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuthActions, useConvexAuth } from '@convex-dev/auth/react';
 import { useAction, useConvex, useMutation, useQuery } from 'convex/react';
 import { useRouter } from 'next/navigation';
-import QRCode from 'react-qr-code';
 import {
   Bell,
   Building2,
@@ -13,12 +12,11 @@ import {
   ChevronRight,
   ExternalLink,
   FileJson,
-  Globe2,
+  Heart,
   Home,
   Lightbulb,
   Loader2,
   LogOut,
-  MapPin,
   MessageSquareText,
   QrCode,
   Search,
@@ -26,6 +24,7 @@ import {
   Settings2,
   ShieldCheck,
   Store,
+  Sparkles,
   Tags,
   UserRound,
   WifiOff,
@@ -33,12 +32,12 @@ import {
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import PsychocasLogo from '@/components/PsychocasLogo';
+import { OfferDetail, OfferRow, TokenView, type IssuedToken } from '@/components/MemberOfferExperience';
 import PwaInstallExperience from '@/components/PwaInstallExperience';
 import useLocale from '@/hooks/useLocale';
 import useNetworkStatus from '@/hooks/useNetworkStatus';
 import { getDateLocale } from '@/lib/i18n/utils';
 import type { Locale } from '@/lib/i18n/config';
-import { resolveMemberTokenUiState } from '@/lib/qr/memberTokenState';
 import {
   clearMemberSnapshot,
   loadMemberSnapshot,
@@ -50,14 +49,16 @@ import { colors, radii, shadows, typography } from '@/ui/theme';
 
 type AppTab = 'home' | 'offers' | 'card' | 'profile';
 type OfferFilter = 'all' | 'national' | 'local';
-type IssuedToken = {
-  tokenId: Id<'tokens'>;
-  expiresAt: number;
-  offer: { id: Id<'offers'>; title: string; value: string };
-  partner: { id: Id<'partners'>; name: string };
-  secret: string;
-  shortCode: string;
-  verificationPath: string;
+type OfferSort = 'recommended' | 'newest' | 'ending' | 'az';
+
+const offerCategoryLabels: Record<string, string> = {
+  cafe: 'Kavárny a občerstvení',
+  shop: 'Obchody',
+  publisher: 'Knihy a vzdělávání',
+  practice: 'Praxe a profesní rozvoj',
+  event: 'Události',
+  service: 'Služby',
+  other: 'Ostatní',
 };
 
 const navigation: Array<{ id: AppTab; label: string; Icon: typeof Home }> = [
@@ -110,241 +111,6 @@ function AppSection({ children, className = '' }: { children: React.ReactNode; c
   );
 }
 
-function OfferRow({
-  offer,
-  onSelect,
-}: {
-  offer: OfflineOffer;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className="flex min-h-[76px] w-full items-center gap-3 border-b px-4 py-3 text-left last:border-b-0"
-      style={{ borderColor: colors.border, background: colors.background }}
-    >
-      <span
-        className="flex h-11 w-11 shrink-0 items-center justify-center"
-        style={{ borderRadius: radii.md, background: colors.brandSurface, color: colors.brandPrimary }}
-      >
-        {offer.scope === 'national' ? <Globe2 size={20} /> : <MapPin size={20} />}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold" style={{ color: colors.textPrimary }}>
-          {offer.partnerName}
-        </span>
-        <span className="mt-0.5 block truncate text-sm" style={{ color: colors.textSecondary }}>
-          {offer.title}
-        </span>
-      </span>
-      <span className="shrink-0 text-right">
-        <span
-          className="block px-2 py-1 text-xs font-bold"
-          style={{ borderRadius: radii.sm, background: colors.brandPrimary, color: colors.background }}
-        >
-          {offer.value}
-        </span>
-      </span>
-      <ChevronRight className="h-4 w-4 shrink-0" style={{ color: colors.textSecondary }} />
-    </button>
-  );
-}
-
-function safeExternalUrl(value: string | null): string | null {
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null;
-  } catch {
-    return null;
-  }
-}
-
-function OfferDetail({
-  offer,
-  isOnline,
-  issuing,
-  hasActiveToken,
-  onRedeem,
-  onChangeOffer,
-}: {
-  offer: OfflineOffer;
-  isOnline: boolean;
-  issuing: boolean;
-  hasActiveToken: boolean;
-  onRedeem: () => void;
-  onChangeOffer: () => void;
-}) {
-  const { locale, tr } = useLocale();
-  const website = safeExternalUrl(offer.partnerWebsite);
-
-  return (
-    <AppSection className="overflow-hidden">
-      <div className="border-b px-5 py-5" style={{ borderColor: colors.border, background: colors.brandSurface }}>
-        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold" style={{ color: colors.brandOnSurface }}>
-          <span className="flex items-center gap-1.5">
-            {offer.scope === 'national' ? <Globe2 size={15} /> : <MapPin size={15} />}
-            {tr(offer.scope === 'national' ? 'Celostátní výhoda' : 'Výhoda pro tvoji pobočku')}
-          </span>
-          <span aria-hidden="true">·</span>
-          <span>{offer.category}</span>
-        </div>
-        <p className="mt-4 text-sm font-semibold" style={{ color: colors.brandPrimary }}>{offer.partnerName}</p>
-        <h2 className="mt-1 text-xl font-semibold leading-7" style={{ color: colors.textPrimary }}>{offer.title}</h2>
-        <p className="mt-3 text-3xl font-bold" style={{ color: colors.brandPrimary }}>{offer.value}</p>
-      </div>
-
-      <div className="space-y-5 px-5 py-5">
-        <section>
-          <h3 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>{tr('Podmínky nabídky')}</h3>
-          <p className="mt-2 whitespace-pre-line text-sm leading-6" style={{ color: colors.textSecondary }}>
-            {offer.description || tr('Podmínky této nabídky budou upřesněny partnerem.')}
-          </p>
-        </section>
-
-        {(offer.validFrom || offer.validUntil) && (
-          <div className="grid gap-3 border-y py-4 text-sm sm:grid-cols-2" style={{ borderColor: colors.border }}>
-            {offer.validFrom && (
-              <div className="flex items-start gap-2">
-                <CalendarDays className="mt-0.5 h-4 w-4 shrink-0" style={{ color: colors.brandPrimary }} />
-                <div><p className="text-xs" style={{ color: colors.textSecondary }}>{tr('Platí od')}</p><p className="mt-0.5 font-semibold">{formatDate(offer.validFrom, locale)}</p></div>
-              </div>
-            )}
-            {offer.validUntil && (
-              <div className="flex items-start gap-2">
-                <CalendarDays className="mt-0.5 h-4 w-4 shrink-0" style={{ color: colors.brandPrimary }} />
-                <div><p className="text-xs" style={{ color: colors.textSecondary }}>{tr('Platí do')}</p><p className="mt-0.5 font-semibold">{formatDate(offer.validUntil, locale)}</p></div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {(offer.partnerDescription || website) && (
-          <section>
-            <h3 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>{tr('O partnerovi')}</h3>
-            {offer.partnerDescription && <p className="mt-2 text-sm leading-6" style={{ color: colors.textSecondary }}>{offer.partnerDescription}</p>}
-            {website && (
-              <a href={website} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-11 items-center gap-2 font-semibold" style={{ color: colors.brandPrimary }}>
-                {tr('Web partnera')} <ExternalLink size={17} />
-              </a>
-            )}
-          </section>
-        )}
-
-        {hasActiveToken && <p className="text-xs leading-5" style={{ color: colors.textSecondary }}>{tr('Předchozí kód je aktivní na jiném zobrazení. Nový kód ho bezpečně nahradí.')}</p>}
-        <button type="button" onClick={onRedeem} disabled={!isOnline || issuing} className="inline-flex min-h-12 w-full items-center justify-center gap-2 px-4 font-semibold text-white" style={{ borderRadius: radii.md, background: !isOnline || issuing ? colors.textSecondary : colors.brandPrimary }}>
-          {issuing ? <Loader2 className="h-5 w-5 animate-spin" /> : <QrCode size={20} />}
-          {tr(isOnline ? 'Uplatnit slevu' : 'QR vyžaduje připojení')}
-        </button>
-        <p className="flex items-start gap-2 text-xs leading-5" style={{ color: colors.textSecondary }}>
-          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" style={{ color: colors.success }} />
-          {tr('Bezpečný kód platí 3 minuty a lze ho použít jen jednou.')}
-        </p>
-        <button type="button" onClick={onChangeOffer} className="min-h-11 w-full font-semibold" style={{ color: colors.brandPrimary }}>
-          {tr('Vybrat jinou výhodu')}
-        </button>
-      </div>
-    </AppSection>
-  );
-}
-
-function TokenView({ token, onRegenerate, onDone }: { token: IssuedToken; onRegenerate: () => void; onDone: () => void }) {
-  const { locale, tr } = useLocale();
-  const [now, setNow] = useState(() => Date.now());
-  const tokenStatus = useQuery(api.qr.statusForMember, { tokenId: token.tokenId });
-  const redemptionAnnounced = useRef(false);
-  const verificationUrl = typeof window === 'undefined' ? token.verificationPath : `${window.location.origin}${token.verificationPath}`;
-  const expiresAt = tokenStatus?.expiresAt ?? token.expiresAt;
-  const seconds = Math.max(0, Math.ceil((expiresAt - now) / 1000));
-  const uiState = resolveMemberTokenUiState(tokenStatus?.status, expiresAt, now);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    if (tokenStatus?.status !== 'redeemed' || redemptionAnnounced.current) return;
-    redemptionAnnounced.current = true;
-    navigator.vibrate?.([80, 40, 120]);
-  }, [tokenStatus?.status]);
-
-  if (uiState === 'redeemed') {
-    const redeemedAt = tokenStatus?.redeemedAt ?? tokenStatus?.scannedAt;
-    const verifiedTime = redeemedAt
-      ? new Intl.DateTimeFormat(getDateLocale(locale), { hour: '2-digit', minute: '2-digit' }).format(new Date(redeemedAt))
-      : null;
-    return (
-      <AppSection className="overflow-hidden text-center">
-        <div className="px-5 py-8" role="status" aria-live="polite" style={{ background: colors.successSurface }}>
-          <span className="mx-auto flex h-14 w-14 items-center justify-center" style={{ borderRadius: radii.full, background: colors.background, color: colors.success }}>
-            <CheckCircle2 size={32} />
-          </span>
-          <h2 className="mt-4 text-xl font-semibold" style={{ color: colors.textPrimary }}>{tr('Sleva byla ověřena')}</h2>
-          <p className="mt-2 text-sm" style={{ color: colors.textSecondary }}>{tr('Výhoda je úspěšně uplatněná.')}</p>
-          {verifiedTime && <p className="mt-2 text-xs font-semibold" style={{ color: colors.success }}>{tr('Ověřeno v {time}').replace('{time}', verifiedTime)}</p>}
-        </div>
-        <div className="border-t px-5 py-5" style={{ borderColor: colors.border }}>
-          <p className="text-sm font-semibold" style={{ color: colors.brandPrimary }}>{token.partner.name}</p>
-          <p className="mt-1 text-base font-semibold" style={{ color: colors.textPrimary }}>{token.offer.title}</p>
-          <p className="mt-1 text-2xl font-bold" style={{ color: colors.brandPrimary }}>{token.offer.value}</p>
-          <button type="button" onClick={onDone} className="mt-5 min-h-12 w-full px-4 font-semibold text-white" style={{ borderRadius: radii.md, background: colors.brandPrimary }}>
-            {tr('Použít další výhodu')}
-          </button>
-        </div>
-      </AppSection>
-    );
-  }
-
-  if (uiState === 'expired' || uiState === 'revoked') {
-    return (
-      <AppSection className="px-5 py-10 text-center">
-        <WifiOff className="mx-auto h-8 w-8" style={{ color: colors.textSecondary }} />
-        <p className="mt-3 font-semibold" style={{ color: colors.textPrimary }}>{tr(uiState === 'revoked' ? 'Kód byl zneplatněn' : 'Kód vypršel')}</p>
-        <p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>{tr('Vytvoř nový kód a zkus ověření znovu.')}</p>
-        <button type="button" onClick={onRegenerate} className="mt-5 min-h-11 px-4 font-semibold text-white" style={{ borderRadius: radii.md, background: colors.brandPrimary }}>
-          {tr('Vytvořit nový kód')}
-        </button>
-      </AppSection>
-    );
-  }
-
-  return (
-    <AppSection className="overflow-hidden">
-      <div className="border-b px-4 py-4" style={{ borderColor: colors.border }}>
-        <p className="text-xs font-semibold uppercase" style={{ color: colors.brandPrimary }}>
-          {token.partner.name}
-        </p>
-        <h2 className="mt-1 text-lg font-semibold" style={{ color: colors.textPrimary }}>
-          {token.offer.title}
-        </h2>
-        <p className="mt-1 text-2xl font-bold" style={{ color: colors.brandPrimary }}>
-          {token.offer.value}
-        </p>
-      </div>
-      <div className="flex flex-col items-center px-5 py-5">
-        <div className="bg-white p-3" style={{ borderRadius: radii.md }}>
-          <QRCode value={verificationUrl} size={210} bgColor="#FFFFFF" fgColor="#172033" />
-        </div>
-        <p className="mt-4 font-mono text-xl font-semibold tracking-[0.12em]" style={{ color: colors.textPrimary }}>
-          {token.shortCode}
-        </p>
-        <div className="mt-3 flex items-center gap-2 text-sm font-semibold" style={{ color: seconds <= 30 ? colors.dangerStrong : colors.success }}>
-          <CalendarDays size={17} />
-          {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
-        </div>
-        <p className="mt-3 max-w-xs text-center text-xs leading-5" role="status" aria-live="polite" style={{ color: colors.textSecondary }}>
-          {tr('Čekáme na naskenování obsluhou. Stav se aktualizuje automaticky.')}
-        </p>
-        <p className="mt-1 max-w-xs text-center text-xs leading-5" style={{ color: colors.textSecondary }}>
-          {tr('Obsluha naskenuje QR běžným fotoaparátem telefonu. Zobrazí se pouze platnost členství a nabídky.')}
-        </p>
-      </div>
-    </AppSection>
-  );
-}
-
 export default function ConvexMemberHome() {
   const router = useRouter();
   const convex = useConvex();
@@ -362,6 +128,7 @@ export default function ConvexMemberHome() {
   const upcomingEvents = useQuery(api.events.listForViewer, viewer?.status === 'ready' && iamReady ? {} : 'skip');
   const notificationConfig = useQuery(api.notifications.configuration, viewer?.status === 'ready' && iamReady ? {} : 'skip');
   const issueToken = useAction(api.qrActions.issue);
+  const setFavorite = useMutation(api.offerEngagement.setFavorite);
   const submitFeedback = useMutation(api.feedback.submit);
   const submitSuggestion = useMutation(api.feedback.submitPartnerSuggestion);
   const updatePreferences = useMutation(api.privacy.updateNotificationPreferences);
@@ -371,9 +138,16 @@ export default function ConvexMemberHome() {
   const isOnline = useNetworkStatus();
   const [activeTab, setActiveTab] = useState<AppTab>('home');
   const [offerFilter, setOfferFilter] = useState<OfferFilter>('all');
+  const [offerSort, setOfferSort] = useState<OfferSort>('recommended');
+  const [offerCategory, setOfferCategory] = useState('all');
+  const [favoriteOnly, setFavoriteOnly] = useState(false);
+  const [endingOnly, setEndingOnly] = useState(false);
   const [offerSearch, setOfferSearch] = useState('');
   const [selectedOfferId, setSelectedOfferId] = useState<Id<'offers'> | null>(null);
   const [issuedToken, setIssuedToken] = useState<IssuedToken | null>(null);
+  const [reportOfferId, setReportOfferId] = useState<Id<'offers'> | null>(null);
+  const [favoriteWorkingId, setFavoriteWorkingId] = useState<Id<'offers'> | null>(null);
+  const [discoveryNow] = useState(() => Date.now());
   const [issuing, setIssuing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [offlineSnapshot, setOfflineSnapshot] = useState<MemberOfflineSnapshot | null>(null);
@@ -441,10 +215,16 @@ export default function ConvexMemberHome() {
         partnerName: offer.partner.name,
         category: offer.partner.category,
         description: offer.description,
+        redemptionInstructions: offer.redemptionInstructions,
+        terms: offer.terms,
         partnerWebsite: offer.partner.website,
         partnerDescription: offer.partner.description,
+        partnerAddress: offer.partner.address,
         validFrom: offer.validFrom,
         validUntil: offer.validUntil,
+        lastVerifiedAt: offer.lastVerifiedAt,
+        updatedAt: offer.updatedAt,
+        favorite: offer.favorite,
       }));
     }
     return offlineSnapshot?.offers ?? [];
@@ -465,10 +245,16 @@ export default function ConvexMemberHome() {
       partnerName: offer.partner.name,
       category: offer.partner.category,
       description: offer.description,
+      redemptionInstructions: offer.redemptionInstructions,
+      terms: offer.terms,
       partnerWebsite: offer.partner.website,
       partnerDescription: offer.partner.description,
+      partnerAddress: offer.partner.address,
       validFrom: offer.validFrom,
       validUntil: offer.validUntil,
+      lastVerifiedAt: offer.lastVerifiedAt,
+      updatedAt: offer.updatedAt,
+      favorite: offer.favorite,
     }));
     void saveMemberSnapshot({
       membershipUntil: viewer.member.membershipUntil,
@@ -483,18 +269,69 @@ export default function ConvexMemberHome() {
 
   const filteredOffers = useMemo(() => {
     const search = offerSearch.trim().toLocaleLowerCase('cs');
-    return offers.filter((offer) => {
+    const rows = offers.filter((offer) => {
       if (offerFilter !== 'all' && offer.scope !== offerFilter) return false;
+      if (offerCategory !== 'all' && offer.category !== offerCategory) return false;
+      if (favoriteOnly && !offer.favorite) return false;
+      if (endingOnly && (!offer.validUntil || offer.validUntil > discoveryNow + 14 * 86_400_000)) return false;
       if (!search) return true;
-      return `${offer.partnerName} ${offer.title} ${offer.value}`.toLocaleLowerCase('cs').includes(search);
+      return `${offer.partnerName} ${offer.title} ${offer.value} ${offer.description ?? ''} ${offerCategoryLabels[offer.category] ?? offer.category}`.toLocaleLowerCase('cs').includes(search);
     });
-  }, [offerFilter, offerSearch, offers]);
+    return rows.sort((a, b) => {
+      if (offerSort === 'newest') return b.updatedAt - a.updatedAt;
+      if (offerSort === 'ending') return (a.validUntil ?? Number.MAX_SAFE_INTEGER) - (b.validUntil ?? Number.MAX_SAFE_INTEGER);
+      if (offerSort === 'az') return a.partnerName.localeCompare(b.partnerName, locale);
+      if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
+      if (a.scope !== b.scope) return a.scope === 'local' ? -1 : 1;
+      return b.updatedAt - a.updatedAt;
+    });
+  }, [discoveryNow, endingOnly, favoriteOnly, locale, offerCategory, offerFilter, offerSearch, offerSort, offers]);
+
+  const offerCategories = useMemo(
+    () => Array.from(new Set(offers.map((offer) => offer.category))).sort(),
+    [offers],
+  );
+  const favoriteCount = offers.filter((offer) => offer.favorite).length;
+  const endingSoonCount = offers.filter((offer) => offer.validUntil && offer.validUntil <= discoveryNow + 14 * 86_400_000).length;
+  const recommendedOffers = [...offers].sort((a, b) => {
+    if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
+    if (a.scope !== b.scope) return a.scope === 'local' ? -1 : 1;
+    return b.updatedAt - a.updatedAt;
+  });
 
   const selectedOffer = offers.find((offer) => offer.id === selectedOfferId) ?? null;
   const openOfferDetail = (offerId: Id<'offers'>) => {
     setSelectedOfferId(offerId);
     setIssuedToken(null);
+    setReportOfferId(null);
     setActiveTab('card');
+  };
+
+  const handleFavoriteToggle = async (offer: OfflineOffer) => {
+    if (!isOnline || favoriteWorkingId) return;
+    setFavoriteWorkingId(offer.id as Id<'offers'>);
+    setMessage(null);
+    try {
+      await setFavorite({ offerId: offer.id as Id<'offers'>, favorite: !offer.favorite });
+    } catch {
+      setMessage('Oblíbené se nepodařilo aktualizovat. Zkontroluj připojení.');
+    } finally {
+      setFavoriteWorkingId(null);
+    }
+  };
+
+  const openFavoriteDiscovery = () => {
+    setFavoriteOnly(true);
+    setEndingOnly(false);
+    setOfferSort('recommended');
+    setActiveTab('offers');
+  };
+
+  const openEndingDiscovery = () => {
+    setFavoriteOnly(false);
+    setEndingOnly(true);
+    setOfferSort('ending');
+    setActiveTab('offers');
   };
   const canOpenWorkspace = Boolean(
     access?.capabilities.some((capability) =>
@@ -522,6 +359,7 @@ export default function ConvexMemberHome() {
     try {
       const result = await issueToken({ offerId: selectedOfferId });
       setIssuedToken(result as IssuedToken);
+      setReportOfferId(null);
     } catch {
       setMessage('QR kód se nepodařilo vytvořit. Ověř připojení a platnost nabídky.');
     } finally {
@@ -731,17 +569,28 @@ export default function ConvexMemberHome() {
               <Tags size={20} /> {tr('Vybrat členskou výhodu')}
             </button>
 
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={openFavoriteDiscovery} className="flex min-h-[72px] items-center gap-3 border bg-white px-3 text-left" style={{ borderColor: colors.border, borderRadius: radii.md }}>
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center" style={{ borderRadius: radii.md, background: colors.dangerSurface, color: colors.dangerStrong }}><Heart size={19} /></span>
+                <span className="min-w-0"><span className="block text-lg font-bold">{favoriteCount}</span><span className="block text-xs" style={{ color: colors.textSecondary }}>{tr('Oblíbené')}</span></span>
+              </button>
+              <button type="button" onClick={openEndingDiscovery} className="flex min-h-[72px] items-center gap-3 border bg-white px-3 text-left" style={{ borderColor: colors.border, borderRadius: radii.md }}>
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center" style={{ borderRadius: radii.md, background: colors.warningSurface, color: '#92400e' }}><CalendarDays size={19} /></span>
+                <span className="min-w-0"><span className="block text-lg font-bold">{endingSoonCount}</span><span className="block text-xs leading-4" style={{ color: colors.textSecondary }}>{tr('Končí brzy')}</span></span>
+              </button>
+            </div>
+
             <section>
               <div className="mb-2 flex items-end justify-between gap-3 px-1">
                 <div>
-                  <h2 className="text-base font-semibold" style={{ color: colors.textPrimary }}>{tr('Aktuální výhody')}</h2>
+                  <h2 className="flex items-center gap-2 text-base font-semibold" style={{ color: colors.textPrimary }}><Sparkles size={17} style={{ color: colors.brandPrimary }} />{tr('Pro tebe')}</h2>
                   <p className="text-xs" style={{ color: colors.textSecondary }}>{isOnline ? tr('Podle tvého členství a pobočky') : tr('Uloženo {date}').replace('{date}', offlineSnapshot ? new Date(offlineSnapshot.savedAt).toLocaleString(getDateLocale(locale)) : '')}</p>
                 </div>
                 <button type="button" onClick={() => setActiveTab('offers')} className="text-sm font-semibold" style={{ color: colors.brandPrimary }}>{tr('Všechny')}</button>
               </div>
               <AppSection className="overflow-hidden">
-                {offers.slice(0, 3).map((offer) => (
-                  <OfferRow key={offer.id} offer={offer} onSelect={() => openOfferDetail(offer.id as Id<'offers'>)} />
+                {recommendedOffers.slice(0, 3).map((offer) => (
+                  <OfferRow key={offer.id} offer={offer} isOnline={isOnline} favoriteWorking={favoriteWorkingId === offer.id} onFavorite={() => void handleFavoriteToggle(offer)} onSelect={() => openOfferDetail(offer.id as Id<'offers'>)} />
                 ))}
                 {offers.length === 0 && <p className="px-5 py-8 text-center text-sm" style={{ color: colors.textSecondary }}>{tr('Zatím nejsou publikované žádné výhody.')}</p>}
               </AppSection>
@@ -790,9 +639,31 @@ export default function ConvexMemberHome() {
                 </button>
               ))}
             </div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                {tr('Kategorie')}
+                <select value={offerCategory} onChange={(event) => setOfferCategory(event.target.value)} className="mt-1 min-h-11 w-full border bg-white px-3 text-base" style={{ borderColor: colors.border, borderRadius: radii.md }}>
+                  <option value="all">{tr('Všechny kategorie')}</option>
+                  {offerCategories.map((category) => <option key={category} value={category}>{tr(offerCategoryLabels[category] ?? 'Ostatní')}</option>)}
+                </select>
+              </label>
+              <label className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                {tr('Řazení')}
+                <select value={offerSort} onChange={(event) => setOfferSort(event.target.value as OfferSort)} className="mt-1 min-h-11 w-full border bg-white px-3 text-base" style={{ borderColor: colors.border, borderRadius: radii.md }}>
+                  <option value="recommended">{tr('Doporučené')}</option>
+                  <option value="newest">{tr('Nejnovější')}</option>
+                  <option value="ending">{tr('Končí nejdříve')}</option>
+                  <option value="az">{tr('Podle partnera')}</option>
+                </select>
+              </label>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => { setFavoriteOnly((current) => !current); setEndingOnly(false); }} aria-pressed={favoriteOnly} className="flex min-h-11 items-center justify-center gap-2 border px-2 text-sm font-semibold" style={{ borderColor: favoriteOnly ? colors.brandPrimary : colors.border, borderRadius: radii.md, background: favoriteOnly ? colors.brandSurface : colors.background, color: favoriteOnly ? colors.brandPrimary : colors.textSecondary }}><Heart size={17} fill={favoriteOnly ? 'currentColor' : 'none'} />{tr('Oblíbené')} ({favoriteCount})</button>
+              <button type="button" onClick={() => { setEndingOnly((current) => !current); setFavoriteOnly(false); setOfferSort('ending'); }} aria-pressed={endingOnly} className="flex min-h-11 items-center justify-center gap-2 border px-2 text-sm font-semibold" style={{ borderColor: endingOnly ? colors.brandPrimary : colors.border, borderRadius: radii.md, background: endingOnly ? colors.brandSurface : colors.background, color: endingOnly ? colors.brandPrimary : colors.textSecondary }}><CalendarDays size={17} />{tr('Končí brzy')} ({endingSoonCount})</button>
+            </div>
             <AppSection className="overflow-hidden">
-              {filteredOffers.map((offer) => <OfferRow key={offer.id} offer={offer} onSelect={() => openOfferDetail(offer.id as Id<'offers'>)} />)}
-              {filteredOffers.length === 0 && <p className="px-5 py-10 text-center text-sm" style={{ color: colors.textSecondary }}>{tr('Žádná výhoda neodpovídá výběru.')}</p>}
+              {filteredOffers.map((offer) => <OfferRow key={offer.id} offer={offer} isOnline={isOnline} favoriteWorking={favoriteWorkingId === offer.id} onFavorite={() => void handleFavoriteToggle(offer)} onSelect={() => openOfferDetail(offer.id as Id<'offers'>)} />)}
+              {filteredOffers.length === 0 && <div className="px-5 py-10 text-center"><p className="text-sm" style={{ color: colors.textSecondary }}>{tr('Žádná výhoda neodpovídá výběru.')}</p><button type="button" onClick={() => { setOfferSearch(''); setOfferFilter('all'); setOfferCategory('all'); setFavoriteOnly(false); setEndingOnly(false); setOfferSort('recommended'); }} className="mt-3 min-h-10 text-sm font-semibold" style={{ color: colors.brandPrimary }}>{tr('Zrušit filtry')}</button></div>}
             </AppSection>
           </div>
         )}
@@ -809,7 +680,8 @@ export default function ConvexMemberHome() {
                   <TokenView
                     token={issuedToken}
                     onRegenerate={() => { setIssuedToken(null); window.setTimeout(() => void handleIssueToken(), 0); }}
-                    onDone={() => { setIssuedToken(null); setActiveTab('offers'); }}
+                    onDone={() => { setIssuedToken(null); setReportOfferId(null); setActiveTab('offers'); }}
+                    onReportProblem={() => { setReportOfferId(issuedToken.offer.id); setIssuedToken(null); }}
                   />
                 ) : selectedOffer ? (
                   <OfferDetail
@@ -817,8 +689,9 @@ export default function ConvexMemberHome() {
                     isOnline={isOnline}
                     issuing={issuing}
                     hasActiveToken={Boolean(currentToken)}
+                    startReportOpen={reportOfferId === selectedOffer.id}
                     onRedeem={() => void handleIssueToken()}
-                    onChangeOffer={() => setActiveTab('offers')}
+                    onChangeOffer={() => { setReportOfferId(null); setActiveTab('offers'); }}
                   />
                 ) : null}
               </>

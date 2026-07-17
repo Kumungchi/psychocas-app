@@ -35,6 +35,8 @@ async function presentOffer(ctx: QueryCtx | MutationCtx, offer: Doc<"offers">) {
     title: offer.title,
     value: offer.value,
     description: offer.description ?? null,
+    redemptionInstructions: offer.redemptionInstructions ?? null,
+    terms: offer.terms ?? null,
     scope: offer.scope,
     branchId: offer.branchId ?? null,
     status: offer.status,
@@ -46,7 +48,9 @@ async function presentOffer(ctx: QueryCtx | MutationCtx, offer: Doc<"offers">) {
       category: partner.category,
       website: partner.website ?? null,
       description: partner.description ?? null,
+      address: partner.address ?? null,
     },
+    lastVerifiedAt: offer.lastVerifiedAt ?? null,
     updatedAt: offer.updatedAt,
   };
 }
@@ -68,9 +72,15 @@ export const listForViewer = query({
         (offer.scope === "national" || (member.branchId && offer.branchId === member.branchId)),
     );
     const presented = await Promise.all(visible.map((offer) => presentOffer(ctx, offer)));
+    const favorites = await ctx.db
+      .query("offerFavorites")
+      .withIndex("by_member", (q) => q.eq("memberId", member._id))
+      .take(500);
+    const favoriteIds = new Set(favorites.map((favorite) => favorite.offerId));
     return presented
       .filter((offer): offer is NonNullable<typeof offer> => Boolean(offer))
       .filter((offer) => offer.partner)
+      .map((offer) => ({ ...offer, favorite: favoriteIds.has(offer.id) }))
       .sort((a, b) => b.updatedAt - a.updatedAt);
   },
 });
@@ -113,6 +123,8 @@ export const upsertDraft = mutation({
     title: v.string(),
     value: v.string(),
     description: v.optional(v.string()),
+    redemptionInstructions: v.optional(v.string()),
+    terms: v.optional(v.string()),
     scope: offerScope,
     branchId: v.optional(v.id("branches")),
     validFrom: v.optional(v.number()),
@@ -134,6 +146,10 @@ export const upsertDraft = mutation({
     if (title.length < 2 || title.length > 140) throw new ConvexError("invalid_offer_title");
     if (!value || value.length > 80) throw new ConvexError("invalid_offer_value");
     if (args.description && args.description.length > 2000) throw new ConvexError("offer_description_too_long");
+    if (args.redemptionInstructions && args.redemptionInstructions.length > 1000) {
+      throw new ConvexError("offer_instructions_too_long");
+    }
+    if (args.terms && args.terms.length > 2000) throw new ConvexError("offer_terms_too_long");
     if (args.validFrom && args.validUntil && args.validFrom >= args.validUntil) {
       throw new ConvexError("invalid_offer_dates");
     }
@@ -145,6 +161,8 @@ export const upsertDraft = mutation({
       title,
       value,
       description: args.description?.trim() || undefined,
+      redemptionInstructions: args.redemptionInstructions?.trim() || undefined,
+      terms: args.terms?.trim() || undefined,
       scope: args.scope,
       branchId: args.branchId,
       validFrom: args.validFrom,
@@ -253,7 +271,12 @@ export const review = mutation({
     if (!approval) throw new ConvexError("approval_not_found");
     const now = Date.now();
     const status = args.approve ? ("published" as const) : ("draft" as const);
-    await ctx.db.patch(args.id, { status, updatedBy: actor._id, updatedAt: now });
+    await ctx.db.patch(args.id, {
+      status,
+      updatedBy: actor._id,
+      updatedAt: now,
+      ...(args.approve ? { lastVerifiedAt: now } : {}),
+    });
     await ctx.db.patch(approval._id, {
       status: args.approve ? "approved" : "rejected",
       reviewedBy: actor._id,

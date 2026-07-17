@@ -78,10 +78,14 @@ describe('i18n dictionaries', () => {
       'Kód není platný',
       'Uplatnit slevu',
       'Sleva byla ověřena',
+      'Přidat do oblíbených',
+      'Nahlásit problém s nabídkou',
+      'Proběhlo uplatnění bez problému?',
+      'Kvalita nabídek',
       'Upravit nabídku',
       'Správa členství',
       'Ochrana osobních údajů',
-      'Verze informací pro pilot: 13. 7. 2026. Změny účelů, retenčních lhůt nebo zpracovatelů zveřejníme před jejich účinností.',
+      'Verze informací pro pilot: 17. 7. 2026. Změny účelů, retenčních lhůt nebo zpracovatelů zveřejníme před jejich účinností.',
     ];
 
     for (const phrase of criticalPhrases) {

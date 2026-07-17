@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Database, Mail, ShieldCheck, UserRoundCheck } from 'lucide-react';
+import { ArrowLeft, Database, Heart, Mail, MessageSquareWarning, ShieldCheck, UserRoundCheck } from 'lucide-react';
 import PsychocasLogo from '@/components/PsychocasLogo';
 import useLocale from '@/hooks/useLocale';
 import { colors, radii } from '@/ui/theme';
@@ -32,6 +32,8 @@ export default function PrivacyPage() {
             { Icon: ShieldCheck, title: 'Bezpečnost', text: 'OTP rate limits, session a audit změn chrání členské a správcovské účty.' },
             { Icon: Database, title: 'Agregované metriky', text: 'Použití QR se po krátké provozní době převádí na souhrny bez členského žebříčku nebo behaviorálního profilu.' },
             { Icon: Mail, title: 'Preference', text: 'Oznámení jsou volitelná. Preference lze kdykoli změnit v profilu.' },
+            { Icon: Heart, title: 'Uložené výhody', text: 'Oblíbené nabídky jsou spojené s účtem, aby byly dostupné po přihlášení na dalších zařízeních.' },
+            { Icon: MessageSquareWarning, title: 'Kvalita nabídek', text: 'Hlášení problému a jednorázové hodnocení po QR slouží k opravě neaktuálních výhod. Správci vidí pouze obsah hlášení a souhrnné počty, ne historii konkrétního člena.' },
           ].map(({ Icon, title, text }) => (
             <article key={title} className="border bg-white p-5" style={{ borderColor: colors.border, borderRadius: radii.md }}><Icon className="h-6 w-6" style={{ color: colors.brandPrimary }} /><h3 className="mt-3 font-semibold">{tr(title)}</h3><p className="mt-2 text-sm leading-6" style={{ color: colors.textSecondary }}>{tr(text)}</p></article>
           ))}
@@ -47,6 +49,7 @@ export default function PrivacyPage() {
           <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>{tr('Uložení a příjemci')}</h2>
           <ul className="mt-2 space-y-2 text-sm leading-6" style={{ color: colors.textSecondary }}>
             <li>{tr('Technické QR události se mažou po 30 dnech, navázané QR záznamy po 31 dnech a doručovací logy po 90 dnech.')}</li>
+            <li>{tr('Vazba hlášení a hodnocení uplatnění na členský účet se po 90 dnech anonymizuje. Oblíbené nabídky zůstávají u účtu, dokud je člen neodebere nebo není účet vymazán.')}</li>
             <li>{tr('OTP rate-limit záznamy se mažou po 24 hodinách neaktivity. Tajný QR kód se v databázi neukládá v čitelné podobě.')}</li>
             <li>{tr('Členský profil, přístupy, audit a privacy požadavky se uchovávají po dobu členství a následně jen po dobu stanovenou retenčním plánem spolku nebo právní povinností.')}</li>
             <li>{tr('Technickými zpracovateli jsou Convex (databáze a backend v EU regionu Irsko), Vercel (hosting webové aplikace) a Resend (doručení přihlašovacích emailů). Resend zpracovává data v USA; přenos je smluvně zajištěn standardními smluvními doložkami.')}</li>
@@ -61,7 +64,7 @@ export default function PrivacyPage() {
 
         <section>
           <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>{tr('Kontakt')}</h2>
-          <p className="mt-2 leading-7" style={{ color: colors.textSecondary }}>{tr('Dotazy k soukromí a zpracování údajů směřuj na')} <a href={`mailto:${privacyContact}`} className="font-semibold" style={{ color: colors.brandPrimary }}>{privacyContact}</a>. {tr('Verze informací pro pilot: 13. 7. 2026. Změny účelů, retenčních lhůt nebo zpracovatelů zveřejníme před jejich účinností.')}</p>
+          <p className="mt-2 leading-7" style={{ color: colors.textSecondary }}>{tr('Dotazy k soukromí a zpracování údajů směřuj na')} <a href={`mailto:${privacyContact}`} className="font-semibold" style={{ color: colors.brandPrimary }}>{privacyContact}</a>. {tr('Verze informací pro pilot: 17. 7. 2026. Změny účelů, retenčních lhůt nebo zpracovatelů zveřejníme před jejich účinností.')}</p>
         </section>
       </div>
     </main>

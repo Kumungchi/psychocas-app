@@ -1,6 +1,6 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import schema from "./schema";
 import { modules } from "./test.setup";
 
@@ -295,5 +295,108 @@ describe("management editing flow", () => {
     expect(persisted.privacyRequests).toHaveLength(1);
     expect(persisted.feedback).toHaveLength(1);
     expect(persisted.suggestions).toHaveLength(1);
+  });
+
+  it("supports favorites, scoped issue reports, and one feedback response per redemption", async () => {
+    const { t, asBoard, asMember, memberId } = await seedManagementFlow();
+    const now = Date.now();
+    const partner = await asBoard.mutation(api.partners.upsert, {
+      scope: "national",
+      name: "Trusted Partner",
+      category: "cafe",
+      address: "Test Street 1, Prague",
+    });
+    const offer = await asBoard.mutation(api.offers.upsertDraft, {
+      scope: "national",
+      partnerId: partner.id,
+      title: "Useful Offer",
+      value: "15 %",
+      description: "A concise member benefit.",
+      redemptionInstructions: "Show the generated QR code before payment.",
+      terms: "Valid on the regular menu.",
+    });
+    await asBoard.mutation(api.offers.submitForApproval, { id: offer.id });
+    await asBoard.mutation(api.offers.review, { id: offer.id, approve: true });
+
+    await expect(asMember.mutation(api.offerEngagement.setFavorite, {
+      offerId: offer.id,
+      favorite: true,
+    })).resolves.toMatchObject({ favorite: true });
+    const visibleOffers = await asMember.query(api.offers.listForViewer, {});
+    expect(visibleOffers).toContainEqual(expect.objectContaining({
+      id: offer.id,
+      favorite: true,
+      redemptionInstructions: "Show the generated QR code before payment.",
+      terms: "Valid on the regular menu.",
+      lastVerifiedAt: expect.any(Number),
+      partner: expect.objectContaining({ address: "Test Street 1, Prague" }),
+    }));
+
+    await expect(asMember.mutation(api.offerEngagement.submitIssueReport, {
+      offerId: offer.id,
+      reason: "staff_unaware",
+      note: "The staff could not find the offer.",
+    })).resolves.toMatchObject({ status: "submitted" });
+    await expect(asMember.mutation(api.offerEngagement.submitIssueReport, {
+      offerId: offer.id,
+      reason: "wrong_info",
+      note: "The published instructions need an update.",
+    })).resolves.toMatchObject({ status: "updated" });
+
+    const reports = await asBoard.query(api.offerEngagement.listIssueReports, {
+      scope: "national",
+      status: "open",
+    });
+    expect(reports).toHaveLength(1);
+    expect(reports[0]).toMatchObject({ reason: "wrong_info", offerTitle: "Useful Offer" });
+    await expect(asMember.query(api.offerEngagement.listIssueReports, {
+      scope: "national",
+      status: "open",
+    })).rejects.toThrow();
+
+    const tokenId = await t.run((ctx) => ctx.db.insert("tokens", {
+      memberId,
+      offerId: offer.id,
+      publicHash: "public-test-hash",
+      shortCodeHash: "short-test-hash",
+      status: "redeemed",
+      expiresAt: now + 180_000,
+      scannedAt: now,
+      redeemedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    }));
+    const submittedFeedback = await asMember.mutation(api.offerEngagement.submitRedemptionFeedback, {
+      tokenId,
+      experience: "accepted",
+    });
+    expect(submittedFeedback).toMatchObject({ status: "submitted" });
+    await expect(asMember.mutation(api.offerEngagement.submitRedemptionFeedback, {
+      tokenId,
+      experience: "problem",
+    })).resolves.toMatchObject({ status: "already_submitted", experience: "accepted" });
+    await expect(asBoard.query(api.offerEngagement.redemptionSummaryForManagement, {
+      scope: "national",
+    })).resolves.toEqual({ accepted: 1, not_accepted: 0, problem: 0 });
+
+    await expect(asBoard.mutation(api.offerEngagement.updateIssueStatus, {
+      id: reports[0].id,
+      status: "resolved",
+    })).resolves.toMatchObject({ status: "resolved" });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(reports[0].id, { createdAt: now - 91 * 86_400_000 });
+      if (submittedFeedback.status === "submitted") {
+        await ctx.db.patch(submittedFeedback.id, { createdAt: now - 91 * 86_400_000 });
+      }
+    });
+    await expect(t.mutation(internal.retention.runOperationalCleanup, {})).resolves.toMatchObject({ anonymizedCount: 2 });
+    const anonymized = await t.run(async (ctx) => ({
+      report: await ctx.db.get(reports[0].id),
+      redemption: submittedFeedback.status === "submitted" ? await ctx.db.get(submittedFeedback.id) : null,
+    }));
+    expect(anonymized.report?.memberId).toBeUndefined();
+    expect(anonymized.redemption?.memberId).toBeUndefined();
+    expect(anonymized.redemption?.tokenId).toBeUndefined();
   });
 });

@@ -54,7 +54,7 @@ export const exportMyData = query({
   args: {},
   handler: async (ctx) => {
     const member = await requireActiveMember(ctx);
-    const [grant, preferences, requests, feedbackRows, suggestions, tokens, checkIns, assignments] =
+    const [grant, preferences, requests, feedbackRows, suggestions, tokens, checkIns, assignments, favorites, issueReports, redemptionRows] =
       await Promise.all([
         member.accessGrantId ? ctx.db.get(member.accessGrantId) : null,
         ctx.db
@@ -87,6 +87,18 @@ export const exportMyData = query({
               .withIndex("by_accessGrant_status", (q) => q.eq("accessGrantId", member.accessGrantId!))
               .take(100)
           : [],
+        ctx.db
+          .query("offerFavorites")
+          .withIndex("by_member", (q) => q.eq("memberId", member._id))
+          .take(500),
+        ctx.db
+          .query("offerIssueReports")
+          .withIndex("by_member_offer", (q) => q.eq("memberId", member._id))
+          .take(500),
+        ctx.db
+          .query("redemptionFeedback")
+          .withIndex("by_member_createdAt", (q) => q.eq("memberId", member._id))
+          .take(1000),
       ]);
 
     const tokenActivity = await Promise.all(
@@ -116,6 +128,26 @@ export const exportMyData = query({
           eventTitle: event?.title ?? null,
           eventStartsAt: event?.startsAt ?? null,
           checkedInAt: checkIn.checkedInAt,
+        };
+      }),
+    );
+
+    const favoriteOffers = await Promise.all(
+      favorites.map(async (favorite) => {
+        const offer = await ctx.db.get(favorite.offerId);
+        return { offerTitle: offer?.title ?? null, savedAt: favorite.createdAt };
+      }),
+    );
+
+    const reportedOffers = await Promise.all(
+      issueReports.map(async (report) => {
+        const offer = await ctx.db.get(report.offerId);
+        return {
+          offerTitle: offer?.title ?? null,
+          reason: report.reason,
+          note: report.note ?? null,
+          status: report.status,
+          createdAt: report.createdAt,
         };
       }),
     );
@@ -163,6 +195,12 @@ export const exportMyData = query({
         createdAt: row.createdAt,
       })),
       qrActivity: tokenActivity,
+      favoriteOffers,
+      offerIssueReports: reportedOffers,
+      redemptionFeedback: redemptionRows.map((row) => ({
+        experience: row.experience,
+        createdAt: row.createdAt,
+      })),
       eventAttendance: attendance,
       staffAssignments: assignments.map((assignment) => ({
         preset: assignment.preset,

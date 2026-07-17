@@ -21,6 +21,7 @@ import {
   Percent,
   Plus,
   QrCode,
+  Flag,
   RefreshCcw,
   Repeat2,
   Save,
@@ -40,18 +41,19 @@ import useLocale from '@/hooks/useLocale';
 import { getDateLocale } from '@/lib/i18n/utils';
 import { colors, radii, shadows } from '@/ui/theme';
 
-type WorkspaceTab = 'support' | 'partners' | 'offers' | 'campaigns' | 'events' | 'approvals' | 'metrics' | 'privacy';
+type WorkspaceTab = 'support' | 'partners' | 'offers' | 'issues' | 'campaigns' | 'events' | 'approvals' | 'metrics' | 'privacy';
 type Scope = 'national' | 'local';
 type MetricRange = '7d' | '30d' | '90d' | 'all';
+type IssueStatus = 'open' | 'reviewing' | 'resolved';
 type PartnerCategory = 'cafe' | 'shop' | 'publisher' | 'practice' | 'event' | 'service' | 'other';
 type OfferStatus = 'draft' | 'pending_approval' | 'published' | 'active' | 'paused' | 'archived';
-type PartnerFormState = { id: Id<'partners'> | ''; name: string; category: PartnerCategory; website: string; description: string };
-type OfferFormState = { id: Id<'offers'> | ''; partnerId: Id<'partners'> | ''; title: string; value: string; description: string; validFrom: string; validUntil: string };
+type PartnerFormState = { id: Id<'partners'> | ''; name: string; category: PartnerCategory; website: string; address: string; description: string };
+type OfferFormState = { id: Id<'offers'> | ''; partnerId: Id<'partners'> | ''; title: string; value: string; description: string; redemptionInstructions: string; terms: string; validFrom: string; validUntil: string };
 type CampaignFormState = { id: Id<'campaigns'> | ''; title: string; description: string; validFrom: string; validUntil: string };
 type EventFormState = { id: Id<'events'> | ''; title: string; description: string; location: string; capacity: string; startsAt: string; endsAt: string };
 
-const emptyPartnerForm = (): PartnerFormState => ({ id: '', name: '', category: 'other', website: '', description: '' });
-const emptyOfferForm = (): OfferFormState => ({ id: '', partnerId: '', title: '', value: '', description: '', validFrom: '', validUntil: '' });
+const emptyPartnerForm = (): PartnerFormState => ({ id: '', name: '', category: 'other', website: '', address: '', description: '' });
+const emptyOfferForm = (): OfferFormState => ({ id: '', partnerId: '', title: '', value: '', description: '', redemptionInstructions: '', terms: '', validFrom: '', validUntil: '' });
 const emptyCampaignForm = (): CampaignFormState => ({ id: '', title: '', description: '', validFrom: '', validUntil: '' });
 const emptyEventForm = (): EventFormState => ({ id: '', title: '', description: '', location: '', capacity: '', startsAt: '', endsAt: '' });
 
@@ -153,6 +155,17 @@ function privacyTypeLabel(type: string): string {
   return labels[type] ?? type;
 }
 
+function issueReasonLabel(reason: string): string {
+  const labels: Record<string, string> = {
+    unavailable: 'Nabídka není dostupná',
+    terms_mismatch: 'Podmínky na místě nesouhlasí',
+    staff_unaware: 'Obsluha o nabídce nevěděla',
+    wrong_info: 'Chybné údaje v aplikaci',
+    other: 'Jiný problém',
+  };
+  return labels[reason] ?? reason;
+}
+
 export default function ConvexWorkspace() {
   const router = useRouter();
   const { locale, tr } = useLocale();
@@ -176,6 +189,7 @@ export default function ConvexWorkspace() {
   const [selectedEventId, setSelectedEventId] = useState<Id<'events'> | ''>('');
   const [eventCheckInSearch, setEventCheckInSearch] = useState('');
   const [metricRange, setMetricRange] = useState<MetricRange>('30d');
+  const [issueStatus, setIssueStatus] = useState<IssueStatus>('open');
   const [metricsNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -240,6 +254,14 @@ export default function ConvexWorkspace() {
     api.analytics.summary,
     canReadMetrics && scopeArgs ? { ...scopeArgs, ...metricDateRange } : 'skip',
   );
+  const issueReports = useQuery(
+    api.offerEngagement.listIssueReports,
+    canDraftOffer && scopeArgs ? { ...scopeArgs, status: issueStatus } : 'skip',
+  );
+  const redemptionSummary = useQuery(
+    api.offerEngagement.redemptionSummaryForManagement,
+    canDraftOffer && scopeArgs ? scopeArgs : 'skip',
+  );
   const directory = useQuery(
     api.support.directory,
     canReadDirectory && directorySearch.trim().length >= 2
@@ -270,6 +292,7 @@ export default function ConvexWorkspace() {
   const submitOffer = useMutation(api.offers.submitForApproval);
   const reviewOffer = useMutation(api.offers.review);
   const setOfferPaused = useMutation(api.offers.setPaused);
+  const updateIssueStatus = useMutation(api.offerEngagement.updateIssueStatus);
   const resolvePrivacyRequest = useMutation(api.privacy.resolveRequest);
   const upsertCampaign = useMutation(api.campaigns.upsertDraft);
   const publishCampaign = useMutation(api.campaigns.publish);
@@ -301,6 +324,7 @@ export default function ConvexWorkspace() {
       name: partner.name,
       category: partner.category,
       website: partner.website ?? '',
+      address: partner.address ?? '',
       description: partner.description ?? '',
     });
     setMessage(null);
@@ -314,6 +338,8 @@ export default function ConvexWorkspace() {
       title: offer.title,
       value: offer.value,
       description: offer.description ?? '',
+      redemptionInstructions: offer.redemptionInstructions ?? '',
+      terms: offer.terms ?? '',
       validFrom: dateInputValue(offer.validFrom),
       validUntil: dateInputValue(offer.validUntil),
     });
@@ -358,6 +384,7 @@ export default function ConvexWorkspace() {
         name: partnerForm.name,
         category: partnerForm.category,
         website: partnerForm.website || undefined,
+        address: partnerForm.address || undefined,
         description: partnerForm.description || undefined,
         ...scopeArgs,
       });
@@ -382,6 +409,8 @@ export default function ConvexWorkspace() {
         title: offerForm.title,
         value: offerForm.value,
         description: offerForm.description || undefined,
+        redemptionInstructions: offerForm.redemptionInstructions || undefined,
+        terms: offerForm.terms || undefined,
         validFrom: offerForm.validFrom ? new Date(`${offerForm.validFrom}T00:00:00`).getTime() : undefined,
         validUntil: offerForm.validUntil ? new Date(`${offerForm.validUntil}T23:59:59`).getTime() : undefined,
         ...scopeArgs,
@@ -443,6 +472,16 @@ export default function ConvexWorkspace() {
     }
   };
 
+  const handleIssueStatus = async (id: Id<'offerIssueReports'>, status: IssueStatus) => {
+    setMessage(null);
+    try {
+      await updateIssueStatus({ id, status });
+      setMessage({ type: 'success', text: status === 'resolved' ? 'Hlášení bylo vyřešeno.' : status === 'reviewing' ? 'Hlášení je v řešení.' : 'Hlášení bylo znovu otevřeno.' });
+    } catch {
+      setMessage({ type: 'error', text: 'Stav hlášení se nepodařilo změnit.' });
+    }
+  };
+
   if (!viewer || viewer.status !== 'ready' || !iamReady || !access || !organizations) {
     return <main className="flex min-h-screen items-center justify-center gap-3 text-sm" style={{ background: colors.backgroundMuted, color: colors.textSecondary }}><Loader2 className="h-5 w-5 animate-spin" /> {tr('Načítám pracovní prostor…')}</main>;
   }
@@ -451,6 +490,7 @@ export default function ConvexWorkspace() {
     { id: 'support', label: 'Support', Icon: Users, visible: canReadDirectory },
     { id: 'partners', label: 'Partneři', Icon: Store, visible: canDraftPartner },
     { id: 'offers', label: 'Nabídky', Icon: Tags, visible: canDraftOffer },
+    { id: 'issues', label: 'Hlášení', Icon: Flag, visible: canDraftOffer },
     { id: 'campaigns', label: 'Kampaně', Icon: Megaphone, visible: canDraftCampaign },
     { id: 'events', label: 'Události', Icon: CalendarDays, visible: canManageEvents },
     { id: 'approvals', label: 'Schválení', Icon: ClipboardCheck, visible: canPublishOffer },
@@ -551,6 +591,7 @@ export default function ConvexWorkspace() {
                 <input value={partnerForm.name} onChange={(event) => setPartnerForm((current) => ({ ...current, name: event.target.value }))} placeholder={tr('Název partnera')} required style={fieldStyle()} />
                 <select value={partnerForm.category} onChange={(event) => setPartnerForm((current) => ({ ...current, category: event.target.value as PartnerCategory }))} style={fieldStyle()}>{Object.entries(categoryLabels).map(([value, label]) => <option key={value} value={value}>{tr(label)}</option>)}</select>
                 <input value={partnerForm.website} onChange={(event) => setPartnerForm((current) => ({ ...current, website: event.target.value }))} placeholder="https://partner.cz" inputMode="url" style={fieldStyle()} />
+                <input value={partnerForm.address} onChange={(event) => setPartnerForm((current) => ({ ...current, address: event.target.value }))} placeholder={tr('Adresa provozovny')} maxLength={240} style={fieldStyle()} />
                 <textarea value={partnerForm.description} onChange={(event) => setPartnerForm((current) => ({ ...current, description: event.target.value }))} placeholder={tr('Krátký popis')} rows={3} style={{ ...fieldStyle(), resize: 'vertical' }} />
                 <button type="submit" disabled={saving || !partnerForm.name.trim()} className="flex min-h-11 w-full items-center justify-center gap-2 font-semibold text-white" style={{ borderRadius: radii.md, background: saving ? colors.textSecondary : colors.brandPrimary }}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save size={17} />} {tr('Uložit partnera')}</button>
                 {partnerForm.id && <button type="button" onClick={() => setPartnerForm(emptyPartnerForm())} className="flex min-h-11 w-full items-center justify-center gap-2 font-semibold" style={{ color: colors.textSecondary }}><X size={17} /> {tr('Zrušit úpravu')}</button>}
@@ -584,12 +625,58 @@ export default function ConvexWorkspace() {
                 <select value={offerForm.partnerId} onChange={(event) => setOfferForm((current) => ({ ...current, partnerId: event.target.value as Id<'partners'> }))} required style={fieldStyle()}><option value="" disabled>{tr('Vyber partnera')}</option>{partners?.filter((partner) => partner.active).map((partner) => <option key={partner.id} value={partner.id}>{partner.name}</option>)}</select>
                 <input value={offerForm.title} onChange={(event) => setOfferForm((current) => ({ ...current, title: event.target.value }))} placeholder={tr('Název nabídky')} required style={fieldStyle()} />
                 <input value={offerForm.value} onChange={(event) => setOfferForm((current) => ({ ...current, value: event.target.value }))} placeholder={tr('15 %, 2+1, zdarma…')} required style={fieldStyle()} />
-                <textarea value={offerForm.description} onChange={(event) => setOfferForm((current) => ({ ...current, description: event.target.value }))} placeholder={tr('Podmínky nabídky')} rows={3} style={{ ...fieldStyle(), resize: 'vertical' }} />
+                <textarea value={offerForm.description} onChange={(event) => setOfferForm((current) => ({ ...current, description: event.target.value }))} placeholder={tr('Krátký popis nabídky')} rows={2} style={{ ...fieldStyle(), resize: 'vertical' }} />
+                <textarea value={offerForm.redemptionInstructions} onChange={(event) => setOfferForm((current) => ({ ...current, redemptionInstructions: event.target.value }))} placeholder={tr('Jak výhodu uplatnit')} maxLength={1000} rows={2} style={{ ...fieldStyle(), resize: 'vertical' }} />
+                <textarea value={offerForm.terms} onChange={(event) => setOfferForm((current) => ({ ...current, terms: event.target.value }))} placeholder={tr('Podmínky a omezení nabídky')} maxLength={2000} rows={3} style={{ ...fieldStyle(), resize: 'vertical' }} />
                 <div className="grid grid-cols-2 gap-2"><label className="text-xs" style={{ color: colors.textSecondary }}>{tr('Platí od')}<input type="date" value={offerForm.validFrom} onChange={(event) => setOfferForm((current) => ({ ...current, validFrom: event.target.value }))} className="mt-1" style={fieldStyle()} /></label><label className="text-xs" style={{ color: colors.textSecondary }}>{tr('Platí do')}<input type="date" value={offerForm.validUntil} onChange={(event) => setOfferForm((current) => ({ ...current, validUntil: event.target.value }))} className="mt-1" style={fieldStyle()} /></label></div>
                 {offerForm.id && offers?.find((offer) => offer.id === offerForm.id)?.status !== 'draft' && <p className="text-xs leading-5" style={{ color: '#92400e' }}>{tr('Po uložení se záznam vrátí do draftu a bude potřeba ho znovu publikovat.')}</p>}
                 <button type="submit" disabled={saving || !offerForm.partnerId || !offerForm.title.trim() || !offerForm.value.trim()} className="flex min-h-11 w-full items-center justify-center gap-2 font-semibold text-white" style={{ borderRadius: radii.md, background: saving ? colors.textSecondary : colors.brandPrimary }}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save size={17} />} {tr('Uložit draft')}</button>
                 {offerForm.id && <button type="button" onClick={() => setOfferForm(emptyOfferForm())} className="flex min-h-11 w-full items-center justify-center gap-2 font-semibold" style={{ color: colors.textSecondary }}><X size={17} /> {tr('Zrušit úpravu')}</button>}
               </form>
+            </Panel>
+          </div>
+        )}
+
+        {effectiveTab === 'issues' && canDraftOffer && (
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-xl font-semibold">{tr('Kvalita nabídek')}</h2>
+              <p className="mt-1 text-sm leading-6" style={{ color: colors.textSecondary }}>{tr('Anonymní souhrn uplatnění a hlášení členů v aktuálním scope.')}</p>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <MetricCard label={tr('Bez problému')} value={redemptionSummary?.accepted ?? 0} Icon={CheckCircle2} />
+              <MetricCard label={tr('Sleva nepřijata')} value={redemptionSummary?.not_accepted ?? 0} Icon={X} />
+              <MetricCard label={tr('Jiný problém')} value={redemptionSummary?.problem ?? 0} Icon={Flag} />
+            </div>
+
+            <div className="grid grid-cols-3 gap-1 border bg-white p-1" style={{ borderColor: colors.border, borderRadius: radii.md }} aria-label={tr('Stav hlášení')}>
+              {(['open', 'reviewing', 'resolved'] as IssueStatus[]).map((status) => (
+                <button key={status} type="button" onClick={() => setIssueStatus(status)} className="min-h-10 px-1 text-xs font-semibold sm:text-sm" aria-pressed={issueStatus === status} style={{ borderRadius: radii.sm, background: issueStatus === status ? colors.brandPrimary : colors.background, color: issueStatus === status ? colors.background : colors.textSecondary }}>
+                  {tr(status === 'open' ? 'Otevřená' : status === 'reviewing' ? 'V řešení' : 'Vyřešená')}
+                </button>
+              ))}
+            </div>
+
+            <Panel className="overflow-hidden">
+              <div className="border-b px-4 py-4" style={{ borderColor: colors.border }}><h3 className="font-semibold">{tr('Hlášení členů')}</h3><p className="text-sm" style={{ color: colors.textSecondary }}>{issueReports ? tr('{count} záznamů').replace('{count}', String(issueReports.length)) : tr('Načítám…')}</p></div>
+              <div className="divide-y" style={{ borderColor: colors.border }}>
+                {issueReports?.map((report) => (
+                  <article key={report.id} className="px-4 py-4">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center" style={{ borderRadius: radii.md, background: colors.warningSurface, color: '#92400e' }}><Flag size={18} /></span>
+                      <div className="min-w-0 flex-1"><h4 className="font-semibold">{report.offerTitle}</h4><p className="mt-1 text-sm" style={{ color: colors.textSecondary }}>{report.partnerName} · {tr(issueReasonLabel(report.reason))}</p><p className="mt-1 text-xs" style={{ color: colors.textSecondary }}>{new Date(report.createdAt).toLocaleString(getDateLocale(locale))}</p></div>
+                    </div>
+                    {report.note && <p className="mt-3 border-l-2 pl-3 text-sm leading-6" style={{ borderColor: colors.accent, color: colors.textSecondary }}>{report.note}</p>}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {report.status === 'open' && <button type="button" onClick={() => void handleIssueStatus(report.id, 'reviewing')} className="flex min-h-10 items-center gap-2 border px-3 text-sm font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md }}><Clock3 size={16} />{tr('Začít řešit')}</button>}
+                      {report.status !== 'resolved' && <button type="button" onClick={() => void handleIssueStatus(report.id, 'resolved')} className="flex min-h-10 items-center gap-2 px-3 text-sm font-semibold text-white" style={{ borderRadius: radii.md, background: colors.brandPrimary }}><Check size={16} />{tr('Vyřešeno')}</button>}
+                      {report.status === 'resolved' && <button type="button" onClick={() => void handleIssueStatus(report.id, 'open')} className="flex min-h-10 items-center gap-2 border px-3 text-sm font-semibold" style={{ borderColor: colors.border, borderRadius: radii.md }}><RefreshCcw size={16} />{tr('Znovu otevřít')}</button>}
+                    </div>
+                  </article>
+                ))}
+                {issueReports?.length === 0 && <p className="px-4 py-10 text-center text-sm" style={{ color: colors.textSecondary }}>{tr('V tomto scope nejsou žádná hlášení s vybraným stavem.')}</p>}
+              </div>
             </Panel>
           </div>
         )}
