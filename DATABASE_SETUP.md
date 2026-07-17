@@ -1,4 +1,6 @@
-# 🗄️ Database Setup Guide
+# Historický Supabase Database Setup Guide
+
+> **Nepoužívat pro aktivní aplikaci.** Tento dokument je archiv původního Supabase řešení. Produkční runtime používá výhradně Convex; aktuální orientace, schéma a deployment jsou v [dokumentaci aplikace](nextjs-app/docs/README.md) a [Convex backend guide](nextjs-app/convex/README.md).
 
 Detailní návod pro nastavení Supabase databáze pro Psychočas app po migraci na `memberships`.
 

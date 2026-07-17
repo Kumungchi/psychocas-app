@@ -1,5 +1,7 @@
 # Phase 2 — Lint, Auth Testing & Manual QA
 
+> **Historický dokument:** Popisuje již opuštěnou Supabase implementaci. Nespouštějte uvedené SQL, Edge Functions ani deployment kroky. Aktivní Next.js + Convex aplikace je zdokumentována v [aktuálním rozcestníku](nextjs-app/docs/README.md).
+
 ## Kontext
 
 Architektura je hotová: všech 6 stránek postaveno, SQL schéma nasazeno (7 tabulek + view + RLS + triggery + seed), Edge Functions běží (`generate_token`, `redeem_token`), Vercel běží, TypeScript build prochází s 0 chybami, 29 unit testů prochází.

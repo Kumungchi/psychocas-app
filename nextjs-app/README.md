@@ -2,6 +2,10 @@
 
 Mobile-first Next.js application backed exclusively by Convex. Authentication uses Convex Auth and an eight-digit Resend email OTP. Supabase is not used at runtime.
 
+## Documentation
+
+The [documentation index](docs/README.md) is the entry point for product scope, roles, architecture, workflows, data and GDPR, PWA behavior, development, deployment, and pilot operations.
+
 ## Commands
 
 ```powershell
@@ -41,3 +45,5 @@ No email, JWT, QR, push, or deployment secret may use a `NEXT_PUBLIC_*` name.
 ## Release rule
 
 Deploy the backend first, then build the frontend with the resulting production Convex URLs. Run the browser suite against the final custom domain after every production release.
+
+The complete procedure and smoke checklist are in [Development and release](docs/development-release.md) and the [operations runbook](docs/operations-runbook.md).

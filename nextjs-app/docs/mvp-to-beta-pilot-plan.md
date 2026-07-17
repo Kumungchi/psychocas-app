@@ -1,5 +1,7 @@
 # Psychočas: cílová architektura a plán od MVP po beta pilot
 
+> **Historický plán:** Tento dokument zachycuje rozhodování a stav k 12. 7. 2026. Není popisem aktuální implementace ani provozním návodem; migrace na Convex a další uvedené mezery už byly dokončeny. Aktuální stav začíná v [dokumentačním rozcestníku](README.md).
+
 Aktualizováno: 12. 7. 2026
 
 ## 1. Rozhodnutí

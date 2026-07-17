@@ -2,6 +2,12 @@
 
 Production-oriented member PWA for Psychočas. The application lives in `nextjs-app` and uses Next.js, Convex, Convex Auth, Resend email OTP, and Vercel.
 
+## Documentation
+
+Start with the [application documentation](nextjs-app/docs/README.md). It is the current source for product scope, roles and permissions, architecture, workflows, data protection, PWA behavior, development, release, and pilot operations.
+
+Legacy Supabase setup notes in the repository are historical records only and are not valid instructions for the active application.
+
 ## Pilot scope
 
 - Allowlisted email OTP sign-in and role-aware member sessions
@@ -45,4 +51,4 @@ Convex and Vercel are deployed separately. `npm run build` never deploys a backe
 4. Deploy the Next.js package from `nextjs-app`.
 5. Run the browser suite against `https://app.psychocas.cz`.
 
-See `nextjs-app/convex/README.md` for exact environment names and deployment checks.
+See the [development and release guide](nextjs-app/docs/development-release.md) and [Convex backend guide](nextjs-app/convex/README.md) for exact environment names and deployment checks.

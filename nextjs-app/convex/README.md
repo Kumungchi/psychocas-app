@@ -2,6 +2,8 @@
 
 Convex is the sole runtime database and application backend. Convex Auth sends an eight-digit OTP through Resend and creates a session only for an active access grant or the single allowlisted bootstrap administrator.
 
+For the full system context, start with the [documentation index](../docs/README.md), [architecture](../docs/architecture.md), and [data, privacy, and security](../docs/data-privacy-security.md).
+
 ## Deployment environments
 
 Each Convex deployment needs these server-side variables:
