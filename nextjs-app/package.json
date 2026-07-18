@@ -9,6 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:browser": "tsx scripts/verifyBrowserMvp.ts",
+    "security:secrets": "node scripts/scanTrackedSecrets.mjs",
+    "typecheck:convex": "tsc -p convex/tsconfig.json --noEmit",
     "screenshots": "tsx scripts/screenshot-product.ts",
     "convex:dev": "convex dev",
     "convex:codegen": "convex codegen --typecheck disable",
@@ -16,7 +18,8 @@
     "convex:auth-keys": "node scripts/generateConvexAuthKeys.mjs",
     "convex:provision": "node scripts/provisionConvexDeployment.mjs",
     "test:vercel": "tsx scripts/testVercelBuild.ts",
-    "verify": "npm run lint && npm run test && npm run test:vercel"
+    "verify:quick": "npm run security:secrets && npm run lint && npm run test && npm run typecheck:convex",
+    "verify": "npm run verify:quick && npm run test:vercel"
   },
   "dependencies": {
     "@auth/core": "^0.41.2",

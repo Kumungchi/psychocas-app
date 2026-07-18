@@ -56,15 +56,27 @@ function ensureEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   };
 }
 
+function cleanBuildOutput(buildDir: string, preserveCache: boolean): void {
+  if (!preserveCache || !existsSync(buildDir)) {
+    rmSync(buildDir, { recursive: true, force: true });
+    return;
+  }
+
+  for (const entry of readdirSync(buildDir)) {
+    if (entry === 'cache') continue;
+    rmSync(path.join(buildDir, entry), { recursive: true, force: true });
+  }
+}
+
 function run(): void {
   const projectRoot = path.resolve(__dirname, '..');
   const buildDir = path.join(projectRoot, '.next');
   const publicDir = path.join(projectRoot, 'public');
   const keepBuildOutput = process.env.KEEP_NEXT_BUILD === 'true';
+  const preserveBuildCache = process.env.PRESERVE_NEXT_CACHE === 'true';
 
-  // Always start from a clean build directory so that the test reflects
-  // exactly what would happen on Vercel.
-  rmSync(buildDir, { recursive: true, force: true });
+  // Cached compiler inputs may survive, but no previous build output may do so.
+  cleanBuildOutput(buildDir, preserveBuildCache);
 
   try {
     const npmCli = process.env.npm_execpath;
@@ -95,9 +107,8 @@ function run(): void {
     assertProductionConvexFallback(buildDir);
   } finally {
     if (!keepBuildOutput) {
-      rmSync(buildDir, { recursive: true, force: true });
+      cleanBuildOutput(buildDir, preserveBuildCache);
     }
-
   }
 }
 

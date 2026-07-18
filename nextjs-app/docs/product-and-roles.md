@@ -1,6 +1,6 @@
 # Produkt a role
 
-Aktualizováno: 17. 7. 2026
+Aktualizováno: 18. 7. 2026
 
 ## Produktový účel
 
@@ -75,6 +75,8 @@ Oprávnění nejsou jen jedna hierarchická role. Staff přístup je kombinace:
 | `admin` | všechny capabilities | IAM a technická administrace. |
 
 Člen bez staff assignmentu pracuje pouze se svým profilem a členskými funkcemi.
+
+Legacy role `manager`, `board` nebo `admin` zůstává během přechodu kompatibilní. Administrace umí atomicky vytvořit assignment a změnit základní roli na `member`; tím nevznikne mezera bez přístupu a audit zachytí původní i výsledný stav. Poslední aktivní board/admin přístup nelze tímto postupem odebrat.
 
 ### Scope
 

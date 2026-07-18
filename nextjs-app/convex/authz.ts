@@ -85,7 +85,10 @@ export async function requireActiveMember(ctx: AuthCtx): Promise<Doc<"members">>
 export async function requireBoardOrAdmin(ctx: AuthCtx): Promise<Doc<"members">> {
   const member = await requireActiveMember(ctx);
 
-  if (!elevatedRoles.has(member.role)) {
+  if (elevatedRoles.has(member.role)) return member;
+
+  const assignments = await getActiveStaffAssignments(ctx, member);
+  if (!assignments.some((assignment) => elevatedRoles.has(assignment.preset))) {
     throw new ConvexError("forbidden");
   }
 
@@ -95,7 +98,10 @@ export async function requireBoardOrAdmin(ctx: AuthCtx): Promise<Doc<"members">>
 export async function requireManagerBoardOrAdmin(ctx: AuthCtx): Promise<Doc<"members">> {
   const member = await requireActiveMember(ctx);
 
-  if (!managerRoles.has(member.role)) {
+  if (managerRoles.has(member.role)) return member;
+
+  const assignments = await getActiveStaffAssignments(ctx, member);
+  if (!assignments.some((assignment) => managerRoles.has(assignment.preset))) {
     throw new ConvexError("forbidden");
   }
 

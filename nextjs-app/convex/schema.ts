@@ -156,6 +156,13 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_email", ["email"]),
 
+  systemRateLimits: defineTable({
+    key: v.string(),
+    windowStartedAt: v.number(),
+    requestCount: v.number(),
+    updatedAt: v.number(),
+  }).index("by_key", ["key"]),
+
   members: defineTable({
     userId: v.optional(v.id("users")),
     accessGrantId: v.optional(v.id("accessGrants")),

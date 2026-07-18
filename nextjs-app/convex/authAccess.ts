@@ -6,6 +6,8 @@ import { parseBootstrapEmails } from "./authMembership";
 const OTP_COOLDOWN_MS = 60 * 1000;
 const OTP_WINDOW_MS = 15 * 60 * 1000;
 const OTP_MAX_REQUESTS_PER_WINDOW = 5;
+const OTP_GLOBAL_LIMIT_KEY = "otp-email";
+const OTP_GLOBAL_MAX_REQUESTS_PER_WINDOW = 200;
 
 export const consumeOtpRequest = internalMutation({
   args: { email: v.string() },
@@ -53,6 +55,37 @@ export const consumeOtpRequest = internalMutation({
         status: "rate_limited" as const,
         retryAfterMs: OTP_WINDOW_MS - (now - existing.windowStartedAt),
       };
+    }
+
+    const globalLimit = await ctx.db
+      .query("systemRateLimits")
+      .withIndex("by_key", (q) => q.eq("key", OTP_GLOBAL_LIMIT_KEY))
+      .unique();
+    const insideGlobalWindow =
+      globalLimit && now - globalLimit.windowStartedAt < OTP_WINDOW_MS;
+    if (
+      insideGlobalWindow &&
+      globalLimit.requestCount >= OTP_GLOBAL_MAX_REQUESTS_PER_WINDOW
+    ) {
+      return {
+        status: "global_rate_limited" as const,
+        retryAfterMs: OTP_WINDOW_MS - (now - globalLimit.windowStartedAt),
+      };
+    }
+
+    if (globalLimit) {
+      await ctx.db.patch(globalLimit._id, {
+        windowStartedAt: insideGlobalWindow ? globalLimit.windowStartedAt : now,
+        requestCount: insideGlobalWindow ? globalLimit.requestCount + 1 : 1,
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.insert("systemRateLimits", {
+        key: OTP_GLOBAL_LIMIT_KEY,
+        windowStartedAt: now,
+        requestCount: 1,
+        updatedAt: now,
+      });
     }
 
     if (existing) {

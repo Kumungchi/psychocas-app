@@ -52,6 +52,16 @@ export const runOperationalCleanup = internalMutation({
       deletedCount += 1;
     }
 
+    const oldSystemLimits = await ctx.db
+      .query("systemRateLimits")
+      .filter((q) => q.lt(q.field("updatedAt"), otpCutoff))
+      .take(100);
+    processedCount += oldSystemLimits.length;
+    for (const row of oldSystemLimits) {
+      await ctx.db.delete(row._id);
+      deletedCount += 1;
+    }
+
     for (const status of ["sent", "failed", "cancelled"] as const) {
       const jobs = await ctx.db
         .query("deliveryJobs")

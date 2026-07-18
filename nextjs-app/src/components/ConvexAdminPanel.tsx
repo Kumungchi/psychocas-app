@@ -5,6 +5,7 @@ import { useAuthActions } from '@convex-dev/auth/react';
 import { useMutation, useQuery } from 'convex/react';
 import { useRouter } from 'next/navigation';
 import {
+  Activity,
   Building2,
   CalendarDays,
   Check,
@@ -74,6 +75,7 @@ type AssignmentFormState = {
   branchId: Id<'branches'> | '';
   validUntil: string;
   reason: string;
+  replaceLegacyRole: boolean;
 };
 
 const presetLabels: Record<StaffPreset, string> = {
@@ -173,10 +175,11 @@ export default function ConvexAdminPanel() {
   const { signOut } = useAuthActions();
   const { locale, tr } = useLocale();
   const viewer = useQuery(api.members.viewer);
+  const access = useQuery(api.iam.viewerAccess, viewer?.status === 'ready' ? {} : 'skip');
   const canManage =
     viewer?.status === 'ready' &&
     viewer.member.membershipActive &&
-    (viewer.member.role === 'board' || viewer.member.role === 'admin');
+    (access?.capabilities.includes('membership.manage') ?? false);
 
   const [activeTab, setActiveTab] = useState<AdminTab>('members');
   const [filters, setFilters] = useState<FilterState>({
@@ -202,6 +205,7 @@ export default function ConvexAdminPanel() {
     branchId: '',
     validUntil: '',
     reason: '',
+    replaceLegacyRole: false,
   });
   const [message, setMessage] = useState<Message>(null);
   const [saving, setSaving] = useState(false);
@@ -232,6 +236,10 @@ export default function ConvexAdminPanel() {
   const assignments = useQuery(
     api.iam.listAssignments,
     canManage && organizationId ? { organizationId, includeRevoked: true } : 'skip',
+  );
+  const operationalStatus = useQuery(
+    api.operations.dashboard,
+    canManage && organizationId ? { organizationId } : 'skip',
   );
   const upsertGrant = useMutation(api.members.upsertAccessGrant);
   const bulkUpdateGrants = useMutation(api.members.bulkUpdateAccessGrants);
@@ -268,6 +276,7 @@ export default function ConvexAdminPanel() {
 
   const activeBranches = useMemo(() => (branches ?? []).filter((branch) => branch.active), [branches]);
   const visibleAccessGrants = accessGrants ?? [];
+  const assignmentGrant = accessGrants?.find((grant) => grant.id === assignmentForm.accessGrantId);
   const selectedIds = useMemo(() => Array.from(selected) as Id<'accessGrants'>[], [selected]);
   const selectedCount = selectedIds.length;
   const allVisibleSelected =
@@ -467,9 +476,15 @@ export default function ConvexAdminPanel() {
           ? timestampFromDateInput(assignmentForm.validUntil)
           : undefined,
         reason: assignmentForm.reason || undefined,
+        replaceLegacyRole: assignmentForm.replaceLegacyRole || undefined,
       });
       setMessage({ type: 'success', text: 'Oprávnění bylo uloženo.' });
-      setAssignmentForm((current) => ({ ...current, reason: '', validUntil: '' }));
+      setAssignmentForm((current) => ({
+        ...current,
+        reason: '',
+        validUntil: '',
+        replaceLegacyRole: false,
+      }));
     } catch {
       setMessage({ type: 'error', text: 'Oprávnění se nepodařilo uložit. Zkontroluj preset a scope.' });
     } finally {
@@ -498,7 +513,7 @@ export default function ConvexAdminPanel() {
             <ShieldCheck className="h-8 w-8" style={{ color: colors.brandPrimary }} />
             <h1>{tr('Administrace')}</h1>
             <p style={{ color: colors.textSecondary }}>
-              {tr('Tato část je dostupná pouze pro aktivní board a admin účet.')}
+              {tr('Tato část vyžaduje aktivní oprávnění ke správě členství.')}
             </p>
             <button type="button" onClick={() => router.replace('/home')} style={softButtonStyle()}>
               {tr('Zpět do aplikace')}
@@ -560,6 +575,33 @@ export default function ConvexAdminPanel() {
           >
             {tr(message.text)}
           </div>
+        )}
+
+        {operationalStatus && (
+          <section className="rounded-lg border bg-white p-4" style={{ borderColor: colors.border, boxShadow: shadows.sm }}>
+            <div className="mb-3 flex items-center gap-2">
+              <Activity className="h-4 w-4" style={{ color: colors.brandPrimary }} />
+              <h2 className="text-sm font-semibold">{tr('Provozní stav pilotu')}</h2>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="rounded-lg p-3" style={{ background: operationalStatus.access.expiredCount > 0 ? colors.dangerSurface : colors.neutralSurface }}>
+                <p className="text-xl font-bold">{operationalStatus.access.expiredCount}</p>
+                <p className="mt-1 text-xs leading-4" style={{ color: colors.textSecondary }}>{tr('Expirované přístupy')}</p>
+              </div>
+              <div className="rounded-lg p-3" style={{ background: operationalStatus.access.expiringWithin14DaysCount > 0 ? colors.warningSurface : colors.neutralSurface }}>
+                <p className="text-xl font-bold">{operationalStatus.access.expiringWithin14DaysCount}</p>
+                <p className="mt-1 text-xs leading-4" style={{ color: colors.textSecondary }}>{tr('Končí do 14 dnů')}</p>
+              </div>
+              <div className="rounded-lg p-3" style={{ background: operationalStatus.delivery.failedLast24HoursCount > 0 ? colors.dangerSurface : colors.neutralSurface }}>
+                <p className="text-xl font-bold">{operationalStatus.delivery.failedLast24HoursCount}</p>
+                <p className="mt-1 text-xs leading-4" style={{ color: colors.textSecondary }}>{tr('Selhání doručení za 24 h')}</p>
+              </div>
+              <div className="rounded-lg p-3" style={{ background: operationalStatus.retention.status === 'fresh' ? colors.successSurface : colors.warningSurface }}>
+                <p className="text-sm font-bold">{tr(operationalStatus.retention.status === 'fresh' ? 'V pořádku' : 'Zkontrolovat')}</p>
+                <p className="mt-1 text-xs leading-4" style={{ color: colors.textSecondary }}>{tr('Retence dat')}</p>
+              </div>
+            </div>
+          </section>
         )}
 
         <nav className="grid grid-cols-3 gap-2 rounded-lg border bg-white p-1" style={{ borderColor: colors.border }}>
@@ -1172,6 +1214,22 @@ export default function ConvexAdminPanel() {
                 )}
                 <label className="block space-y-1 text-sm"><span style={{ color: colors.textSecondary }}>{tr('Platnost do (volitelné)')}</span><input type="date" value={assignmentForm.validUntil} onChange={(event) => setAssignmentForm((current) => ({ ...current, validUntil: event.target.value }))} style={fieldStyle()} /></label>
                 <label className="block space-y-1 text-sm"><span style={{ color: colors.textSecondary }}>{tr('Důvod')}</span><input value={assignmentForm.reason} onChange={(event) => setAssignmentForm((current) => ({ ...current, reason: event.target.value }))} placeholder={tr('Např. PR koordinace 2026')} style={fieldStyle()} /></label>
+                {assignmentGrant && assignmentGrant.role !== 'member' && (
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm" style={{ borderColor: colors.border, background: colors.neutralSurface }}>
+                    <input
+                      type="checkbox"
+                      checked={assignmentForm.replaceLegacyRole}
+                      onChange={(event) => setAssignmentForm((current) => ({ ...current, replaceLegacyRole: event.target.checked }))}
+                      className="mt-1 h-4 w-4 shrink-0"
+                    />
+                    <span>
+                      <span className="block font-semibold">{tr('Nahradit širokou roli tímto oprávněním')}</span>
+                      <span className="mt-1 block leading-5" style={{ color: colors.textSecondary }}>
+                        {tr('Základní role bude člen. Přístup zůstane jen podle vybraného presetu a rozsahu.')}
+                      </span>
+                    </span>
+                  </label>
+                )}
                 <button type="submit" disabled={saving || !assignmentForm.accessGrantId || !organizationId} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg px-4 font-semibold" style={{ background: saving ? colors.neutralSurface : colors.brandPrimary, color: saving ? colors.textSecondary : colors.background }}><Save className="h-4 w-4" /> {tr('Uložit oprávnění')}</button>
               </div>
             </form>

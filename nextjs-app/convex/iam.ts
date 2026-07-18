@@ -1,5 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query, type QueryCtx } from "./_generated/server";
+import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { assignmentScope, staffPreset } from "./schema";
 import {
@@ -8,6 +8,7 @@ import {
   requireActiveMember,
   requireCapability,
 } from "./authz";
+import { effectiveAccessStatus } from "./access";
 import { legacyPresetForRole, type StaffPreset } from "./permissions";
 
 const DEFAULT_ORGANIZATION_SLUG = "psychocas";
@@ -37,6 +38,87 @@ async function presentAssignment(ctx: QueryCtx, assignment: Doc<"staffAssignment
     reason: assignment.reason ?? null,
     updatedAt: assignment.updatedAt,
   };
+}
+
+async function assertLegacyRoleReplacementIsSafe(
+  ctx: MutationCtx,
+  grant: Doc<"accessGrants">,
+  preset: StaffPreset,
+  organizationId: Doc<"organizations">["_id"],
+): Promise<void> {
+  if (grant.role !== "board" && grant.role !== "admin") return;
+  if (preset === "board" || preset === "admin") return;
+
+  const now = Date.now();
+  const [elevatedGrants, organizationAssignments] = await Promise.all([
+    ctx.db
+      .query("accessGrants")
+      .filter((q) =>
+        q.or(q.eq(q.field("role"), "board"), q.eq(q.field("role"), "admin")),
+      )
+      .take(500),
+    ctx.db
+      .query("staffAssignments")
+      .withIndex("by_organization_status", (q) =>
+        q.eq("organizationId", organizationId).eq("status", "active"),
+      )
+      .take(500),
+  ]);
+  const anotherElevatedGrant = elevatedGrants.some(
+    (candidate) =>
+      candidate._id !== grant._id &&
+      effectiveAccessStatus(candidate.status, candidate.membershipUntil, now) === "active",
+  );
+  const anotherElevatedAssignment = organizationAssignments.some(
+    (assignment) =>
+      assignment.accessGrantId !== grant._id &&
+      assignmentIsCurrent(assignment, now) &&
+      (assignment.preset === "board" || assignment.preset === "admin"),
+  );
+  if (!anotherElevatedGrant && !anotherElevatedAssignment) {
+    throw new ConvexError("last_elevated_access");
+  }
+}
+
+async function replaceLegacyRole(
+  ctx: MutationCtx,
+  input: {
+    actor: Doc<"members">;
+    grant: Doc<"accessGrants">;
+    member: Doc<"members"> | null;
+    preset: StaffPreset;
+    organizationId: Doc<"organizations">["_id"];
+    assignmentId: Doc<"staffAssignments">["_id"];
+    reason?: string;
+    now: number;
+  },
+): Promise<void> {
+  if (input.grant.role === "member") return;
+  await assertLegacyRoleReplacementIsSafe(
+    ctx,
+    input.grant,
+    input.preset,
+    input.organizationId,
+  );
+
+  await ctx.db.patch(input.grant._id, {
+    role: "member",
+    updatedBy: input.actor._id,
+    updatedAt: input.now,
+  });
+  if (input.member) {
+    await ctx.db.patch(input.member._id, { role: "member", updatedAt: input.now });
+  }
+  await ctx.db.insert("auditLogs", {
+    actorMemberId: input.actor._id,
+    action: "accessGrant.legacyRoleReplaced",
+    entityType: "accessGrant",
+    entityId: input.grant._id,
+    before: { role: input.grant.role },
+    after: { role: "member", preset: input.preset, assignmentId: input.assignmentId },
+    summary: input.reason,
+    createdAt: input.now,
+  });
 }
 
 export const ensureBootstrap = mutation({
@@ -200,6 +282,7 @@ export const upsertAssignment = mutation({
     branchId: v.optional(v.id("branches")),
     validUntil: v.optional(v.number()),
     reason: v.optional(v.string()),
+    replaceLegacyRole: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const actor = await requireCapability(ctx, "assignment.manage", {
@@ -262,6 +345,18 @@ export const upsertAssignment = mutation({
 
     if (existing) {
       await ctx.db.patch(existing._id, patch);
+      if (args.replaceLegacyRole) {
+        await replaceLegacyRole(ctx, {
+          actor,
+          grant,
+          member,
+          preset,
+          organizationId: args.organizationId,
+          assignmentId: existing._id,
+          reason: args.reason?.trim() || undefined,
+          now,
+        });
+      }
       await ctx.db.insert("auditLogs", {
         actorMemberId: actor._id,
         action: "staffAssignment.update",
@@ -289,6 +384,18 @@ export const upsertAssignment = mutation({
       createdAt: now,
       updatedAt: now,
     });
+    if (args.replaceLegacyRole) {
+      await replaceLegacyRole(ctx, {
+        actor,
+        grant,
+        member,
+        preset,
+        organizationId: args.organizationId,
+        assignmentId: id,
+        reason: args.reason?.trim() || undefined,
+        now,
+      });
+    }
     await ctx.db.insert("auditLogs", {
       actorMemberId: actor._id,
       action: "staffAssignment.create",

@@ -1,6 +1,6 @@
 # Data, soukromí a bezpečnost
 
-Aktualizováno: 17. 7. 2026
+Aktualizováno: 18. 7. 2026
 
 Tento dokument popisuje implementované technické kontroly. Není právním stanoviskem ani sám o sobě neprohlašuje organizaci za plně GDPR compliant.
 
@@ -13,6 +13,7 @@ Tento dokument popisuje implementované technické kontroly. Není právním sta
 | `users` | Technická auth identita spravovaná Convex Auth. |
 | `accessGrants` | Allowlist, jméno, email, role, pobočka, stav a platnost členství. |
 | `otpRequestLimits` | Omezení frekvence OTP požadavků. |
+| `systemRateLimits` | Deployment-wide rozpočet OTP požadavků bez IP nebo identity zařízení. |
 | `members` | Vazba přihlášené identity na access grant a členský profil. |
 | `organizations` | Kořen organizačního scope. |
 | `staffAssignments` | Staff preset, organization/branch scope, stav a platnost. |
@@ -59,6 +60,7 @@ Aktuální validátory, indexy a optional pole jsou vždy v `convex/schema.ts`.
 
 - Veřejné QR nezobrazuje jméno, email, pobočku ani přesné datum členství.
 - Aplikační tabulky QR neukládají raw IP.
+- OTP ochrana kombinuje limit na allowlistovaný email a globální rozpočet; neukládá IP adresu.
 - QR secret ani short code se neukládají čitelně.
 - Management metriky jsou agregované a neobsahují členský leaderboard.
 - Support adresář nevrací historii nabídek ani QR použití.

@@ -1,6 +1,6 @@
 # Vývoj a release
 
-Aktualizováno: 17. 7. 2026
+Aktualizováno: 18. 7. 2026
 
 Všechny příkazy v tomto dokumentu se spouštějí z `nextjs-app/`.
 
@@ -43,6 +43,9 @@ Backend secrets patří do Convex environmentu. Jejich názvy jsou v [Data, souk
 | `npm run convex:codegen` | Vygeneruje API typy bez Convex typechecku. |
 | `npm run lint` | ESLint. |
 | `npm test` | Všechny Vitest a Convex integration testy. |
+| `npm run security:secrets` | Kontrola známých formátů privátních klíčů v trackovaných souborech. |
+| `npm run typecheck:convex` | Samostatný typecheck Convex backendu. |
+| `npm run verify:quick` | Secret scan, lint, testy a Convex typecheck bez produkčního buildu. |
 | `npm run build` | Lokální produkční Next.js build s TypeScriptem. |
 | `npm run test:vercel` | Čistý Vercel-like build a kontrola produkčního Convex fallbacku/PWA artefaktů. |
 | `npm run verify` | Lint, testy a `test:vercel`. |
@@ -108,7 +111,16 @@ npm run test:browser
 Remove-Item Env:PSYCHOCAS_BASE_URL
 ```
 
-`PSYCHOCAS_TEST_EMAIL` je volitelný a browser suite s ním pouze ověří přijetí OTP requestu; automaticky nečte emailovou schránku.
+`PSYCHOCAS_TEST_EMAIL` je volitelný a bez další hodnoty browser suite pouze ověří přijetí OTP requestu. Pro ruční plný test lze před spuštěním nastavit aktuální osmimístný `PSYCHOCAS_TEST_OTP` a `PSYCHOCAS_TEST_PROFILE` na `member`, `staff` nebo `board`. Kód se neukládá do souboru ani CI logu.
+
+## Automatické kontroly
+
+- `CI` spouští na každém PR a pushi do `main` rychlý quality gate a paralelní Vercel-like build.
+- `.next/cache` se obnovuje mezi buildy, ale předchozí build output se nikdy nepoužije jako výsledek nového buildu.
+- `CodeQL` kontroluje TypeScript na PR, `main` a jednou týdně.
+- `Production uptime` volá `/api/health` každých 15 minut.
+- `Production PWA smoke` jednou denně ověřuje mobilní viewporty, service worker, offline fallback, routy a hlavičky.
+- Dependabot otevírá pouze minor/patch aktualizace; major upgrady se dělají samostatným plánovaným sprintem.
 
 ## Produkční release
 
@@ -122,7 +134,13 @@ npm audit --omit=dev
 npx tsc -p convex/tsconfig.json --noEmit
 ```
 
-### 2. Convex
+### 2. Řízený release
+
+Preferovaný postup je GitHub workflow `Production release` nad konkrétním commitem. Workflow vyžaduje schválený `production` environment, znovu spustí rychlé kontroly, nasadí Convex a teprve potom sestaví a nasadí Vercel.
+
+Podrobný setup secrets, vypnutí duplicitního Vercel deploymentu a rotace klíčů je v [Security a recovery runbooku](security-recovery-runbook.md).
+
+### 3. Ruční Convex fallback
 
 ```powershell
 npm run convex:deploy
@@ -131,14 +149,14 @@ npx convex function-spec --prod
 
 Zkontrolovat production env pouze podle názvů, nikdy nevypisovat hodnoty do logu nebo PR.
 
-### 3. Vercel
+### 4. Ruční Vercel fallback
 
 - Vercel Root Directory musí být `nextjs-app`.
 - `vercel.json` používá `npm run build`.
 - Produkční public Convex URL musí směřovat na production deployment.
-- Push do propojené produkční větve spustí frontend deploy, pokud je GitHub integrace aktivní.
+- Automatický production deploy z Git integration vypnout po ověření workflow, jinak vzniká závod frontend/backend.
 
-### 4. Produkční smoke test
+### 5. Produkční smoke test
 
 1. Otevřít `/`, `/login`, `/privacy` a `/v`.
 2. Přihlásit testovacího aktivního člena.

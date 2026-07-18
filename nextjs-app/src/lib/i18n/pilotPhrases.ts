@@ -439,13 +439,25 @@ const explicitEnglishPhrases: Record<string, string> = {
   'Oprávnění bylo uloženo.': 'Permission saved.',
   'Oprávnění se nepodařilo uložit. Zkontroluj preset a scope.':
     'Permission could not be saved. Check the preset and scope.',
+  'Nahradit širokou roli tímto oprávněním': 'Replace the broad role with this permission',
+  'Základní role bude člen. Přístup zůstane jen podle vybraného presetu a rozsahu.':
+    'The base role will become member. Access will remain only through the selected preset and scope.',
   'Načítám administraci.': 'Loading administration.',
   'Administrace': 'Administration',
   'Tato část je dostupná pouze pro aktivní board a admin účet.':
     'This section is available only to active board and admin accounts.',
+  'Tato část vyžaduje aktivní oprávnění ke správě členství.':
+    'This section requires an active membership management permission.',
   'Správa členství': 'Membership management',
   'Přidávání členů, filtrování a hromadné změny přístupů pro pilotní provoz.':
     'Add members, filter records, and apply bulk access changes for the pilot.',
+  'Provozní stav pilotu': 'Pilot operational status',
+  'Expirované přístupy': 'Expired access',
+  'Končí do 14 dnů': 'Expiring within 14 days',
+  'Selhání doručení za 24 h': 'Delivery failures in 24 hours',
+  'Retence dat': 'Data retention',
+  'V pořádku': 'Healthy',
+  'Zkontrolovat': 'Check required',
   'Import členů z CSV': 'Import members from CSV',
   'Nejdřív zkontrolujeme všechny řádky. Bez potvrzení se nic neuloží.':
     'We will validate every row first. Nothing is saved without confirmation.',

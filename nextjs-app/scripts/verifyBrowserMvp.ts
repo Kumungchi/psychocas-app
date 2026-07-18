@@ -2,6 +2,8 @@ import { chromium } from '@playwright/test';
 
 const baseUrl = process.env.PSYCHOCAS_BASE_URL ?? 'http://localhost:3000';
 const testEmail = process.env.PSYCHOCAS_TEST_EMAIL?.trim();
+const testOtp = process.env.PSYCHOCAS_TEST_OTP?.trim();
+const testProfile = process.env.PSYCHOCAS_TEST_PROFILE?.trim() ?? 'member';
 const targetHostname = new URL(baseUrl).hostname;
 const isLocalTarget = ['localhost', '127.0.0.1', '::1'].includes(targetHostname);
 
@@ -26,6 +28,12 @@ const protectedRoutes = ['/home', '/workspace', '/admin'] as const;
 const removedRoutes = ['/demo', '/demo/member', '/demo/manager', '/demo/board'] as const;
 
 async function run() {
+  if (testOtp && !testEmail) throw new Error('PSYCHOCAS_TEST_OTP requires PSYCHOCAS_TEST_EMAIL');
+  if (testOtp && !/^\d{8}$/.test(testOtp)) throw new Error('PSYCHOCAS_TEST_OTP must contain eight digits');
+  if (!['member', 'staff', 'board'].includes(testProfile)) {
+    throw new Error('PSYCHOCAS_TEST_PROFILE must be member, staff, or board');
+  }
+
   const browser = await chromium.launch();
   const context = await browser.newContext({ serviceWorkers: 'allow', locale: 'cs-CZ' });
   const page = await context.newPage();
@@ -227,7 +235,7 @@ async function run() {
     }
     results.push({ check: 'login-info-dialog', viewport: '320x568', status: 'visible' });
 
-    if (testEmail) {
+    if (testEmail && !testOtp) {
       await page.getByRole('button', { name: 'Zavřít informace' }).click();
       await page.getByLabel('Členský email').fill(testEmail);
       await page.getByRole('button', { name: 'Poslat přihlašovací kód' }).click();
@@ -315,10 +323,11 @@ async function run() {
     await context.setOffline(false);
     results.push({ check: 'offline-navigation-fallback', status: 'visible' });
 
-    const [rootResponse, swResponse, manifestResponse] = await Promise.all([
+    const [rootResponse, swResponse, manifestResponse, healthResponse] = await Promise.all([
       fetch(`${baseUrl}/`),
       fetch(`${baseUrl}/sw.js`),
       fetch(`${baseUrl}/manifest.webmanifest`),
+      fetch(`${baseUrl}/api/health`),
     ]);
     const csp = rootResponse.headers.get('content-security-policy');
     if (!csp?.includes("default-src 'self'")) throw new Error('Missing Content-Security-Policy');
@@ -337,7 +346,61 @@ async function run() {
     if (!manifest.icons?.some((icon) => icon.purpose === 'maskable')) {
       throw new Error('Manifest is missing a maskable icon');
     }
+    if (!healthResponse.ok) throw new Error(`Health endpoint failed with ${healthResponse.status}`);
+    const health = (await healthResponse.json()) as {
+      status?: string;
+      service?: string;
+      dependencies?: { convex?: { status?: string } };
+    };
+    if (
+      health.status !== 'ok' ||
+      health.service !== 'psychocas-web' ||
+      health.dependencies?.convex?.status !== 'ok'
+    ) {
+      throw new Error(`Health endpoint is incomplete: ${JSON.stringify(health)}`);
+    }
+    if (!healthResponse.headers.get('cache-control')?.includes('no-store')) {
+      throw new Error('Health endpoint may be cached');
+    }
+    results.push({ check: 'web-and-convex-health', status: 'ok' });
     results.push({ check: 'security-and-pwa-headers', status: 'ok' });
+
+    if (testEmail && testOtp) {
+      const authContext = await browser.newContext({ serviceWorkers: 'allow', locale: 'cs-CZ' });
+      try {
+        const authPage = await authContext.newPage();
+        await authPage.goto(`${baseUrl}/login`, { waitUntil: 'domcontentloaded' });
+        await authPage.getByLabel('Členský email').fill(testEmail);
+        await authPage.getByRole('button', { name: 'Poslat přihlašovací kód' }).click();
+        await authPage.getByText('Kód z emailu', { exact: true }).waitFor({ state: 'visible' });
+        await authPage.getByLabel('Osmimístný přihlašovací kód').fill(testOtp);
+        await authPage.getByRole('button', { name: 'Ověřit a přihlásit' }).click();
+        await authPage.waitForURL((url) => url.pathname === '/home', { timeout: 20_000 });
+        await authPage.getByText('Digitální členství', { exact: true }).waitFor({ state: 'visible' });
+
+        const workspaceButton = authPage.getByRole('button', { name: /Pracovní prostor/ });
+        const adminButton = authPage.getByRole('button', { name: /Členové a přístupy/ });
+        if (testProfile === 'member') {
+          if ((await workspaceButton.count()) > 0 || (await adminButton.count()) > 0) {
+            throw new Error('Member test account received staff controls');
+          }
+        } else {
+          await workspaceButton.waitFor({ state: 'visible' });
+          if (testProfile === 'board') {
+            await adminButton.waitFor({ state: 'visible' });
+            await authPage.goto(`${baseUrl}/admin`, { waitUntil: 'domcontentloaded' });
+            await authPage.getByText('Správa členství', { exact: true }).waitFor({ state: 'visible' });
+          } else {
+            if ((await adminButton.count()) > 0) throw new Error('Staff test account received membership management');
+            await authPage.goto(`${baseUrl}/workspace`, { waitUntil: 'domcontentloaded' });
+            await authPage.getByText('Pracovní prostor', { exact: true }).waitFor({ state: 'visible' });
+          }
+        }
+        results.push({ check: 'authenticated-otp-and-role', profile: testProfile, status: 'ok' });
+      } finally {
+        await authContext.close();
+      }
+    }
 
     if (errors.length > 0) throw new Error(`Browser errors:\n${errors.join('\n')}`);
     process.stdout.write(`${JSON.stringify({ ok: true, results }, null, 2)}\n`);

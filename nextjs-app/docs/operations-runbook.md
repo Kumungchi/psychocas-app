@@ -1,6 +1,6 @@
 # Provozní runbook
 
-Aktualizováno: 17. 7. 2026
+Aktualizováno: 18. 7. 2026
 
 Tento dokument popisuje minimální provozní režim beta pilotu. Neobsahuje produkční tajemství ani osobní údaje. Konkrétní incident se eviduje mimo Git v omezeném board/admin prostoru.
 
@@ -31,6 +31,8 @@ Používat samostatné pilotní testovací účty a testovací partner/nabídku.
 
 ## Pravidelné kontroly
 
+Veřejný `/api/health` kontroluje dosažitelnost webu a Convexu a vrací pouze technický stav. GitHub ho volá každých 15 minut. Board dashboard zobrazuje agregované expirace, delivery failures a čerstvost retence bez identity členů.
+
 ### Denně během pilotu
 
 - dostupnost veřejného webu, loginu a QR validace,
@@ -46,6 +48,8 @@ Používat samostatné pilotní testovací účty a testovací partner/nabídku.
 - staff assignments, jejich scope a stále potřebné capabilities,
 - agregované metriky bez individuálního behaviorálního profilování,
 - výsledek retenční úlohy a stav posledního backup/recovery postupu poskytovatelů.
+
+Expirace kontrolovat nejméně 14, 7 a 1 den před koncem pilotních grantů. Prodloužení musí potvrdit board; expiraci neřešit plošným vypnutím kontroly platnosti.
 
 ### Měsíčně
 
