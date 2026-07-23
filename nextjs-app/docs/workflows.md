@@ -11,8 +11,11 @@ Aktualizováno: 17. 7. 2026
 5. Po úspěchu vznikne session a Next.js přesměruje na `/home`.
 6. `members.viewer` načte členský profil. `members.ensureViewer` bezpečně synchronizuje vazbu auth identity na allowlist.
 7. `iam.ensureBootstrap` připraví organizaci a kompatibilní staff assignment tam, kde je potřeba.
+8. Při úplně prvním vytvoření členského profilu se naplánuje samostatný uvítací email. Stav doručení se eviduje u člena, při dočasné chybě se odeslání nejvýše dvakrát zopakuje a další přihlášení nový uvítací email nevytváří.
 
 Email bez aktivního přístupu se nesmí přihlásit ani při znalosti dříve vydaného OTP.
+
+Design OTP a uvítacího emailu lze bezpečně zkontrolovat bez rozesílání příkazem `npm run emails:preview`. Vygenerovaný lokální přehled je v `.email-previews/index.html` a používá stejné buildery jako produkční odesílání.
 
 ## 2. Správa členství
 

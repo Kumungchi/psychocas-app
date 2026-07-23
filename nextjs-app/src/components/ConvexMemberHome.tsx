@@ -167,6 +167,13 @@ export default function ConvexMemberHome() {
   }, [authLoading, isAuthenticated, router]);
 
   useEffect(() => {
+    const requestedTab = new URLSearchParams(window.location.search).get('tab');
+    if (requestedTab === 'home' || requestedTab === 'offers' || requestedTab === 'card' || requestedTab === 'profile') {
+      setActiveTab(requestedTab);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!isAuthenticated || !viewer) return;
     if (viewer.status === 'not_allowed') {
       if (signOutStartedRef.current) return;
@@ -513,8 +520,7 @@ export default function ConvexMemberHome() {
           <button type="button" onClick={() => setActiveTab('home')} className="flex min-w-0 items-center gap-2 text-left" aria-label={tr('Domů')}>
             <PsychocasLogo size={38} />
             <span className="min-w-0">
-              <span className="block text-sm font-bold" style={{ color: colors.brandPrimary }}>Psychočas</span>
-              <span className="block truncate text-xs" style={{ color: colors.textSecondary }}>{member.branch?.name ?? tr('Členská aplikace')}</span>
+              <span className="block truncate text-xs font-semibold" style={{ color: colors.textSecondary }}>{member.branch?.name ?? tr('Členská aplikace')}</span>
             </span>
           </button>
           <div className="flex items-center gap-2">

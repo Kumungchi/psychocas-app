@@ -82,7 +82,7 @@ Route ochranu definuje `src/lib/auth/routePolicy.ts` a vynucuje `src/proxy.ts`.
 
 | Modul | Odpovědnost |
 |---|---|
-| `auth.ts`, `ResendOTP.ts`, `otp.ts` | Convex Auth, osmimístné OTP, Resend a rate limit. |
+| `auth.ts`, `ResendOTP.ts`, `otp.ts`, `email.ts`, `emailDelivery.ts` | Convex Auth, osmimístné OTP, první uvítací email, Resend a rate limit. |
 | `members.ts`, `access.ts` | Profil, access grants, efektivní stav členství a bulk změny. |
 | `iam.ts`, `permissions.ts`, `authz.ts` | Organizace, assignments, capabilities a scope kontrola. |
 | `partners.ts`, `offers.ts`, `approvals.ts` | Partner a offer lifecycle. |

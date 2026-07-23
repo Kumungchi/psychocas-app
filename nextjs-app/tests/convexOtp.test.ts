@@ -4,6 +4,7 @@ import {
   generateNumericOtp,
   sendOtpWithResend,
 } from '../convex/otp';
+import { buildWelcomeEmail } from '../convex/email';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -33,6 +34,20 @@ describe('Convex email OTP', () => {
     expect(email.text).toContain('12345678');
     expect(email.html).toContain('12345678');
     expect(email.html).not.toContain('href=');
+  });
+
+  it('builds a personalized welcome email and escapes member data', () => {
+    const email = buildWelcomeEmail({
+      fullName: '<Alex> Novák',
+      appUrl: 'https://app.psychocas.cz/home',
+      feedbackUrl: 'https://app.psychocas.cz/home?tab=profile',
+    });
+
+    expect(email.subject).toContain('Vítej');
+    expect(email.text).toContain('Ahoj <Alex>,');
+    expect(email.html).toContain('Ahoj &lt;Alex&gt;,');
+    expect(email.html).not.toContain('Ahoj <Alex>,');
+    expect(email.html).toContain('Napiš nám feedback');
   });
 
   it('calls Resend directly with the Convex-side credential', async () => {

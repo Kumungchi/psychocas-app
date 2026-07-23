@@ -16,7 +16,7 @@ export default function PrivacyPage() {
         <div className="mx-auto flex h-16 max-w-3xl items-center gap-3 px-4 sm:px-6">
           <Link href="/home" className="flex h-10 w-10 items-center justify-center border" aria-label={tr('Zpět')} style={{ borderColor: colors.border, borderRadius: radii.md }}><ArrowLeft size={19} /></Link>
           <PsychocasLogo size={38} />
-          <div><p className="text-sm font-bold" style={{ color: colors.brandPrimary }}>Psychočas</p><h1 className="text-base font-semibold" style={{ color: colors.textPrimary }}>{tr('Ochrana osobních údajů')}</h1></div>
+          <div><h1 className="text-base font-semibold" style={{ color: colors.textPrimary }}>{tr('Ochrana osobních údajů')}</h1></div>
         </div>
       </header>
       <div className="mx-auto max-w-3xl space-y-8 px-4 py-7 sm:px-6 sm:py-10">

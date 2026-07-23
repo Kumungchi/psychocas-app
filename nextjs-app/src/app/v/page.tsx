@@ -98,7 +98,6 @@ export default function PublicValidationPage() {
         <header className="mb-5 flex items-center gap-3 px-1">
           <PsychocasLogo size={42} />
           <div>
-            <p className="text-sm font-bold" style={{ color: colors.brandPrimary }}>Psychočas</p>
             <h1 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>{tr('Ověření členské výhody')}</h1>
           </div>
         </header>

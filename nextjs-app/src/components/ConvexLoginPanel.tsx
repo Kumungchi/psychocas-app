@@ -263,12 +263,6 @@ export default function ConvexLoginPanel() {
           <div className="flex min-w-0 items-center gap-3">
             <PsychocasLogo size={48} gradientId="convexLoginLogo" />
             <div className="min-w-0">
-              <p
-                className="text-sm font-semibold"
-                style={{ color: colors.brandPrimary, fontFamily: typography.heading }}
-              >
-                Psychočas
-              </p>
               <h1
                 className="text-xl font-semibold"
                 style={{ color: colors.textPrimary, fontFamily: typography.heading }}

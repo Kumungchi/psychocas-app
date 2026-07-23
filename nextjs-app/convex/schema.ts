@@ -175,6 +175,11 @@ export default defineSchema({
     status: accessStatus,
     lastSyncedAt: v.optional(v.number()),
     lastSeenAt: v.optional(v.number()),
+    welcomeEmailStatus: v.optional(
+      v.union(v.literal("scheduled"), v.literal("sending"), v.literal("sent"), v.literal("failed")),
+    ),
+    welcomeEmailAttempts: v.optional(v.number()),
+    welcomeEmailSentAt: v.optional(v.number()),
     ...timestamps,
   })
     .index("by_userId", ["userId"])

@@ -12,6 +12,7 @@
     "security:secrets": "node scripts/scanTrackedSecrets.mjs",
     "typecheck:convex": "tsc -p convex/tsconfig.json --noEmit",
     "screenshots": "tsx scripts/screenshot-product.ts",
+    "emails:preview": "tsx scripts/previewEmails.ts",
     "convex:dev": "convex dev",
     "convex:codegen": "convex codegen --typecheck disable",
     "convex:deploy": "convex deploy --typecheck enable --codegen enable",

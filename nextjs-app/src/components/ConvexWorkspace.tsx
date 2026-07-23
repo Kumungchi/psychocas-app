@@ -529,7 +529,7 @@ export default function ConvexWorkspace() {
         <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 sm:px-6">
           <button type="button" onClick={() => router.push('/home')} className="flex h-10 w-10 shrink-0 items-center justify-center border" aria-label={tr('Zpět do aplikace')} style={{ borderColor: colors.border, borderRadius: radii.md }}><ArrowLeft size={19} /></button>
           <PsychocasLogo size={38} />
-          <div className="min-w-0 flex-1"><p className="text-sm font-bold" style={{ color: colors.brandPrimary }}>Psychočas</p><h1 className="truncate text-base font-semibold" style={{ color: colors.textPrimary }}>{tr('Pracovní prostor')}</h1></div>
+          <div className="min-w-0 flex-1"><h1 className="truncate text-base font-semibold" style={{ color: colors.textPrimary }}>{tr('Pracovní prostor')}</h1></div>
           <button type="button" onClick={() => window.location.reload()} className="flex h-10 w-10 items-center justify-center border" aria-label={tr('Obnovit')} title={tr('Obnovit')} style={{ borderColor: colors.border, borderRadius: radii.md }}><RefreshCcw size={18} /></button>
         </div>
       </header>

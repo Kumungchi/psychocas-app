@@ -61,10 +61,6 @@ export default function RootPage() {
             aria-label={tr('Psychočas úvod')}
           >
             <PsychocasLogo size={46} gradientId="landingLogo" />
-            <div>
-              <p className="text-sm font-semibold text-[#1d4f7d]">Psychočas</p>
-              <p className="text-xs text-[#607086]">{tr('členská aplikace')}</p>
-            </div>
           </button>
           <Button
             type="button"

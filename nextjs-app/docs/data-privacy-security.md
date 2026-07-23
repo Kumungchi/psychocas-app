@@ -14,7 +14,7 @@ Tento dokument popisuje implementované technické kontroly. Není právním sta
 | `accessGrants` | Allowlist, jméno, email, role, pobočka, stav a platnost členství. |
 | `otpRequestLimits` | Omezení frekvence OTP požadavků. |
 | `systemRateLimits` | Deployment-wide rozpočet OTP požadavků bez IP nebo identity zařízení. |
-| `members` | Vazba přihlášené identity na access grant a členský profil. |
+| `members` | Vazba přihlášené identity na access grant, členský profil a minimální stav doručení prvního uvítacího emailu. |
 | `organizations` | Kořen organizačního scope. |
 | `staffAssignments` | Staff preset, organization/branch scope, stav a platnost. |
 | `branches` | Pobočky Psychočasu. |

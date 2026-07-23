@@ -1,3 +1,5 @@
+import { sendEmailWithResend } from "./email";
+
 export const OTP_LENGTH = 8;
 export const OTP_MAX_AGE_SECONDS = 10 * 60;
 
@@ -46,33 +48,28 @@ export function buildOtpEmail(token: string) {
     ].join("\n"),
     html: `<!doctype html>
 <html lang="cs">
-  <body style="margin:0;background:#f6f8fb;font-family:Arial,'Helvetica Neue',sans-serif;color:#172033">
+  <head><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"></head>
+  <body style="margin:0;background:#f3f7fb;font-family:Arial,'Helvetica Neue',sans-serif;color:#172033">
     <div style="display:none;max-height:0;overflow:hidden;color:transparent">Váš přihlašovací kód do členské aplikace Psychočas.</div>
     <div style="max-width:560px;margin:0 auto;padding:32px 20px">
-      <div style="background:#ffffff;border:1px solid #dde7f0;border-radius:8px;padding:28px">
-        <div style="margin:0 0 24px">
-          <p style="margin:0;color:#1d4f7d;font-size:28px;line-height:1;font-weight:800;letter-spacing:1.5px">PSYCHO<span style="color:#049edb">ČAS</span></p>
-          <div style="width:100%;height:1px;background:#1d4f7d;margin:10px 0 8px"></div>
-          <p style="margin:0;color:#1d4f7d;font-size:11px;font-weight:700;letter-spacing:3px">PSYCHOLOGICKÁ ČESKÁ ASOCIACE STUDENTŮ</p>
+      <div style="overflow:hidden;background:#ffffff;border:1px solid #dce7f1;border-radius:18px;box-shadow:0 8px 28px rgba(18,56,91,.08)">
+        <div style="padding:28px;background:#12385b">
+          <p style="margin:0;color:#ffffff;font-size:26px;line-height:1;font-weight:800;letter-spacing:1.4px">PSYCHO<span style="color:#42c4ef">ČAS</span></p>
+          <p style="margin:10px 0 0;color:#cce9f6;font-size:10px;font-weight:700;letter-spacing:2.3px">PSYCHOLOGICKÁ ČESKÁ ASOCIACE STUDENTŮ</p>
         </div>
-        <h1 style="margin:0 0 14px;font-size:22px;line-height:1.3;color:#172033">Přihlašovací kód</h1>
-        <p style="margin:0 0 22px;color:#536273;line-height:1.6">Zadejte tento kód v členské aplikaci Psychočas:</p>
-        <div style="padding:16px;background:#eaf5ff;border:1px solid #d8ecfa;border-radius:8px;text-align:center;color:#12385b;font-family:'SFMono-Regular',Consolas,monospace;font-size:30px;font-weight:700;letter-spacing:6px">${token}</div>
-        <p style="margin:22px 0 0;color:#536273;font-size:14px;line-height:1.6">Kód platí 10 minut a lze jej použít pouze jednou. Pokud jste o přihlášení nežádali, email ignorujte.</p>
+        <div style="padding:30px 28px 32px">
+          <p style="margin:0 0 10px;color:#049edb;font-size:12px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase">Bezpečné přihlášení</p>
+          <h1 style="margin:0 0 14px;font-size:26px;line-height:1.3;color:#172033">Tvůj přihlašovací kód</h1>
+          <p style="margin:0 0 22px;color:#536273;line-height:1.6">Zkopíruj kód a vlož ho do členské aplikace Psychočas:</p>
+          <div style="padding:18px 12px;background:#eef8fd;border:1px solid #d8ecfa;border-radius:12px;text-align:center;color:#12385b;font-family:'SFMono-Regular',Consolas,monospace;font-size:30px;font-weight:700;letter-spacing:6px">${token}</div>
+          <p style="margin:22px 0 0;color:#536273;font-size:14px;line-height:1.6">Kód platí <strong>10 minut</strong> a lze jej použít pouze jednou.</p>
+          <p style="margin:10px 0 0;color:#7a8998;font-size:13px;line-height:1.6">Pokud ses přihlásit nepokoušel/a, e-mail můžeš bezpečně ignorovat.</p>
+        </div>
       </div>
     </div>
   </body>
 </html>`,
   };
-}
-
-async function getResendErrorName(response: Response): Promise<string | null> {
-  try {
-    const payload = (await response.clone().json()) as { name?: unknown };
-    return typeof payload.name === "string" ? payload.name : null;
-  } catch {
-    return null;
-  }
 }
 
 export async function sendOtpWithResend(
@@ -84,39 +81,6 @@ export async function sendOtpWithResend(
   },
   fetchImpl: typeof fetch = fetch,
 ): Promise<void> {
-  const apiKey = input.apiKey.trim();
-  const from = input.from.trim();
-  const to = input.to.trim().toLowerCase();
-
-  if (!apiKey || !from || !to) {
-    throw new Error("email_provider_unavailable");
-  }
-
   const email = buildOtpEmail(input.token);
-  const response = await fetchImpl("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "User-Agent": "Psychoapp/1.0",
-    },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject: email.subject,
-      text: email.text,
-      html: email.html,
-    }),
-  });
-
-  if (!response.ok) {
-    const providerErrorName = await getResendErrorName(response);
-    console.warn("Resend email delivery failed", {
-      status: response.status,
-      providerErrorName,
-    });
-    throw new Error(
-      `email_delivery_failed:${response.status}${providerErrorName ? `:${providerErrorName}` : ""}`,
-    );
-  }
+  await sendEmailWithResend({ ...input, email }, fetchImpl);
 }

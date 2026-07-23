@@ -1,5 +1,6 @@
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { effectiveAccessStatus, normalizeEmail } from "./access";
 
 const BOOTSTRAP_MEMBERSHIP_MS = 365 * 24 * 60 * 60 * 1000;
@@ -139,12 +140,27 @@ export async function syncAuthUserToAccessGrant(
   };
 
   const existing = byUser ?? byGrant;
-  const memberId = existing
-    ? (await ctx.db.patch(existing._id, memberPatch), existing._id)
-    : await ctx.db.insert("members", {
-        ...memberPatch,
-        createdAt: now,
-      });
+  const shouldScheduleWelcome = !existing?.welcomeEmailStatus;
+  let memberId: Id<"members">;
+  if (existing) {
+    await ctx.db.patch(existing._id, {
+      ...memberPatch,
+      ...(shouldScheduleWelcome
+        ? { welcomeEmailStatus: "scheduled" as const, welcomeEmailAttempts: 0 }
+        : {}),
+    });
+    memberId = existing._id;
+  } else {
+    memberId = await ctx.db.insert("members", {
+      ...memberPatch,
+      welcomeEmailStatus: "scheduled",
+      welcomeEmailAttempts: 0,
+      createdAt: now,
+    });
+  }
+  if (shouldScheduleWelcome || !existing) {
+    await ctx.scheduler.runAfter(0, internal.emailDelivery.sendWelcome, { memberId });
+  }
 
   await ctx.db.patch(userId, {
     fullName: accessGrant.fullName,

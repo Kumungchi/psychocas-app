@@ -7,14 +7,13 @@ import {
   OTP_MAX_AGE_SECONDS,
   sendOtpWithResend,
 } from "./otp";
-
-const defaultSender = "Psychočas <no-reply@psychocas.cz>";
+import { DEFAULT_EMAIL_SENDER } from "./email";
 
 export const ResendOTP = Email<DataModel>({
   id: "resend-otp",
   name: "Psychočas email OTP",
   apiKey: process.env.AUTH_RESEND_KEY ?? "",
-  from: process.env.AUTH_EMAIL_FROM ?? defaultSender,
+  from: process.env.AUTH_EMAIL_FROM ?? DEFAULT_EMAIL_SENDER,
   maxAge: OTP_MAX_AGE_SECONDS,
   generateVerificationToken: async () => generateNumericOtp(),
   async sendVerificationRequest(
@@ -34,7 +33,7 @@ export const ResendOTP = Email<DataModel>({
 
     await sendOtpWithResend({
       apiKey: provider.apiKey ?? "",
-      from: provider.from ?? defaultSender,
+      from: provider.from ?? DEFAULT_EMAIL_SENDER,
       to: identifier,
       token,
     });
