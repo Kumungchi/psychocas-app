@@ -125,6 +125,7 @@ export default function ConvexMemberHome() {
   const liveOffers = useQuery(api.offers.listForViewer, viewer?.status === 'ready' && iamReady ? {} : 'skip');
   const currentToken = useQuery(api.qr.current, viewer?.status === 'ready' && iamReady ? {} : 'skip');
   const privacy = useQuery(api.privacy.myOverview, viewer?.status === 'ready' && iamReady ? {} : 'skip');
+  const myFeedback = useQuery(api.feedback.mine, viewer?.status === 'ready' && iamReady ? {} : 'skip');
   const upcomingEvents = useQuery(api.events.listForViewer, viewer?.status === 'ready' && iamReady ? {} : 'skip');
   const notificationConfig = useQuery(api.notifications.configuration, viewer?.status === 'ready' && iamReady ? {} : 'skip');
   const issueToken = useAction(api.qrActions.issue);
@@ -474,7 +475,7 @@ export default function ConvexMemberHome() {
     try {
       await submitFeedback({ category: 'app', message: feedbackText });
       setFeedbackText('');
-      setProfileNotice({ type: 'success', text: 'Feedback byl odeslán.' });
+      setProfileNotice({ type: 'success', text: 'Feedback byl uložen.' });
     } catch {
       setProfileNotice({ type: 'error', text: 'Feedback se nepodařilo odeslat.' });
     } finally {
@@ -748,6 +749,21 @@ export default function ConvexMemberHome() {
               <div className="mb-3 flex items-center gap-2"><MessageSquareText size={19} style={{ color: colors.brandPrimary }} /><h2 className="text-base font-semibold">{tr('Zpětná vazba')}</h2></div>
               <textarea value={feedbackText} onChange={(event) => setFeedbackText(event.target.value)} rows={3} maxLength={2000} placeholder={tr('Co by ti v aplikaci pomohlo? Nevkládej citlivé osobní údaje.')} className="w-full resize-y border p-3 text-base" style={{ borderColor: colors.border, borderRadius: radii.md }} />
               <button type="button" disabled={Boolean(profileAction) || feedbackText.trim().length < 10} onClick={() => void handleFeedbackSubmit()} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 font-semibold text-white" style={{ borderRadius: radii.md, background: profileAction || feedbackText.trim().length < 10 ? colors.textSecondary : colors.brandPrimary }}>{profileAction === 'feedback' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send size={18} />} {tr('Odeslat feedback')}</button>
+              {(myFeedback?.length ?? 0) > 0 && (
+                <div className="mt-4 border-t pt-3" style={{ borderColor: colors.border }}>
+                  <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: colors.textSecondary }}>{tr('Uložený feedback')}</p>
+                  <div className="mt-2 space-y-2">
+                    {myFeedback?.slice(0, 3).map((entry) => (
+                      <div key={entry._id} className="border px-3 py-2 text-sm" style={{ borderColor: colors.border, borderRadius: radii.sm, background: colors.backgroundMuted }}>
+                        <p className="line-clamp-2" style={{ color: colors.textPrimary }}>{entry.message}</p>
+                        <p className="mt-1 text-xs" style={{ color: colors.textSecondary }}>
+                          {new Intl.DateTimeFormat(getDateLocale(locale), { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(entry.createdAt))} · {tr(entry.status === 'open' ? 'Přijato' : entry.status === 'reviewing' ? 'V posouzení' : 'Vyřízeno')}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </AppSection>
 
             <AppSection className="px-4 py-4">

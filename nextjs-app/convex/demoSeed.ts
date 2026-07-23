@@ -37,9 +37,16 @@ type DemoSeedResult = {
   accessGrantId: Id<"accessGrants">;
   memberId: Id<"members">;
   assignmentCount: number;
+  memberProvisionedCount: number;
   publishedOfferCount: number;
   welcomeScheduled: boolean;
 };
+
+const additionalMember = v.object({
+  email: v.string(),
+  fullName: v.string(),
+  branchCity: v.string(),
+});
 
 export const apply = internalMutation({
   args: {
@@ -47,6 +54,7 @@ export const apply = internalMutation({
     targetFullName: v.string(),
     branchCity: v.string(),
     sendWelcome: v.boolean(),
+    additionalMembers: v.optional(v.array(additionalMember)),
   },
   handler: async (ctx, args): Promise<DemoSeedResult> => {
     const now = Date.now();
@@ -178,6 +186,65 @@ export const apply = internalMutation({
 
     if (args.sendWelcome && member.welcomeEmailStatus === "scheduled") {
       await ctx.scheduler.runAfter(0, internal.emailDelivery.sendWelcome, { memberId: member._id });
+    }
+
+    let memberProvisionedCount = 0;
+    for (const fixture of args.additionalMembers ?? []) {
+      const fixtureEmail = normalizeEmail(fixture.email);
+      const fixtureFullName = fixture.fullName.trim();
+      const fixtureBranchId = branches.get(fixture.branchCity.trim());
+      if (!fixtureEmail || !fixtureFullName || !fixtureBranchId) {
+        throw new ConvexError("invalid_additional_member");
+      }
+
+      let fixtureGrant = await ctx.db
+        .query("accessGrants")
+        .withIndex("by_email", (q) => q.eq("email", fixtureEmail))
+        .unique();
+      if (fixtureGrant) {
+        await ctx.db.patch(fixtureGrant._id, {
+          fullName: fixtureFullName,
+          branchId: fixtureBranchId,
+          status: "active",
+          notes: "Člen doplněný při pilotním provisioningu.",
+          updatedBy: member._id,
+          updatedAt: now,
+        });
+        fixtureGrant = await ctx.db.get(fixtureGrant._id);
+      } else {
+        const fixtureGrantId = await ctx.db.insert("accessGrants", {
+          email: fixtureEmail,
+          fullName: fixtureFullName,
+          role: "member",
+          branchId: fixtureBranchId,
+          membershipUntil: now + 365 * DAY_MS,
+          status: "active",
+          source: "manual",
+          notes: "Člen doplněný při pilotním provisioningu.",
+          createdBy: member._id,
+          createdAt: now,
+          updatedAt: now,
+        });
+        fixtureGrant = await ctx.db.get(fixtureGrantId);
+      }
+      if (!fixtureGrant) throw new ConvexError("additional_member_unavailable");
+
+      const fixtureMember = await ctx.db
+        .query("members")
+        .withIndex("by_accessGrantId", (q) => q.eq("accessGrantId", fixtureGrant!._id))
+        .unique();
+      if (fixtureMember) {
+        await ctx.db.patch(fixtureMember._id, {
+          email: fixtureEmail,
+          fullName: fixtureFullName,
+          role: fixtureGrant.role,
+          branchId: fixtureBranchId,
+          membershipUntil: fixtureGrant.membershipUntil,
+          status: "active",
+          updatedAt: now,
+        });
+      }
+      memberProvisionedCount += 1;
     }
 
     let assignmentCount = 0;
@@ -527,6 +594,7 @@ export const apply = internalMutation({
       accessGrantId: accessGrant._id,
       memberId: member._id,
       assignmentCount,
+      memberProvisionedCount,
       publishedOfferCount: 3,
       welcomeScheduled: args.sendWelcome && member.welcomeEmailStatus === "scheduled",
     };
@@ -540,6 +608,7 @@ export const run = action({
     targetFullName: v.string(),
     branchCity: v.string(),
     sendWelcome: v.boolean(),
+    additionalMembers: v.optional(v.array(additionalMember)),
   },
   handler: async (ctx, args): Promise<DemoSeedResult> => {
     const expected = process.env.PSYCHOCAS_SEED_TOKEN;
@@ -551,6 +620,7 @@ export const run = action({
       targetFullName: args.targetFullName,
       branchCity: args.branchCity,
       sendWelcome: args.sendWelcome,
+      additionalMembers: args.additionalMembers,
     });
   },
 });

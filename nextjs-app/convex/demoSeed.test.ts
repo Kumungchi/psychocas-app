@@ -12,11 +12,19 @@ describe("demo data seed", () => {
       targetFullName: "Matias Bunnik",
       branchCity: "Ostrava",
       sendWelcome: false,
+      additionalMembers: [
+        {
+          email: "new.member@example.test",
+          fullName: "Nová Členka",
+          branchCity: "České Budějovice",
+        },
+      ],
     };
 
     await expect(t.mutation(internal.demoSeed.apply, args)).resolves.toMatchObject({
       status: "seeded",
       assignmentCount: 8,
+      memberProvisionedCount: 1,
       publishedOfferCount: 3,
       welcomeScheduled: false,
     });
@@ -36,7 +44,14 @@ describe("demo data seed", () => {
       const offers = await ctx.db.query("offers").collect();
       const partners = await ctx.db.query("partners").collect();
       const events = await ctx.db.query("events").collect();
-      return { grant, branch, assignments, offers, partners, events };
+      const additionalGrant = await ctx.db
+        .query("accessGrants")
+        .withIndex("by_email", (q) => q.eq("email", "new.member@example.test"))
+        .unique();
+      const additionalBranch = additionalGrant?.branchId
+        ? await ctx.db.get(additionalGrant.branchId)
+        : null;
+      return { grant, branch, assignments, offers, partners, events, additionalGrant, additionalBranch };
     });
 
     expect(persisted.branch).toMatchObject({ name: "Ostrava", active: true });
@@ -45,5 +60,11 @@ describe("demo data seed", () => {
     expect(persisted.offers).toHaveLength(6);
     expect(persisted.offers.filter((offer) => offer.status === "published")).toHaveLength(3);
     expect(persisted.events).toHaveLength(2);
+    expect(persisted.additionalGrant).toMatchObject({
+      fullName: "Nová Členka",
+      role: "member",
+      status: "active",
+    });
+    expect(persisted.additionalBranch).toMatchObject({ name: "České Budějovice" });
   });
 });
