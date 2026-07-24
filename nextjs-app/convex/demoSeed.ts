@@ -46,6 +46,7 @@ const additionalMember = v.object({
   email: v.string(),
   fullName: v.string(),
   branchCity: v.string(),
+  membershipUntil: v.optional(v.number()),
 });
 
 export const apply = internalMutation({
@@ -196,6 +197,12 @@ export const apply = internalMutation({
       if (!fixtureEmail || !fixtureFullName || !fixtureBranchId) {
         throw new ConvexError("invalid_additional_member");
       }
+      if (
+        fixture.membershipUntil !== undefined &&
+        (!Number.isFinite(fixture.membershipUntil) || fixture.membershipUntil < now)
+      ) {
+        throw new ConvexError("invalid_additional_member_membership_date");
+      }
 
       let fixtureGrant = await ctx.db
         .query("accessGrants")
@@ -205,6 +212,7 @@ export const apply = internalMutation({
         await ctx.db.patch(fixtureGrant._id, {
           fullName: fixtureFullName,
           branchId: fixtureBranchId,
+          membershipUntil: fixture.membershipUntil ?? fixtureGrant.membershipUntil,
           status: "active",
           notes: "Člen doplněný při pilotním provisioningu.",
           updatedBy: member._id,
@@ -217,7 +225,7 @@ export const apply = internalMutation({
           fullName: fixtureFullName,
           role: "member",
           branchId: fixtureBranchId,
-          membershipUntil: now + 365 * DAY_MS,
+          membershipUntil: fixture.membershipUntil ?? now + 365 * DAY_MS,
           status: "active",
           source: "manual",
           notes: "Člen doplněný při pilotním provisioningu.",

@@ -17,6 +17,7 @@ describe("demo data seed", () => {
           email: "new.member@example.test",
           fullName: "Nová Členka",
           branchCity: "České Budějovice",
+          membershipUntil: 1_900_000_000_000,
         },
       ],
     };
@@ -64,6 +65,7 @@ describe("demo data seed", () => {
       fullName: "Nová Členka",
       role: "member",
       status: "active",
+      membershipUntil: 1_900_000_000_000,
     });
     expect(persisted.additionalBranch).toMatchObject({ name: "České Budějovice" });
   });
