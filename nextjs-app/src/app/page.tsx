@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import {
   BadgeCheck,
   BarChart3,
+  BookOpen,
   LogIn,
   MessageSquareText,
   QrCode,
@@ -112,6 +113,13 @@ export default function RootPage() {
               >
                 <ShieldCheck className="h-5 w-5" aria-hidden />
                 {tr('Ochrana soukromí')}
+              </a>
+              <a
+                href="/docs"
+                className="ml-4 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#1d4f7d] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#049edb]"
+              >
+                <BookOpen className="h-5 w-5" aria-hidden />
+                {tr('Nápověda pro správce')}
               </a>
             </div>
           </div>

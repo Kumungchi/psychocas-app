@@ -6,6 +6,7 @@ import { useMutation, useQuery } from 'convex/react';
 import { useRouter } from 'next/navigation';
 import {
   Activity,
+  BookOpen,
   Building2,
   CalendarDays,
   Check,
@@ -537,15 +538,26 @@ export default function ConvexAdminPanel() {
               {tr('Přidávání členů, filtrování a hromadné změny přístupů pro pilotní provoz.')}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className="inline-flex items-center justify-center gap-2"
-            style={softButtonStyle()}
-          >
-            <LogOut className="h-4 w-4" />
-            {tr('Odhlásit')}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => router.push('/docs')}
+              className="inline-flex items-center justify-center gap-2"
+              style={softButtonStyle()}
+            >
+              <BookOpen className="h-4 w-4" />
+              {tr('Nápověda')}
+            </button>
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="inline-flex items-center justify-center gap-2"
+              style={softButtonStyle()}
+            >
+              <LogOut className="h-4 w-4" />
+              {tr('Odhlásit')}
+            </button>
+          </div>
         </header>
 
         {message && (

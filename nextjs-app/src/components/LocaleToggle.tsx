@@ -1,6 +1,7 @@
 'use client';
 
 import { Languages } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 import useLocale from '@/hooks/useLocale';
 import { supportedLocales, type Locale } from '@/lib/i18n/config';
 
@@ -10,7 +11,10 @@ const localeLabels: Record<Locale, string> = {
 };
 
 export default function LocaleToggle() {
+  const pathname = usePathname();
   const { locale, setLocale, tr } = useLocale();
+
+  if (pathname === '/docs') return null;
 
   return (
     <div

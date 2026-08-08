@@ -6,6 +6,8 @@ Tento adresář je autoritativní technická a produktová dokumentace aktivní 
 
 ## Rychlá orientace
 
+Pro netechnické správce je přímo v aplikaci dostupný vizuální průvodce na veřejné route `/docs`. Odkaz na něj je v administraci, pracovním prostoru a na úvodní stránce. Průvodce používá stejné názvy ovládacích prvků jako aplikace a neobsahuje osobní údaje ani provozní tajemství.
+
 | Potřebuji zjistit | Dokument |
 |---|---|
 | Co aplikace umí a kdo ji používá | [Produkt a role](product-and-roles.md) |

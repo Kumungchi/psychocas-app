@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   BarChart3,
+  BookOpen,
   CheckCircle2,
   BellRing,
   CalendarDays,
@@ -530,6 +531,7 @@ export default function ConvexWorkspace() {
           <button type="button" onClick={() => router.push('/home')} className="flex h-10 w-10 shrink-0 items-center justify-center border" aria-label={tr('Zpět do aplikace')} style={{ borderColor: colors.border, borderRadius: radii.md }}><ArrowLeft size={19} /></button>
           <PsychocasLogo size={38} />
           <div className="min-w-0 flex-1"><h1 className="truncate text-base font-semibold" style={{ color: colors.textPrimary }}>{tr('Pracovní prostor')}</h1></div>
+          <button type="button" onClick={() => router.push('/docs')} className="flex h-10 w-10 items-center justify-center border" aria-label={tr('Nápověda')} title={tr('Nápověda')} style={{ borderColor: colors.border, borderRadius: radii.md }}><BookOpen size={18} /></button>
           <button type="button" onClick={() => window.location.reload()} className="flex h-10 w-10 items-center justify-center border" aria-label={tr('Obnovit')} title={tr('Obnovit')} style={{ borderColor: colors.border, borderRadius: radii.md }}><RefreshCcw size={18} /></button>
         </div>
       </header>

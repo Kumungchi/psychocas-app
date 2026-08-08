@@ -444,3 +444,31 @@ body {
   transform: translateY(-2px);
   border-color: rgba(4, 158, 219, 0.1);
 }
+
+@media print {
+  main[data-admin-guide] {
+    background: #ffffff !important;
+  }
+
+  main[data-admin-guide] > header,
+  main[data-admin-guide] aside,
+  main[data-admin-guide] nav,
+  main[data-admin-guide] button,
+  main[data-admin-guide] [aria-label='Rychlé volby'] {
+    display: none !important;
+  }
+
+  main[data-admin-guide] > div {
+    display: block !important;
+    max-width: none !important;
+  }
+
+  main[data-admin-guide] article {
+    border-color: #d6dee7 !important;
+    box-shadow: none !important;
+  }
+
+  main[data-admin-guide] article + article {
+    break-before: page;
+  }
+}
